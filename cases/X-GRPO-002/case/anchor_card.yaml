@@ -1,0 +1,63 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: X-GRPO-002
+readiness: deferred
+title: Post-training RL objective for verifiable rewards
+version: v2026.07
+cutoff: '2026-07-01'
+track: X
+track_name: Training recipes / RL / PEFT
+group: method
+priority: P1
+type: T3
+subset: main
+difficulty: medium
+budget_tier: high
+status: deferred
+anchor:
+  name: DeepSeekMath (GRPO)
+  arxiv: '2402.03300'
+  verify_before_freeze: true
+task: Post-training RL objective for verifiable rewards
+metrics: Math accuracy; reward-hacking check
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 8
+  verify: 6
+  ref: 60
+  risk:
+  - variance
+  - scale_mismatch
+  plan: 0.5B instruct model, verifiable tasks such as Countdown, rollouts ≤ 512 tokens, 200 steps, 3 seeds
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_base_model_and_task_split
+- rollout_or_reward_environment_for_rl_cases
+- hidden_reward_hacking_checks
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: posttrain_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 8
+      unit: GPU-h
+    per_submission_verify:
+      value: 6
+      unit: GPU-h
+    reference_precompute:
+      value: 60
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: high

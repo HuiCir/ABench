@@ -1,0 +1,29 @@
+contract_version: abench-scaffold-v1
+case_id: T-MM-004
+status: scaffold
+simulated_outputs: false
+real_inputs_required: true
+blocked_inputs:
+- frozen_vision_text_encoder_and_tokenizer_hash
+- offline_image_text_bundle_and_hidden_compositions
+- fixed_gpu_timer_and_retrieval_evaluator
+metrics:
+- retrieval_recall_at_10
+- compositional_recall_at_10
+- trainable_params_m
+- peak_memory_gb
+- inference_latency_ms
+objective: pareto_frontier
+required_provenance:
+- runner_version
+- config_hash
+- resource_hash
+- artifact_hash
+formal_scoring: deferred_until_real_calibration
+objective_mode: pareto
+resource_profile: single_gpu_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+report_profile: design_report_v2
+report_focus: architecture_design

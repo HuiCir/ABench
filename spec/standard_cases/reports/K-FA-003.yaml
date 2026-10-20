@@ -1,0 +1,87 @@
+case: K-FA-003
+title: Blockwise Attention with an Online Softmax in Plain PyTorch
+abstract: This submission gives the algorithmic skeleton of FlashAttention without a fused kernel. Queries are processed in
+  blocks of 256 and keys and values are streamed in blocks of 256; a running row maximum and normaliser implement the online
+  softmax [@milakov2018online], so the softmax is exact while the T × T score matrix is never materialised [@dao2022flashattention;@rabe2021selfattention].
+  Each block is computed with ordinary PyTorch operations in fp32, so the result is accurate but every block round-trips through
+  device memory; fusing the loop into one kernel, as the anchor does, is what entries are expected to do.
+sections:
+- title: Introduction
+  paras:
+  - 'Attention is limited by memory traffic rather than arithmetic for typical sequence lengths: the naive algorithm writes
+    and reads the full score matrix. FlashAttention tiles the computation so that scores live only in on-chip memory [@dao2022flashattention].
+    The same tiling expressed with tensor operations keeps memory linear in the sequence length but not the traffic, which
+    makes the gap between algorithm and kernel visible.'
+- title: Related Work
+  paras:
+  - The online softmax maintains, for each query row, the maximum m and the sum l of exponentials seen so far, and rescales
+    the partial output when m grows [@milakov2018online]. Memory-efficient attention applies this to blocks of keys [@rabe2021selfattention];
+    FlashAttention fuses it with the matrix products in a single kernel and reorders the loops for parallelism [@dao2022flashattention;@dao2023flashattention2].
+  - FlashAttention fuses the tiled online softmax into one kernel; memory-efficient tensor-level tilings keep memory linear
+    but not the traffic; the fused kernel is the gap.
+- title: Method
+  subsections:
+  - title: Algorithm
+    paras:
+    - 'For each query block Q_b (scaled by 1/sqrt(D)), m ← −∞, l ← 0, A ← 0. For each key block with keys K_c and values V_c
+      (only blocks up to the diagonal when causal): S ← Q_b K_cᵀ with masked entries set to −∞, m'' ← max(m, rowmax S), P
+      ← exp(S − m''), l ← l·exp(m − m'') + rowsum P, A ← A·exp(m − m'') + P V_c, m ← m''. The output block is A / l cast to
+      bf16.'
+    algorithm_caption: Blockwise attention for one query block
+    algorithm:
+    - m ← −∞;  l ← 0;  A ← 0
+    - 'for each key block c (up to the diagonal if causal):'
+    - '  S ← Q_b K_cᵀ  (mask future keys)'
+    - '  m'' ← max(m, rowmax S);  P ← exp(S − m'')'
+    - '  l ← l·exp(m − m'') + rowsum P;  A ← A·exp(m − m'') + P V_c;  m ← m'''
+    - O_b ← A / l
+  - title: Complexity
+    paras:
+    - Arithmetic is O(B H T² D) as for any exact attention (halved when causal). Extra memory is O(B H · 256 · 256) for one
+      score block instead of O(B H T²). Memory traffic is still O(B H T² ) because each block of scores is written and read
+      by separate operations.
+- title: Design Rationale
+  paras:
+  - Computing in fp32 and casting once at the end keeps the error well inside the bounds set by SDPA's own bf16 error. Skipping
+    key blocks above the diagonal halves the work of causal attention. Block sizes of 256 keep the number of Python-level
+    iterations small for the longest sequences.
+- title: Scope and Limitations
+  paras:
+  - Each operation is a separate kernel launch, so the implementation is memory-bound and slower than SDPA. A fused Triton
+    or CUDA kernel with on-chip tiles, tuned block sizes per head dimension and parallelism over query blocks is required
+    to compete.
+references:
+- id: dao2022flashattention
+  title: 'FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness'
+  authors: Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra and Christopher Ré
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2205.14135'
+  used_for: 'Anchor: tiled exact attention with an online softmax'
+  code_location: 'kernel.py: attention'
+- id: dao2023flashattention2
+  title: 'FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning'
+  authors: Tri Dao
+  year: 2023
+  arxiv: '2307.08691'
+  used_for: Loop order (outer loop over query blocks)
+  code_location: 'kernel.py: attention (outer loop)'
+- id: milakov2018online
+  title: Online normalizer calculation for softmax
+  authors: Maxim Milakov and Natalia Gimelshein
+  year: 2018
+  arxiv: '1805.02867'
+  used_for: Running maximum and normaliser
+  code_location: 'kernel.py: attention (m, l, corr)'
+- id: rabe2021selfattention
+  title: Self-attention Does Not Need O(n²) Memory
+  authors: Markus N. Rabe and Charles Staats
+  year: 2021
+  arxiv: '2112.05682'
+  used_for: Blockwise attention with linear memory
+  code_location: 'kernel.py: attention (key blocks)'
+changes:
+- text: The anchor's tiling and online softmax are expressed with ordinary PyTorch block operations instead of one fused kernel.
+  code: 'kernel.py: attention (outer loop)'
+- text: Computation inside each block is in fp32.
+  code: 'kernel.py: attention'

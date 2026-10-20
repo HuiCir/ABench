@@ -1,0 +1,81 @@
+case: E-ACT-001
+title: 'Nearest-Neighbour Action Chunks: A Non-Parametric Imitation Baseline for PushT'
+abstract: This submission gives a non-parametric baseline for imitation learning on PushT. The policy standardises the 18-dimensional
+  keypoint observation, retrieves the five nearest demonstration frames and executes the average of their next eight demonstrated
+  actions before querying again. Executing short action sequences follows action chunking [@zhao2023act] and the receding-horizon
+  execution of Diffusion Policy [@chi2023diffusion]; retrieval in place of a learned model follows non-parametric imitation
+  [@pari2022vinn]. Averaging neighbours collapses the multimodality of human pushing strategies, which is precisely what generative
+  action heads are designed to keep.
+sections:
+- title: Introduction
+  paras:
+  - PushT requires precise, contact-rich pushing, and human demonstrations solve it in different ways from similar states.
+    A policy that regresses the mean action blurs these modes; the anchor shows that modelling the action distribution with
+    a diffusion process, and predicting action sequences, both help [@chi2023diffusion].
+- title: Related Work
+  paras:
+  - Action chunking predicts k future actions at once and executes them, reducing the effective horizon and the compounding
+    of errors [@zhao2023act]. Nearest-neighbour policies act by retrieving demonstrations with similar observations and are
+    strong baselines in low-data imitation [@pari2022vinn].
+  - Diffusion Policy models multimodal action distributions with a learned generative head; nearest-neighbour retrieval needs
+    no training but averages modes away; that is the gap this baseline leaves open.
+- title: Method
+  subsections:
+  - title: Policy
+    paras:
+    - Training stores the standardised observations o_i = [agent position, 8 keypoints] and, for each frame, the chunk of
+      its next eight actions within the same episode (repeating the last action at the episode end). At run time, if the action
+      queue is empty, the five frames nearest in Euclidean distance are found and the element-wise mean of their chunks is
+      queued; each step pops one action.
+    algorithm_caption: Acting
+    algorithm:
+    - 'if queue is empty:'
+    - '  x ← standardise([agent_pos, environment_state])'
+    - '  N ← indices of the 5 nearest stored observations'
+    - '  queue ← mean over i in N of chunk_i  `# 8 actions`'
+    - return queue.pop()
+  - title: Complexity
+    paras:
+    - Training is O(N) to build the chunks for N = 25,650 frames. Each query costs O(N · 18) for the distances; with one query
+      every eight steps this is far below the rollout budget.
+- title: Design Rationale
+  paras:
+  - Keypoint observations make Euclidean distance meaningful after standardisation, so retrieval needs no learned embedding.
+    Committing to eight actions keeps the end-effector moving coherently through a push instead of dithering between neighbours,
+    and averaging five neighbours smooths jitter in the human actions.
+- title: Scope and Limitations
+  paras:
+  - Averaging over neighbours that push in different directions produces an action no demonstrator took; a generative action
+    head (diffusion, flow matching or a mixture) avoids this. The policy also does not generalise beyond states close to the
+    demonstrations.
+references:
+- id: chi2023diffusion
+  title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'
+  authors: Cheng Chi, Zhenjia Xu, Siyuan Feng, Eric Cousineau, Yilun Du, Benjamin Burchfiel, Russ Tedrake and Shuran Song
+  year: 2023
+  venue: RSS
+  arxiv: '2303.04137'
+  used_for: 'Anchor: task, coverage metric and receding-horizon action execution'
+  code_location: 'policy.py: _Policy.act (queue)'
+- id: zhao2023act
+  title: Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware
+  authors: Tony Z. Zhao, Vikash Kumar, Sergey Levine and Chelsea Finn
+  year: 2023
+  venue: RSS
+  arxiv: '2304.13705'
+  used_for: Action chunking
+  code_location: 'train.py: main (chunks)'
+- id: pari2022vinn
+  title: The Surprising Effectiveness of Representation Learning for Visual Imitation
+  authors: Jyothish Pari, Nur Muhammad Shafiullah, Sridhar Pandian Arunachalam and Lerrel Pinto
+  year: 2022
+  venue: RSS
+  arxiv: '2112.01511'
+  used_for: Nearest-neighbour action retrieval
+  code_location: 'policy.py: _Policy.act (nearest neighbours)'
+changes:
+- text: Retrieval of the five nearest demonstration frames in standardised keypoint space replaces the anchor's diffusion
+    action head.
+  code: 'policy.py: _Policy.act (nearest neighbours)'
+- text: The average of the neighbours' next eight actions is executed open loop before the next query.
+  code: 'policy.py: _Policy.act (queue); train.py: main (chunks)'

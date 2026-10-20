@@ -1,0 +1,168 @@
+id: C-QNT-003
+title: Weight-only quantization of Qwen2.5-0.5B at 4.25 bits per parameter
+anchor:
+  authors: Elias Frantar, Saleh Ashkboos, Torsten Hoefler, Dan Alistarh
+  title: 'GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers'
+  arxiv: '2210.17323'
+baseline: round-to-nearest 4-bit quantization with group size 128 (`interface/baselines/rtn/`, also the reference under `interface/baseline/`)
+reference_verification: 'Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not
+  available where the case was built; the operator runs them at activation. The 4-bit pack/unpack round trip of the baseline
+  was checked in a NumPy transcription; the PyTorch/transformers code has not run.'
+n_seeds: 1
+extra_interface:
+- harness/baselines/rtn/quantize.py
+task: |
+  Design a **post-training, weight-only quantization method** for the language model Qwen2.5-0.5B that stores the model in **at most 4.25 bits per parameter on average** (all parameters, embedding included) and keeps its **WikiText-2 perplexity as low as possible**, with inference not much slower than the original bf16 model. Develop and run the quantization on one 24GB GPU in the sandbox, then submit the quantized artifact.
+
+  - Submit your model code (`quantize.py` with `load()`), the quantized artifact in `checkpoint/` and the program that produced it (`train.py`, which runs your quantization on the frozen bf16 model with the provided calibration tokens). The evaluator runs your `load()` on `checkpoint/` in a process **without access to the original weights** and measures perplexity on the held-out test text; it never re-quantizes.
+  - No training on the held-out text, no other models, no extra data beyond the calibration tokens; fine-tuning the quantized weights on the calibration tokens is allowed.
+  - You may build on any public work from before the cutoff (GPTQ/OBQ, AWQ, SmoothQuant-style rescaling, incoherence processing, vector and non-uniform codebooks, mixed precision), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_MODELS_DIR/Qwen2.5-0.5B/` holds the frozen model (Hugging Face `Qwen/Qwen2.5-0.5B`, Apache-2.0; 494,032,768 parameters in bf16, tied embedding). `$ABENCH_DATA_DIR/` (read-only) holds WikiText-2 raw (Salesforce/wikitext, CC BY-SA 3.0 / GFDL) tokenized with the model's tokenizer, each split's documents joined with "\n\n":
+
+  | File | Contents |
+  |---|---|
+  | `calib_tokens.npy` | int32 token ids of the train split (calibration) |
+  | `dev_tokens.npy` | int32 token ids of the validation split (used by the self-check as held-out text) |
+
+  The held-out set is the token ids of the WikiText-2 test split, evaluated in non-overlapping windows of 2,048 tokens; it is not in the sandbox.
+interface: Implement `load(artifact_dir, device) -> model` in `quantize.py` (and whatever quantization code you like, for
+  example `quantize(model_dir, calib_tokens, out_dir, device)` as in the baseline). `train.py` writes the artifact to `checkpoint/`;
+  `load` returns a module whose call `model(input_ids)` gives logits (or an object with `.logits`) of shape (1, T, vocab).
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Perplexity** (primary) | exp of the mean next-token cross-entropy over all non-overlapping 2,048-token windows of the WikiText-2 test split; lower is better | — |
+  | Bits per parameter | 8 × total bytes of all files in `checkpoint/` / 494,032,768 | Threshold: ≤ 4.25 |
+  | Throughput ratio | Prefill tokens per second of the loaded model on one 2,048-token sequence, divided by that of the original bf16 model loaded with transformers and timed by the evaluator in the same evaluation | Threshold: ≥ 0.5 |
+  | Load time | Seconds of `load()` (includes importing `quantize.py`) | reported (killed at 300 s) |
+
+  **Timing and decision**
+
+  - The evaluation runs in new processes with empty caches (`interface/abench_stage.py`); your code runs in the first one, which receives only `checkpoint/`. Perplexity and throughput must be measured within 600 s after loading.
+  - A submission is valid only if both thresholds hold; valid submissions are ranked by perplexity.
+  - If loading or the measurements crash or exceed a time limit, the submission is invalid.
+  - The final ABench score is driven mainly by perplexity relative to the round-to-nearest baseline, and also considers how different the method is from existing quantizers and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 4
+  dev_budget: 3 GPU-hours
+  software: Python 3, PyTorch (CUDA, Triton), NumPy, Hugging Face transformers, tokenizers and safetensors (versions frozen
+    at activation; offline)
+  notes: |
+    - 4.25 bits per parameter is about 262 MB for the whole artifact; 4-bit codes with fp16 group scales and zero points at group size 128 already use about 4.19 bits.
+    - `load()` may dequantize into a standard transformers model (as the baseline does) or run custom low-bit kernels; the throughput threshold only rules out very slow inference.
+    - The self-check scores your artifact on the WikiText-2 validation split (`dev_tokens.npy`).
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── quantize.py         # required: load()
+    ├── train.py            # required: the program that quantized the model into checkpoint/ (kept for audit, not run by the evaluator)
+    ├── checkpoint/         # required: the quantized artifact, everything load() needs, at most 262,455,533 bytes (4.25 bits per parameter)
+    ├── src/                # optional: other .py modules imported by quantize.py or train.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The artifact must be produced by your `train.py` from the frozen model and the calibration tokens only, inside the sandbox; no other models, no external data and no hand-set parameters copied from elsewhere.
+  - The evaluator loads `checkpoint/` with your `load()` and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the artifact up to randomness.
+  - `load()` may read only the artifact directory; any attempt to reach the original weights or other files is a violation.
+  - No use of the held-out text.
+interface_md: |
+  # C-QNT-003 interface
+
+  ## Entry point: `quantize.py`
+
+  ```python
+  def load(artifact_dir: str, device: str):
+      """Rebuild the model from the artifact only (your checkpoint/) and return it in eval mode.
+      model(input_ids: LongTensor (1, T)) must return logits (1, T, vocab) or an object with .logits."""
+  ```
+
+  - The original weights are not readable during the evaluation; copy the configuration files you need into the artifact.
+  - transformers can rebuild the architecture with `AutoConfig.from_pretrained(artifact_dir)` and `AutoModelForCausalLM.from_config(...)`.
+  - `quantize.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Quantization program: `train.py`
+
+  Write a `train.py` that quantizes `$ABENCH_MODELS_DIR/Qwen2.5-0.5B` (config.json, model.safetensors, tokenizer files;
+  bf16) using `$ABENCH_DATA_DIR/calib_tokens.npy` and writes the artifact to `checkpoint/`, for example
+  `python3 train.py --data "$ABENCH_DATA_DIR" --models "$ABENCH_MODELS_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`.
+  The evaluator does not run it; it is kept with the submission so the artifact can be audited and reproduced. The
+  reference under `interface/baseline/` (round-to-nearest: its `quantize.py` with `quantize()` and `load()`, and
+  `train.py`) is a working starting point you may improve on or replace.
+
+  ## Evaluator code you can read
+
+  - `stages.py`: the evaluation stage (perplexity windows, throughput) and the bf16 reference timing.
+  - `baselines/rtn/quantize.py`: the round-to-nearest baseline (also a working example of the artifact format and `load()`).
+  - `metrics.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, transformers, tokenizers, safetensors (offline). Nothing can be installed.
+oj:
+  agent_budget:
+    gpu_hours: 3.0
+    session_hours: 4.0
+  data:
+    public_dir: sandbox/data/C-QNT-003
+    public:
+    - path: sandbox/data/C-QNT-003/calib_tokens.npy
+      sha256: pending
+    - path: sandbox/data/C-QNT-003/dev_tokens.npy
+      sha256: pending
+    hidden:
+      path: sandbox/hidden/C-QNT-003/hidden.npz.enc
+      sha256_plain: pending
+      keys:
+      - tokens
+    models_dir: sandbox/models/C-QNT-003
+    models:
+    - name: Qwen2.5-0.5B
+      path: sandbox/models/C-QNT-003/Qwen2.5-0.5B
+      tree_sha256: pending
+      revision: 060db6499f32faf8b98477b0a26969ef7d8b9987
+      license: Apache-2.0
+    sources:
+    - name: Qwen2.5-0.5B (Qwen Team), Hugging Face Qwen/Qwen2.5-0.5B
+      url: https://huggingface.co/Qwen/Qwen2.5-0.5B
+      revision: 060db6499f32faf8b98477b0a26969ef7d8b9987
+      license: Apache-2.0
+      verified: '2026-10-19: revision, license, file list and parameter count (494,032,768, BF16) from the Hugging Face API'
+    - name: WikiText-2 raw (Merity et al. 2016), Hugging Face Salesforce/wikitext, config wikitext-2-raw-v1
+      url: https://huggingface.co/datasets/Salesforce/wikitext
+      revision: b08601e04326c79dfdd32d625aee71d232d685c3
+      license: CC BY-SA 3.0 and GFDL
+      verified: '2026-10-19: revision, licenses and parquet file names from the Hugging Face API'
+  submission:
+    kind: code_plus_checkpoint
+    entry: quantize.py
+    checkpoint_dir: checkpoint
+    allowed_top_level:
+    - README.md
+    - quantize.py
+    - train.py
+    - checkpoint
+    - src
+    - report
+    - references.yaml
+    code_suffixes:
+    - .py
+    - .yaml
+    - .yml
+    - .md
+    - .txt
+    code_max_bytes: 200000
+    max_bytes: 264455533
+    checkpoint_max_bytes: 262455533
+    required_files:
+    - train.py
+  judge:
+    device: cuda
+    reference_gpu: RTX 4090-class 24GB (model, driver, CUDA, torch and transformers versions frozen at activation)
+    seeds:
+    - 2210
+mode: checkpoint

@@ -1,0 +1,35 @@
+schema_version: '1.0'
+case_id: MD-SEG-001
+status: calibration_required
+generated_by: abench-normalize-contracts
+metrics:
+- id: metric_01
+  name: Dice / NSD (MSD subtasks)
+  direction: benchmark_defined
+  unit: benchmark_defined
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: objective
+  inference: heuristic
+  notes: Direction, unit, aggregation and Pareto thresholds must be frozen from real
+    calibration.
+- id: metric_02
+  name: memory
+  direction: lower_is_better
+  unit: benchmark_defined
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: objective
+  inference: heuristic
+  notes: Direction, unit, aggregation and Pareto thresholds must be frozen from real
+    calibration.
+- id: metric_03
+  name: Inference time
+  direction: lower_is_better
+  unit: benchmark_defined
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: objective
+  inference: heuristic
+  notes: Direction, unit, aggregation and Pareto thresholds must be frozen from real
+    calibration.

@@ -1,0 +1,70 @@
+# ABench anchor card: C-FA-004
+case_id: C-FA-004
+readiness: deferred
+title: "IO-aware attention kernel (calibration)"
+version: v2026.07
+cutoff: "2026-07-01"
+
+anchor:
+  title: "FlashAttention"
+  arxiv: "2205.14135"
+  type: T6
+  track: C
+  age_band: mature
+
+task_family: design
+deliverable_kind: submission_artifacts
+
+budget:
+  tier: low
+  dev_plan: "Fixed-shape attention workloads, evaluation shared with K-FA-003; numerical error, throughput and memory must all meet the bar."
+  verification: "Run only after the benchmark operator's real resources and hidden configurations are frozen"
+  submissions: 1
+
+metrics:
+  - "Throughput"
+  - "Peak memory"
+  - "Numerical error"
+  - "Correctness pass rate"
+
+holdout:
+  - "Different sequence lengths"
+  - "Causal/non-causal variants"
+  - "Edge-case dtypes and masks"
+
+deferred:
+  - "Reference-card CUDA/torch stack"
+  - "Detection of forbidden library fallback"
+  - "Hidden shape set"
+
+# Canonical ratings copied from index.yaml
+difficulty: low
+budget_tier: low
+status: scaffold
+track: C
+priority: P1
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: frozen_inference_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 1
+      unit: GPU-h
+    per_submission_verify:
+      value: 0.3
+      unit: GPU-h
+    reference_precompute:
+      value: 2
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: low

@@ -1,0 +1,42 @@
+schema: abench.references/v2
+references:
+- id: kang2018sasrec
+  title: Self-Attentive Sequential Recommendation
+  authors: Wang-Cheng Kang and Julian McAuley
+  year: 2018
+  venue: ICDM
+  arxiv: '1808.09781'
+  used_for: 'Anchor: task protocol (leave-one-out next item)'
+  code_location: null
+- id: rendle2010fpmc
+  title: Factorizing personalized Markov chains for next-basket recommendation
+  authors: Steffen Rendle, Christoph Freudenthaler and Lars Schmidt-Thieme
+  year: 2010
+  venue: WWW
+  doi: 10.1145/1772690.1772773
+  used_for: First-order Markov view of the next item
+  code_location: 'train.py: main (transition counts)'
+- id: koren2009temporal
+  title: Collaborative filtering with temporal dynamics
+  authors: Yehuda Koren
+  year: 2009
+  venue: KDD
+  doi: 10.1145/1557019.1557072
+  used_for: Time-dependent item popularity
+  code_location: 'train.py: main (decayed popularity)'
+- id: krichene2020sampled
+  title: On Sampled Metrics for Item Recommendation
+  authors: Walid Krichene and Steffen Rendle
+  year: 2020
+  venue: KDD
+  doi: 10.1145/3394486.3403226
+  used_for: Full ranking over all items
+  code_location: 'model.py: recommend'
+- id: harper2015movielens
+  title: 'The MovieLens Datasets: History and Context'
+  authors: F. Maxwell Harper and Joseph A. Konstan
+  year: 2015
+  venue: ACM TiiS
+  doi: 10.1145/2827872
+  used_for: Dataset
+  code_location: null

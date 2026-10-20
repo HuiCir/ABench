@@ -1,0 +1,14 @@
+# run records, frozen data and secrets never go into the repository
+/runs/
+/sandbox/data/
+/sandbox/hidden/
+/sandbox/models/
+*.key
+*.enc
+/_to_delete/
+# caches
+__pycache__/
+*.pyc
+.ruff_cache/
+.DS_Store
+.pytest_cache/

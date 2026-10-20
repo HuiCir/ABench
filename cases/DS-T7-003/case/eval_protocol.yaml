@@ -1,0 +1,69 @@
+version: scaffold-v1
+case_id: DS-T7-003
+hardware:
+  primary: CPU-only
+  software: container, libraries and driver hashes required
+  timing: server-side wall-clock; warmup and windows logged
+budget:
+  agent_dev_hours: 0
+  per_submission_verify_hours: 0
+  reference_precompute_hours: 0
+  unit: CPU-h
+  plan: Judgment question + one minimal verification experiment at μ1 or equivalent scale; no new large-scale training
+ladder:
+  L0_smoke:
+    visibility: agent
+    checks:
+    - schema and evidence fields
+    - deterministic serialization
+    - no hidden answer access
+  L1_proxy:
+    visibility: agent
+    purpose: public calibration items only; no score claims
+  L2_main:
+    visibility: benchmark
+    purpose: blind judge on frozen packet
+  holdout:
+    visibility: hidden
+    purpose: answer-key and minimal-experiment validity
+data_split: Public evidence packet for development; hidden answer key and holdout
+  cases for final scoring.
+metrics:
+  primary: blind judgment accuracy with calibrated confidence
+  raw_metrics: Judgment accuracy
+artifacts:
+  required:
+  - submission manifest
+  - run metadata
+  - metrics.json
+  - stdout/stderr
+  - resource usage
+  forbidden:
+  - simulated runs
+  - fabricated reference curves
+  - hidden-label access
+status: scaffold_only_real_resources_and_reference_runs_pending
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: low_cpu
+  hardware_class: cpu_only
+  accelerator: benchmark_cpu
+  accelerator_count: 1
+  memory_gib: null
+  cost_unit: CPU-h
+  leaderboard: budget_cpu
+  limits:
+    agent_dev:
+      value: 0
+      unit: CPU-h
+    per_submission_verify:
+      value: 0
+      unit: CPU-h
+    reference_precompute:
+      value: 0
+      unit: CPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side

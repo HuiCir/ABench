@@ -1,0 +1,90 @@
+# ABench anchor card: case B-OPT-002
+# Version: ABench v2026.07 (corpus cutoff 2026-07-01)
+case_id: B-OPT-002
+readiness: contract_only
+title: "Starting from symbolic primitives: reproduce and go beyond Lion-style optimizer discovery"
+version: v2026.07
+cutoff: "2026-07-01"
+
+anchor:
+  title: "Symbolic Discovery of Optimization Algorithms"
+  authors: "Chen et al."
+  arxiv: "2302.06675"
+  first_public: "2023-02-13"
+  venue: "NeurIPS 2023"
+  type: T3
+  track: B
+  age_band: mature
+
+task_family: primitive_search
+deliverable_kind: optimizer_and_search_trace
+
+neighborhood:
+  retrieval: open
+  seed_snapshot: paper_snapshot/seed_neighborhood.jsonl
+  hidden_snapshot: "Held by the benchmark operator; used for mechanism duplicate checks of primitive programs"
+  weight_rule: scoring_config.yaml#paper_weight
+
+references:
+  pool: reference_pool.yaml
+  envelope: "Final evaluation reuses the reference envelope of B-OPT-001; this case adds no reference precompute"
+
+budget:
+  agent_dev_budget: "8 GPU-h (fixed-gradient-stream search + μ1 self-tests)"
+  hardware: "Reference card: one 24GB GPU (RTX 4090 class)"
+  verify_per_submission: "about 5.5 GPU-h"
+  reference_precompute: "0 additional; assumes shared real reference_runs already exist"
+  scale_policy: "The search stage uses only the fixed stream and μ1; final evaluation reuses the μ1–μ3 ladder"
+  wall_clock_limit: "24 h total agent interaction time"
+  submissions: 1
+
+metrics:
+  primary: "Effective speedup relative to the reference envelope at the fixed token budget of final evaluation"
+  search: "Number of candidate evaluations to reach the target proxy quality under the fixed grammar, STREAM proxy score and AUC of the search curve"
+  constraints:
+    - "Update-rule state memory ≤ 3 × parameter count"
+    - "Candidate programs may use only frozen primitives and must not access validation loss or external information"
+    - "Wall-clock time per step ≤ 1.25 × AdamW"
+    - "Search results can be replayed deterministically from seed + grammar"
+
+probes:
+  - "Differences in direction and spectral distribution on the fixed gradient stream"
+  - "Independent short μ1 runs and a hidden large-batch point"
+  - "Search efficiency: number of candidates → proxy-score curve"
+
+holdout:
+  - "The L2/L3 final-evaluation ladder of B-OPT-001"
+  - "Hidden primitive combinations and a new random gradient stream"
+  - "μ2 @ 4× batch size"
+
+# Canonical ratings copied from index.yaml
+difficulty: high
+budget_tier: high
+status: scaffold
+track: B
+priority: P0
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 8
+      unit: GPU-h
+    per_submission_verify:
+      value: 5.5
+      unit: GPU-h
+    reference_precompute:
+      value: 0
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: high

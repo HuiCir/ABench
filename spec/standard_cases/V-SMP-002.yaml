@@ -1,0 +1,122 @@
+id: V-SMP-002
+title: "A training-free sampler for a frozen diffusion model at small step counts"
+anchor: {authors: "Jiaming Song, Chenlin Meng, Stefano Ermon", title: "Denoising Diffusion Implicit Models", arxiv: "2010.02502"}
+baseline: "deterministic DDIM with uniform timesteps, run by the evaluator under identical conditions (`interface/baselines/ddim/`)"
+baseline_run: "Under exactly the same conditions (model, seeds, number of samples), the evaluator also runs the DDIM baseline in `interface/baselines/ddim/` and reports your FID relative to it."
+reference_verification: "Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The FID computation in metrics.py was checked on toy statistics; sampling and Inception features need PyTorch, diffusers and pytorch-fid and have not run."
+mode: no_training
+n_seeds: 3
+extra_interface: [harness/diffusion.py, harness/baselines/ddim/sampler.py]
+task: |
+  Design a **training-free sampler** — integrator, timestep schedule, corrector or any other procedure that only queries the network — for a frozen ε-prediction DDPM on CIFAR-10, that produces the **best images (lowest FID) with only 5, 10 or 20 network evaluations per image**.
+
+  - Submit code only (`sampler.py`). At evaluation the evaluator runs your `sample()` with the frozen model at NFE 5, 10 and 20, 10,000 images each, once for each of 3 seed sets unknown to you, and computes FID against the CIFAR-10 training set. It runs the DDIM baseline the same way.
+  - No training or fine-tuning of any network, no other networks (distilled students, classifiers, discriminators), and no stored images; schedules or coefficients you tune in the sandbox may be written into the code.
+  - The NFE budget is enforced: every call of the denoiser counts once per batch, and calls beyond the budget fail the run.
+  - You may build on any public work from before the cutoff (DDIM, DPM-Solver and DPM-Solver++, UniPC, EDM samplers, optimised or learned timestep schedules, flow-matching views of the probability-flow ODE), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_MODELS_DIR/ddpm-cifar10-32/` holds the frozen model (Hugging Face `google/ddpm-cifar10-32`, Apache-2.0): a diffusers `UNet2DModel` (Ho et al. 2020) trained with ε-prediction and a linear β schedule from 1e-4 to 0.02 over 1,000 steps; `interface/diffusion.py` gives ᾱ_t and the counting `Denoiser`. `$ABENCH_MODELS_DIR/inception/` holds the pytorch-fid Inception weights.
+
+  `$ABENCH_DATA_DIR/cifar10_train_inception_stats.npz` (read-only) holds `mu` (2048,) and `sigma` (2048, 2048), the Inception pool-3 statistics of the 50,000 CIFAR-10 training images, which are the FID reference at evaluation too. The held-out part of this case is only the evaluation seeds.
+interface: |
+  Implement `sample(denoiser, n, nfe, generator, device) -> torch.Tensor` in `sampler.py`: draw initial noise with `generator`, call `denoiser(x, t)` at most `nfe` times, and return n images of shape (n, 3, 32, 32) in [-1, 1].
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **FID at NFE 10** (primary) | Fréchet Inception distance between 10,000 samples and the CIFAR-10 training set (pytorch-fid Inception, pool-3 features), mean over 3 seed sets; lower is better | — |
+  | FID at NFE 5 and NFE 20 | The same at the other two budgets | reported |
+  | FID vs DDIM | Your FID minus the DDIM baseline's at each budget | reported |
+  | NFE violations | Budgets exceeded (a violation also fails the run) | Threshold: 0 |
+
+  **Timing and decision**
+
+  - Each seed set runs in a new process with empty caches (`interface/abench_stage.py`). Images are generated in batches of 500; batch b of a budget uses a generator seeded from that budget's held-out seed, the run's seed and b (`stages.py`). Generating all 30,000 images must finish within 900 s.
+  - A submission is valid only if no budget is exceeded; valid submissions are ranked by FID at NFE 10.
+  - If any run crashes, exceeds a time limit, or returns images of the wrong shape or with non-finite values, the whole submission is invalid.
+  - The final ABench score is driven mainly by FID at NFE 10 relative to the baseline (the other budgets are considered too), and also by how different the method is from existing samplers and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 4
+  dev_budget: "4 GPU-hours"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, diffusers and pytorch-fid (versions frozen at activation; offline)"
+  notes: |
+    - The self-check computes FID from 2,000 samples per budget (500 with `--quick`); such FIDs are biased upwards, so compare dev values with each other, not with published numbers.
+    - The UNet runs in fp32; `t` may be fractional (the time embedding is continuous), but the network was trained on integer steps.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── sampler.py          # required: sample()
+    ├── src/                # optional: helper modules imported by sampler.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - Query the model only through the `denoiser` you are given; do not reach the underlying network by other means, load other networks or train anything.
+  - Initial noise and any other randomness must come from `generator`; samples must not be selected, filtered or re-ranked.
+interface_md: |
+  # V-SMP-002 interface
+
+  ## Entry point: `sampler.py`
+
+  ```python
+  def sample(denoiser, n: int, nfe: int, generator: torch.Generator, device: str) -> torch.Tensor:
+      """Return n images, float tensor (n, 3, 32, 32) with values in [-1, 1].
+
+      denoiser(x, t) -> ε prediction, same shape as x; x float (B, 3, 32, 32), t a number or tensor () / (B,) in [0, 999]
+      denoiser.alphas_cumprod   numpy float64 (1000,), ᾱ_t of the linear β schedule
+      nfe                       5, 10 or 20: maximum number of denoiser calls in this call of sample()
+      generator                 torch.Generator on `device`; draw all randomness from it
+      """
+  ```
+
+  - The forward process is x_t = sqrt(ᾱ_t) x₀ + sqrt(1 − ᾱ_t) ε with x₀ in [-1, 1]; t = 0 is the least noisy training step.
+  - The evaluator calls `sample` with n = 500, 20 times per budget, each time with a fresh `Denoiser` whose budget is `nfe`.
+
+  ## Evaluator code you can read
+
+  - `diffusion.py`: schedule and the counting `Denoiser`; `stages.py`: sampling loop, image conversion (round((x + 1) · 127.5)) and the Inception features.
+  - `baselines/ddim/sampler.py`: the DDIM baseline the evaluator runs alongside your sampler.
+  - `metrics.py` (FID), `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, diffusers, pytorch-fid (offline). Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 4.0, session_hours: 4.0}
+  data:
+    public_dir: sandbox/data/V-SMP-002
+    public:
+      - {path: sandbox/data/V-SMP-002/cifar10_train_inception_stats.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/V-SMP-002/hidden.npz.enc, sha256_plain: pending, keys: [seeds, ref_mu, ref_sigma]}
+    models_dir: sandbox/models/V-SMP-002
+    models:
+      - {name: ddpm-cifar10-32, path: sandbox/models/V-SMP-002/ddpm-cifar10-32, tree_sha256: pending, revision: 267b167dc01f0e4e61923ea244e8b988f84deb80, license: Apache-2.0}
+      - {name: inception, path: sandbox/models/V-SMP-002/inception, tree_sha256: pending, license: "Apache-2.0 (pytorch-fid)"}
+    sources:
+      - name: "google/ddpm-cifar10-32 (Ho et al. 2020, arXiv:2006.11239)"
+        url: https://huggingface.co/google/ddpm-cifar10-32
+        revision: 267b167dc01f0e4e61923ea244e8b988f84deb80
+        license: Apache-2.0
+        verified: "2026-10-19: revision, license and file list from the Hugging Face API; UNet2DModel config and DDPMScheduler config (1,000 steps, linear β 1e-4..0.02, ε-prediction default) read from config.json and scheduler_config.json"
+      - name: "pytorch-fid Inception weights (Seitzer 2020)"
+        url: https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth
+        license: Apache-2.0
+        verified: "2026-10-19: FID_WEIGHTS_URL read from pytorch_fid/inception.py; license from the repository"
+      - name: CIFAR-10 training set (Krizhevsky 2009), for the reference statistics
+        url: https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz
+        license: "no explicit license on the dataset page (to_verify)"
+  submission:
+    kind: code_only
+    entry: sampler.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, sampler.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch, diffusers and pytorch-fid versions frozen at activation)"
+    seeds: [2010, 2502, 32]          # kept secret by the operator; combined with the held-out base seeds
+    baseline: harness/baselines/ddim

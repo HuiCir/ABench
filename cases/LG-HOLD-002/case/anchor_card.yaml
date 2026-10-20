@@ -1,0 +1,37 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: LG-HOLD-002
+readiness: deferred
+title: Legal holding identification on CaseHOLD
+version: v2026.07
+cutoff: '2026-07-01'
+track: LG
+track_name: Law
+group: domain
+priority: P2
+type: T2
+subset: calibration
+difficulty: low
+budget_tier: low
+status: deferred
+anchor:
+  name: CaseHOLD
+  arxiv: '2104.08671'
+  verify_before_freeze: true
+task: Case holding identification (CaseHOLD; frozen roberta-base allowed)
+metrics: macro-F1
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 1
+  verify: 0.3
+  ref: 3
+  risk: []
+  plan: Small encoder fine-tuning
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- licensed_legal_dataset_snapshot
+- jurisdiction_and_time_split
+- blind_legal_review_protocol
+standard_case: spec/standard_cases/LG-HOLD-002.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

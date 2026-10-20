@@ -1,0 +1,46 @@
+case_id: C-QNT-003
+version: v2026.07
+cutoff: '2026-07-01'
+hardware:
+  reference_card: single 24GB GPU; exact driver/runtime hash frozen server-side
+  timing: server-side wall-clock p50/p95, peak memory and tokens/s; no self-reporting
+  isolation: network disabled, file-system isolation, process/memory/timeout limits
+budget:
+  tier: medium
+  verify_plan: Compare AWQ/GPTQ/SmoothQuant with FP16 on a fixed 0.5B–1.5B decoder, with a public calibration set and hidden models/shapes/tasks
+visibility:
+  public: [case_contract, public_resources, submission_schema]
+  benchmark: [reference_runs, calibration_seeds]
+  hidden: [holdout_inputs, final_configs, judge_prompts]
+ladder:
+  L0_smoke: {visibility: agent, checks: [schema, deterministic_replay, finite_outputs, no_undeclared_io]}
+  L1_public: {visibility: benchmark, checks: [public_proxy, resource_limits]}
+  L2_main: {visibility: benchmark, checks: [real_metrics, multi_seed, numerical_equivalence]}
+  L3_holdout: {visibility: hidden, checks: [holdout_metrics, anti_gaming, reproducibility]}
+metrics:
+  objective: pareto_frontier
+  dimensions:
+  - {name: quantized_quality, direction: higher, unit: normalized_score, role: quality}
+  - {name: model_size_mb, direction: lower, unit: MB, role: cost}
+  - {name: throughput_tokens_per_s, direction: higher, unit: tokens/s, role: quality_cost}
+  - {name: p95_decode_latency_ms, direction: lower, unit: ms/token, role: cost}
+  - {name: peak_memory_gb, direction: lower, unit: GB, role: cost}
+  - {name: calibration_gpu_hours, direction: lower, unit: GPU-h, role: cost}
+  dominance: quality dimensions maximize; cost dimensions minimize; numerical-equivalence and quality-floor constraints must pass before dominance
+  aggregation: report full non-dominated set and hypervolume against server reference envelope
+holdout: [hidden models and tasks outside the calibration set, 2/3/4-bit and group-size combinations, different batch/sequence shapes, low-batch decode and activation outliers]
+real_artifacts: {runs: outputs/reference_runs/ or benchmark-side immutable artifact store, judge: benchmark-side blind judge output, hashes: config/code/data/checkpoint/runtime/output required}
+special_blockers: [frozen_model_tokenizer_and_runtime_hash, quantization_kernel_and_hardware_baseline, hidden_quality_suite_and_server_timer]
+activation: scaffold_only_until_real_reference_runs_and_hidden_eval_exist
+objective_mode: pareto
+resource_profile:
+  sandbox_profile: frozen_inference_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits: {agent_dev: 3, per_submission_verify: 1, reference_precompute: 5}
+  sandbox: {network: disabled, filesystem: output_only, hidden_inputs: server_only, measurement: server_side}
+spec_refs: [spec/pareto_protocol.md, spec/sandbox_profiles.md]

@@ -1,0 +1,42 @@
+schema: abench.references/v2
+references:
+- id: yang2024gla
+  title: Gated Linear Attention Transformers with Hardware-Efficient Training
+  authors: Songlin Yang, Bailin Wang, Yikang Shen, Rameswar Panda and Yoon Kim
+  year: 2024
+  venue: ICML
+  arxiv: '2312.06635'
+  used_for: 'Anchor: gated update rule, gate temperature and chunkwise form'
+  code_location: 'mixer.py: Mixer.forward'
+- id: katharopoulos2020linear
+  title: 'Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention'
+  authors: Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas and François Fleuret
+  year: 2020
+  venue: ICML
+  arxiv: '2006.16236'
+  used_for: Linear attention as a recurrence over a matrix state
+  code_location: 'mixer.py: Mixer.forward (state S)'
+- id: arora2023zoology
+  title: 'Zoology: Measuring and Improving Recall in Efficient Language Models'
+  authors: Simran Arora, Sabri Eyuboglu, Aman Timalsina, Isys Johnson, Michael Poli, James Zou, Atri Rudra and Christopher
+    Ré
+  year: 2023
+  arxiv: '2312.04927'
+  used_for: MQAR task
+  code_location: null
+- id: schlag2021fastweights
+  title: Linear Transformers Are Secretly Fast Weight Programmers
+  authors: Imanol Schlag, Kazuki Irie and Jürgen Schmidhuber
+  year: 2021
+  venue: ICML
+  arxiv: '2102.11174'
+  used_for: Delta-rule update as the main alternative
+  code_location: null
+- id: yang2024deltanet
+  title: Parallelizing Linear Transformers with the Delta Rule over Sequence Length
+  authors: Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen and Yoon Kim
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.06484'
+  used_for: Chunkwise training of delta-rule updates
+  code_location: null

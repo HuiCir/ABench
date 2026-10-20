@@ -1,0 +1,87 @@
+case: LG-HOLD-002
+title: 'Lexical Overlap with a Conditional-Logit Scorer: A Non-Neural Baseline for CaseHOLD'
+abstract: This submission gives a non-neural baseline for selecting the holding of a cited case. Each candidate holding is
+  compared with the citing context through tf-idf cosine similarities of unigrams and bigrams [@salton1988tfidf] and a few
+  length and negation cues, and a linear scorer over these features is trained with a softmax across the five candidates,
+  i.e. a conditional logit model [@mcfadden1974logit]. It deliberately ignores the provided roberta-base encoder [@liu2019roberta],
+  so that the value of pretrained cross-encoders, which the anchor shows to be large on CaseHOLD [@zheng2021casehold], is
+  measured by the entries.
+sections:
+- title: Introduction
+  paras:
+  - 'In CaseHOLD the citing context usually paraphrases or partially quotes the holding it relies on, and the four distractors
+    are holdings of other cases. Word overlap is therefore informative but not sufficient: distractors often share legal vocabulary,
+    and some differ from the answer only by negation or scope.'
+- title: Related Work
+  paras:
+  - The anchor fine-tunes BERT-style encoders as multiple-choice cross-encoders and finds that domain pretraining helps most
+    on this hard, domain-specific task [@zheng2021casehold]. Tf-idf weighting with cosine similarity is the classical lexical
+    relevance model [@salton1988tfidf].
+  - Pretrained encoders read the citing context and candidates jointly; lexical overlap scorers are cheap but blind to negation
+    and scope; this reference is the latter and leaves the provided roberta-base unused, which is the gap.
+- title: Method
+  subsections:
+  - title: Features and scorer
+    paras:
+    - Inverse document frequencies are estimated from all training prompts and holdings. For a prompt p and candidate h the
+      features are the cosine similarity of their sublinear tf-idf vectors over unigrams and over bigrams, log(1 + |h|), the
+      fraction of h's word types that occur in p, and an indicator for "not" in h. Each feature is centred across the five
+      candidates of a question. Weights w maximise the conditional likelihood softmax_j(w · f(p, h_j)) of the correct candidate
+      on 20,000 seeded training questions by gradient descent.
+    algorithm_caption: Training
+    algorithm:
+    - idf ← document frequencies over training prompts and holdings
+    - 'for each question i and candidate j: f_ij ← features(p_i, h_ij);  f_ij ← f_ij − mean_j f_ij'
+    - 'repeat 300 times: w ← w − η (∇ of −Σ_i log softmax_j(w·f_ij)[y_i] / n + λ w)'
+    - predict(p, h_1..5) = (w · f(p, h_j))_j
+  - title: Complexity
+    paras:
+    - Feature extraction is linear in the number of tokens of a question; training is O(T · n · 5 · d) for T iterations and
+      d = 6 features. Prediction is linear in the tokens of the question.
+- title: Design Rationale
+  paras:
+  - Centring features within a question removes properties shared by all candidates, so the scorer learns only what distinguishes
+    the correct holding. Bigram similarity rewards partial quotation, which is common in citing contexts. The conditional-logit
+    loss matches the evaluation, where exactly one candidate is chosen.
+- title: Scope and Limitations
+  paras:
+  - Lexical features cannot resolve paraphrase, negation scope or legal reasoning; a fine-tuned cross-encoder over the prompt
+    and each candidate is the natural next step and is what the provided encoder enables.
+references:
+- id: zheng2021casehold
+  title: When Does Pretraining Help? Assessing Self-Supervised Learning for Law and the CaseHOLD Dataset
+  authors: Lucia Zheng, Neel Guha, Brandon R. Anderson, Peter Henderson and Daniel E. Ho
+  year: 2021
+  venue: ICAIL
+  arxiv: '2104.08671'
+  used_for: 'Anchor: dataset, task format and macro-F1 metric'
+  code_location: null
+- id: liu2019roberta
+  title: 'RoBERTa: A Robustly Optimized BERT Pretraining Approach'
+  authors: Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke Zettlemoyer
+    and Veselin Stoyanov
+  year: 2019
+  arxiv: '1907.11692'
+  used_for: The frozen encoder provided by the case (not used by this baseline)
+  code_location: null
+- id: salton1988tfidf
+  title: Term-weighting approaches in automatic text retrieval
+  authors: Gerard Salton and Christopher Buckley
+  year: 1988
+  venue: Information Processing & Management
+  doi: 10.1016/0306-4573(88)90021-0
+  used_for: tf-idf weighting and cosine similarity
+  code_location: 'model.py: _vec, _cos'
+- id: mcfadden1974logit
+  title: Conditional logit analysis of qualitative choice behavior
+  authors: Daniel McFadden
+  year: 1974
+  venue: Frontiers in Econometrics
+  url: https://eml.berkeley.edu/reprints/mcfadden/zarembka.pdf
+  used_for: Softmax over alternatives with shared weights
+  code_location: 'train.py: main'
+changes:
+- text: Lexical tf-idf cosine similarities and length features replace the anchor's fine-tuned BERT-family cross-encoders.
+  code: 'model.py: features'
+- text: A linear conditional-logit scorer over the five candidates is fitted by gradient descent.
+  code: 'train.py: main'

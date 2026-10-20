@@ -1,0 +1,25 @@
+# C-QNT-003 reference-pool contract (real results only)
+verify: true
+references:
+  - id: fp16_baseline
+    name: "FP16 / BF16 baseline"
+    role: anchor
+    arxiv: null
+    impl: "Before freezing, the benchmark operator registers the official checkpoint, runtime, commit and container hash"
+  - id: awq_reference
+    name: "AWQ"
+    arxiv: "2306.00978"
+    role: strong_baseline
+    impl: "Before freezing, register the official implementation, kernel, commit and container hash"
+  - id: gptq_reference
+    name: "GPTQ"
+    arxiv: "2210.17323"
+    role: strong_baseline
+    impl: "Before freezing, register the official implementation, kernel, commit and container hash"
+  - id: smoothquant_reference
+    name: "SmoothQuant"
+    arxiv: "2211.10438"
+    role: strong_baseline
+    impl: "Before freezing, register the official implementation, kernel, commit and container hash"
+precomputed_results: outputs/reference_runs/
+provenance: real_only

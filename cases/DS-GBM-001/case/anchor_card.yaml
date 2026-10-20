@@ -1,0 +1,83 @@
+case_id: DS-GBM-001
+readiness: contract_only
+title: "ABench Case DS-GBM-001: Design a tabular model within a CPU budget (tree model, neural network or hybrid)"
+version: v2026.07
+cutoff: '2026-07-01'
+anchor:
+  title: XGBoost
+  arxiv: '1603.02754'
+  type: T1
+  track: DS
+  age_band: mature
+task_family: design
+deliverable_kind: tabular_pipeline
+neighborhood:
+  retrieval: open
+  seed_snapshot: paper_snapshot/seed_neighborhood.jsonl
+  hidden_snapshot: benchmark-held; not distributed
+  weight_rule: scoring_config.yaml
+task: Design a tabular model within a CPU budget (tree model, neural network or hybrid)
+metrics:
+  raw: Normalized accuracy/AUC rank over multiple datasets; training time
+  primary: Normalized accuracy/AUC rank over multiple datasets; training time
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 0
+  verify: 0
+  ref: 0
+  cpu: true
+  risk: []
+  plan: CPU only, 20 hidden OpenML datasets, each ≤ 50k rows
+subset: main
+difficulty: low
+status: scaffold
+budget:
+  agent_dev_budget: 0 CPU/GPU-h per task card
+  hardware: CPU-only
+  verify_per_submission: 0 CPU/GPU-h per task card
+  reference_precompute: 0 CPU/GPU-h per task card
+  scale_policy: CPU only, 20 hidden OpenML datasets, each ≤ 50k rows
+  submissions: 1
+probes:
+- interface/schema and deterministic rerun
+- raw metric and resource usage audit
+- hidden holdout and anti-gaming checks
+holdout:
+- hidden datasets or post-cutoff distribution where available
+- fixed seed/temporal/split robustness check
+contamination:
+- Resources and evaluator hashes are benchmark-held until release.
+- Submitted code must not access hidden labels, test data or evaluator state.
+verify: false
+scaffold_status: contract_only_pending_resources_and_runs
+
+# Canonical ratings copied from index.yaml
+budget_tier: low
+track: DS
+priority: P0
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: low_cpu
+  hardware_class: cpu_only
+  accelerator: benchmark_cpu
+  accelerator_count: 1
+  memory_gib: null
+  cost_unit: CPU-h
+  leaderboard: budget_cpu
+  limits:
+    agent_dev:
+      value: 0
+      unit: CPU-h
+    per_submission_verify:
+      value: 0
+      unit: CPU-h
+    reference_precompute:
+      value: 0
+      unit: CPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: low

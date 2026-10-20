@@ -1,0 +1,107 @@
+case_id: A-LCTX-006
+scope: deferred_out_of_scope_v1
+version: v2026.07
+cutoff: '2026-07-01'
+hardware:
+  reference: single 24GB GPU unless CPU-only stage is explicitly stated
+  software: benchmark manifest required; fixed container/CUDA/PyTorch
+  timing: server-side wall clock and peak memory; median over fixed seeds
+proxy:
+  types:
+  - SYN
+  - MICRO
+  - INFER
+  plan: Fixed 125M–350M model, training context ≤ 4k; MQAR and fixed offline document probes extended to 8k/16k/32k; only auditable position encodings, KV/state caches or compression modules are measured
+  fidelity_gate: track-level calibration must reproduce at least 5 known pairwise
+    orderings with >=80% agreement
+budget:
+  agent_dev_gpu_h: 4
+  per_submission_verify_gpu_h: 2
+  reference_precompute_gpu_h: 20
+  budget_tier: medium
+  submissions: 1
+ladder:
+  L0_smoke:
+    visibility: agent
+    checks:
+    - interface
+    - finite outputs
+    - determinism
+    - resource limits
+    - no input mutation
+  L1_proxy:
+    visibility: agent
+    settings: smallest documented proxy
+  L2_main:
+    visibility: benchmark
+    settings: public validation split and fixed seeds
+  L3_holdout:
+    visibility: hidden
+    settings: hidden lengths/shapes/capability families/duplicate clusters as appropriate
+inputs:
+  public: resources.yaml
+  private: benchmark-side manifests and hidden split
+  required_hashes: true
+outputs:
+  required:
+  - manifest.json
+  - run.jsonl
+  - artifacts.sha256
+  - metrics.json
+  forbidden:
+  - simulated_scores
+  - fabricated_reference_runs
+  - undeclared_network_access
+metrics:
+  objective: pareto_frontier
+  dimensions:
+  - name: mqar_recall
+    direction: higher
+    unit: accuracy
+    role: quality
+  - name: rag_retrieval_recall_at_5
+    direction: higher
+    unit: fraction
+    role: quality
+  - name: short_context_ce
+    direction: lower
+    unit: nats/token
+    role: quality_constraint
+  - name: peak_memory_gb
+    direction: lower
+    unit: GB
+    role: cost
+  - name: tokens_per_second
+    direction: higher
+    unit: tokens/s
+    role: cost
+  dominance: quality dimensions maximize; cost dimensions minimize; constraint dimensions
+    must pass before dominance
+  aggregation: report full non-dominated set and hypervolume against server reference
+    envelope
+special_blockers:
+- frozen_tokenizer_and_base_model_hash
+- offline_long_context_probe_and_hidden_lengths
+- fixed_gpu_memory_and_throughput_timer
+activation: scaffold_only_until_real_reference_runs_and_hidden_eval_exist
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev: {value: 4, unit: GPU-h}
+    per_submission_verify: {value: 2, unit: GPU-h}
+    reference_precompute: {value: 20, unit: GPU-h}
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+objective_mode: pareto
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md

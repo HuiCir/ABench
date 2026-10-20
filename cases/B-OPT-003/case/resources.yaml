@@ -1,0 +1,31 @@
+# B-OPT-003 external resource contract; before freezing only URI/version/hash are registered, with no download and no training
+status: deferred
+resource_profile: single_gpu_24gb
+required:
+  - id: runtime
+    description: "Fixed runtime, hardware and dependency lockfile"
+    uri: "to be filled in by the benchmark operator"
+    sha256: "to be frozen"
+  - id: public_inputs
+    description: "Public proxy inputs and tokenizer/model/kernel resources (as applicable to the case)"
+    uri: "to be filled in by the benchmark operator"
+    sha256: "to be frozen"
+  - id: hidden_inputs
+    description: "Hidden final-evaluation inputs, visible only server-side"
+    uri: "benchmark-private://B-OPT-003/holdout"
+    sha256: "benchmark-private"
+notes:
+  - "Real matrix-preconditioner implementation and numerical-stability calibration"
+  - "Peak state-memory measurement"
+  - "Comparable 1×-state methods in the shared reference pool"
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: single_gpu_24gb
+budget_tier: high
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 8
+  per_submission_verify: 5.5
+  reference_precompute: 40
+limits_unit: GPU-h
+

@@ -1,0 +1,127 @@
+case: TC-FT-001
+title: 'Hashed n-gram Linear Classifier: A CPU Baseline for Topic Classification'
+author_note: Standard reference for task statement standard v2.1 (a baseline that does not aim to be best)
+abstract: This submission gives a baseline for CPU-budgeted topic classification. Following the anchor's observation that
+  a linear model over a bag of n-grams is a strong and fast text classifier [@joulin2017fasttext], documents are mapped to
+  a fixed 2^20-dimensional space of unigram and bigram counts with the hashing trick [@weinberger2009hashing], re-weighted
+  with sublinear tf-idf [@salton1988tfidf], and classified by a linear model trained with stochastic gradient descent on the
+  modified Huber loss [@zhang2004sgd] with iterate averaging [@polyak1992averaging]. Training is a single streaming pass structure
+  with no vocabulary to build, and prediction is one sparse matrix product.
+sections:
+- title: Introduction
+  paras:
+  - The task rewards accuracy under a minimum prediction throughput on eight CPU cores, with the model trained once in the
+    sandbox. Both favour models whose cost is linear in the number of tokens and whose parameters fit in memory without a
+    vocabulary pass. Bag-of-n-gram linear models satisfy both and are known to be competitive with much larger neural encoders
+    on news topic classification [@joulin2017fasttext;@zhang2015charcnn].
+  - As a reference version this submission uses only mature components; its purpose is to be complete in interface, timing
+    and report format and to leave the room for improvement to the entries.
+- title: Related Work
+  paras:
+  - fastText represents a document by the average of learned embeddings of its words and hashed bigrams and trains a linear
+    softmax classifier on top [@joulin2017fasttext]. The hashing trick maps an unbounded feature set into a fixed number of
+    buckets with a hash function, trading a small collision rate for constant memory and no vocabulary construction [@weinberger2009hashing].
+    Term weighting with inverse document frequency down-weights ubiquitous tokens [@salton1988tfidf].
+  - Neither fastText's learned embeddings nor the hashing and weighting components address prediction throughput directly;
+    this reference keeps the anchor's bag of n-grams but drops the learned embedding layer, which leaves a gap in word-similarity
+    modelling that entries can close.
+- title: Method
+  subsections:
+  - title: Features
+    paras:
+    - Each document is lower-cased and split into word tokens; unigrams and adjacent bigrams are hashed into 2^20 non-negative
+      count features. Counts are transformed to 1 + log(tf) and multiplied by an inverse document frequency estimated on the
+      training documents only, then each row is L2-normalised.
+  - title: Classifier
+    paras:
+    - A one-vs-rest linear classifier is trained by stochastic gradient descent on the modified Huber loss, which is a smoothed
+      hinge loss with bounded gradients [@zhang2004sgd], with an L2 penalty of 2e-6 and 15 epochs. The averaged iterate is
+      used for prediction, which reduces the variance of the final SGD iterate [@polyak1992averaging]. The implementation
+      uses scikit-learn [@pedregosa2011sklearn].
+    algorithm_caption: Training and prediction
+    algorithm:
+    - '**fit**(texts, labels, seed):'
+    - '  C ← HashCounts(texts)  `# sparse N × 2^20, unigrams and bigrams`'
+    - '  learn idf on C; X ← l2norm((1 + log C) ⊙ idf)'
+    - '  W ← averaged SGD on modified Huber loss over X, labels (seed fixes the order)'
+    - '**predict**(texts): return argmax over classes of l2norm(tfidf(HashCounts(texts))) W'
+  - title: Complexity
+    paras:
+    - With T tokens in the training set, featurisation costs O(T) and each SGD epoch O(nnz(X)) = O(T); memory is O(nnz(X)
+      + 4 · 2^20) for the data and the weights. Prediction costs O(T') for T' held-out tokens.
+- title: Design Rationale
+  paras:
+  - Hashing removes the vocabulary pass and bounds memory, which matters more on a CPU budget than the small loss from collisions
+    at 2^20 buckets. Sublinear tf and idf weighting make a linear model less sensitive to document length and to frequent
+    function words. The modified Huber loss keeps the robustness of the hinge loss while allowing probability-like scores,
+    and averaging makes the result less sensitive to the learning-rate schedule.
+- title: Scope and Limitations
+  paras:
+  - The model has no notion of word similarity beyond shared n-grams and cannot use subword information; both are natural
+    directions for entries, as are learned low-dimensional embeddings in the style of the anchor.
+references:
+- id: joulin2017fasttext
+  title: Bag of Tricks for Efficient Text Classification
+  authors: Armand Joulin, Edouard Grave, Piotr Bojanowski and Tomas Mikolov
+  year: 2017
+  venue: EACL
+  arxiv: '1607.01759'
+  used_for: 'Anchor: bag-of-n-gram linear classification with hashed bigrams'
+  code_location: 'model.py: vectorizer, predict; train.py: main'
+- id: weinberger2009hashing
+  title: Feature Hashing for Large Scale Multitask Learning
+  authors: Kilian Weinberger, Anirban Dasgupta, John Langford, Alex Smola and Josh Attenberg
+  year: 2009
+  venue: ICML
+  arxiv: '0902.2206'
+  used_for: Hashing trick for n-gram features
+  code_location: 'model.py: vectorizer'
+- id: salton1988tfidf
+  title: Term-weighting approaches in automatic text retrieval
+  authors: Gerard Salton and Christopher Buckley
+  year: 1988
+  venue: Information Processing & Management
+  doi: 10.1016/0306-4573(88)90021-0
+  used_for: Sublinear tf and idf weighting
+  code_location: 'train.py: main (TfidfTransformer)'
+- id: zhang2004sgd
+  title: Solving large scale linear prediction problems using stochastic gradient descent algorithms
+  authors: Tong Zhang
+  year: 2004
+  venue: ICML
+  doi: 10.1145/1015330.1015332
+  used_for: SGD for linear classifiers; modified Huber loss
+  code_location: 'train.py: main (SGDClassifier)'
+- id: polyak1992averaging
+  title: Acceleration of Stochastic Approximation by Averaging
+  authors: Boris T. Polyak and Anatoli B. Juditsky
+  year: 1992
+  venue: SIAM Journal on Control and Optimization
+  doi: 10.1137/0330046
+  used_for: Iterate averaging
+  code_location: 'train.py: main (average=True)'
+- id: zhang2015charcnn
+  title: Character-level Convolutional Networks for Text Classification
+  authors: Xiang Zhang, Junbo Zhao and Yann LeCun
+  year: 2015
+  venue: NeurIPS
+  arxiv: '1509.01626'
+  used_for: Source of the AG News dataset and n-gram baselines
+  code_location: null
+- id: pedregosa2011sklearn
+  title: 'Scikit-learn: Machine Learning in Python'
+  authors: Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort and others
+  year: 2011
+  venue: JMLR
+  arxiv: '1201.0490'
+  used_for: Implementation of hashing, tf-idf and SGD
+  code_location: 'model.py, train.py: imports'
+changes:
+- text: A sparse linear model over hashed unigram and bigram counts replaces the anchor's averaged learned embeddings, so
+    there is no embedding layer and no vocabulary.
+  code: 'model.py: vectorizer, predict'
+- text: Sublinear tf and idf weighting with L2 normalisation of each document, which the anchor does not use.
+  code: 'train.py: main (TfidfTransformer); model.py: predict'
+- text: Averaged SGD on the modified Huber loss replaces the anchor's softmax trained with SGD and a hierarchical softmax
+    option.
+  code: 'train.py: main (SGDClassifier)'

@@ -1,0 +1,44 @@
+case_id: X-ROBUST-009
+status: scaffold
+resource_rating: medium
+offline_bundle: intent_safety_bundle_v1 + hidden_shift_manifest_v1 + calibration_probe_v1
+datasets:
+- Fixed offline intent-classification JSONL with public train/dev and label-version hashes
+- Offline OOD/near-OOD samples and compositional shifts; hidden topic, length and wording variants mounted by the server
+- Offline safety-policy label set with minimal contrast pairs of must-refuse and answerable items
+models:
+- Encoder checkpoint of ≤ 125M; tokenizer, label taxonomy and initial weights frozen by the server
+- Only a classification head, temperature/vector scaling, an energy/abstention head or a declared lightweight adapter are allowed
+software:
+- PyTorch 2.6 and Transformers/PEFT versions frozen by lockfile
+- Only offline sklearn metrics and the standard library are allowed; external judges must not be called
+hardware: One 24GB GPU; CPU handles manifest validation and result packaging
+private_resources:
+- Hidden shift labels, safety-policy labels, reference calibration curves, latency probe
+sandbox_constraints:
+- No network; checkpoints, data, vocabularies or third-party models must not be downloaded
+- Only the declared offline bundle may be read; the hidden manifest and evaluator state may not
+- Output may be written only to the task directory; shared caches, undeclared subprocesses and system probing are forbidden
+- Thresholds, seeds, temperature/abstention parameters and model hashes must be written to the manifest
+blocked_inputs:
+- frozen_base_checkpoint_tokenizer_and_label_taxonomy
+- offline_public_calibration_and_hidden_shift_bundle
+- server_hidden_safety_labels_and_latency_probe
+no_download_or_training_in_scaffold: true
+resource_profile: posttrain_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: posttrain_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+accelerator: RTX_4090_class
+accelerator_count: 1
+memory_gib: 24
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 3
+  per_submission_verify: 1.5
+  reference_precompute: 15
+limits_unit: GPU-h

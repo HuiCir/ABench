@@ -1,0 +1,25 @@
+# Resource registry scaffold; URLs/checkpoints are intentionally not fabricated.
+case_id: PH-NO-001
+status: deferred
+required:
+  datasets: freeze source, version, split, license and sha256 before activation
+  models: freeze config/checkpoint/revision and sha256
+  software: freeze container, compiler/CUDA/PyTorch versions
+  hardware: record device model, driver, clocks and thermal state
+public_resources:
+  anchor: Fourier Neural Operator
+  arxiv: '2010.08895'
+  track_proxy:
+  - SUBSET
+  notes:
+  - Subset, fewer-fold or low-resolution proxy; fidelity calibration before launch
+private_resources:
+- hidden test split or task instances
+- reference runs and tuned baselines
+- server signing key / run manifest
+blocked_inputs:
+- PDEBench_or_simulator_snapshot
+- numerical_solver_baselines
+- resolution_and_parameter_holdouts
+- specific_anchor_or_citation_verification
+no_download_or_training_in_scaffold: true

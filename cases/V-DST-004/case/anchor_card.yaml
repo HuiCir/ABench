@@ -1,0 +1,38 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: V-DST-004
+readiness: deferred
+title: Few-step distillation scheme
+version: v2026.07
+cutoff: '2026-07-01'
+track: V
+track_name: Vision
+group: method
+priority: P1
+type: T6
+subset: main
+difficulty: medium
+budget_tier: high
+status: deferred
+anchor:
+  name: Consistency Models
+  arxiv: '2303.01469'
+  verify_before_freeze: true
+task: Few-step distillation scheme
+metrics: 1–4 step FID; diversity
+verify_plan:
+  proxy:
+  - INFER
+  - SUBSET
+  dev: 8
+  verify: 4
+  ref: 20
+  risk: []
+  plan: Fixed pretrained HF teacher (CIFAR / ImageNet-64), train the student only; 1–4 step FID
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_weights_or_dataset_snapshot
+- fid_or_scene_metric_calibration
+- reference_runs_and_fixed_hardware
+- fixed_checkpoint_and_runtime_stack

@@ -1,0 +1,20 @@
+# Reference registry (one to one with the report's bibliography)
+# id must match <li id="bib.<id>"> in the report; register only sources that are actually used.
+schema: abench.references/v2
+references:
+  - id: adam
+    title: "Adam: A Method for Stochastic Optimization"
+    authors: "Diederik P. Kingma, Jimmy Ba"
+    year: 2015
+    venue: "ICLR"
+    arxiv: "1412.6980"          # or doi: / url:, at least one of the three
+    used_for: "Anchor; first- and second-moment estimates and bias correction"
+    code_location: "model.py: Optimizer.step"   # where the borrowed content is in the submitted code; null for pure background citations
+  - id: ref2
+    title: "⟨paper title⟩"
+    authors: "⟨authors⟩"
+    year: 2025
+    venue: "⟨conference / journal; may be omitted for preprints⟩"
+    arxiv: "⟨arXiv number⟩"
+    used_for: "⟨what was borrowed⟩"
+    code_location: null

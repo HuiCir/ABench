@@ -1,0 +1,62 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: X-LORA-004
+readiness: contract_only
+title: Parameter-efficient fine-tuning of roberta-base on GLUE under a parameter cap
+version: v2026.07
+cutoff: '2026-07-01'
+track: X
+track_name: Training recipes / RL / PEFT
+group: method
+priority: P1
+type: T2
+subset: main
+difficulty: medium
+budget_tier: medium
+status: scaffold
+anchor:
+  name: LoRA
+  arxiv: '2106.09685'
+  verify_before_freeze: true
+task: Parameter-efficient fine-tuning method
+metrics: GLUE average (RTE, MRPC, CoLA, SST-2) with ≤ 1M task-specific parameters
+verify_plan:
+  proxy:
+  - SURG
+  dev: 3
+  verify: 1
+  ref: 10
+  risk: []
+  plan: 0.5B base, 3 downstream tasks, fixed trainable-parameter count
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_base_model_and_task_split
+- adapter_parameter_and_optimizer_budget
+- hidden_task_split_and_contamination_audit
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: posttrain_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 3
+      unit: GPU-h
+    per_submission_verify:
+      value: 1
+      unit: GPU-h
+    reference_precompute:
+      value: 10
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: medium
+standard_case: spec/standard_cases/X-LORA-004.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

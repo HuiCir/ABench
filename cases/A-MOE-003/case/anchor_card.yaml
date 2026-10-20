@@ -1,0 +1,62 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: A-MOE-003
+readiness: contract_only
+title: Allocate expert capacity and routing under fixed active and total parameters
+version: v2026.07
+cutoff: '2026-07-01'
+track: A
+track_name: LLM architecture
+group: method
+priority: P1
+type: T4
+subset: main
+difficulty: medium
+budget_tier: high
+status: scaffold
+anchor:
+  name: Switch Transformer
+  arxiv: '2101.03961'
+  verify_before_freeze: true
+task: Allocate expert capacity and routing under fixed active and total parameters
+metrics: Loss; load balance; token throughput
+verify_plan:
+  proxy:
+  - MICRO
+  dev: 8
+  verify: 6
+  ref: 60
+  risk:
+  - variance
+  - scale_mismatch
+  plan: Active parameters at μ2 scale, 8 experts, 3 seeds; load balance and expert utilization as constraint metrics
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_tokenizer_model_data_and_long_context_probe
+- reference_runs_and_fixed_hardware_throughput
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 8
+      unit: GPU-h
+    per_submission_verify:
+      value: 6
+      unit: GPU-h
+    reference_precompute:
+      value: 60
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: high

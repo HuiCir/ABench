@@ -1,0 +1,101 @@
+id: K-FA-003
+title: "An attention forward kernel faster than PyTorch SDPA"
+anchor: {authors: "Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Ré", title: "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness", arxiv: "2205.14135"}
+baseline: "PyTorch `scaled_dot_product_attention` with the flash backend, timed by the evaluator on every shape"
+reference_verification: "Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The blockwise online-softmax algorithm of the example was checked against exact attention in a NumPy transcription (max difference 1e-15); the PyTorch code itself has not run."
+mode: no_training
+n_seeds: 3
+task: |
+  Write an **exact attention forward kernel** for bf16 inputs on one 24GB reference GPU that is **as fast as possible relative to PyTorch's `scaled_dot_product_attention` (flash backend)** across a set of shapes you do not know in advance, while staying numerically as accurate as SDPA.
+
+  - Submit code only: `kernel.py` with `attention(q, k, v, causal)`. At evaluation it is called on the held-out shapes with random inputs, checked against an fp32 reference, and timed against SDPA on the same GPU, once for each of 3 seeds (separate processes).
+  - Triton and hand-written CUDA via PyTorch's inline extension loading are allowed; calling SDPA, FlashAttention, xFormers or any other attention library from your code is not.
+  - You may build on any public work from before the cutoff (FlashAttention 1–3, tiling and warp specialisation strategies, Triton tutorials), but the design report must state what you borrowed and what you changed. The task tests your understanding of the hardware: memory hierarchy, tiling, occupancy and numerics.
+data: |
+  There is no data file. Inputs are random bf16 tensors of layout (B, H, T, D) drawn on the GPU from a seed.
+
+  The held-out set is a list of about a dozen shapes (B, H, T, D, causal) with head dimension 64 or 128, causal and non-causal masking, sequence lengths from a few hundred to 8,192 including values that are not multiples of 64, and B·H·T² small enough for an fp32 reference. It is not in the sandbox; the self-check uses six public shapes listed in `interface/stages.py`.
+interface: |
+  Implement `attention(q, k, v, causal: bool) -> torch.Tensor` in `kernel.py`. Inputs are contiguous bf16 CUDA tensors of shape (B, H, T, D) (same T for queries and keys); the output has the same shape and dtype; the softmax scale is 1/sqrt(D); with `causal=True`, query i attends to keys 0..i.
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Relative speed** (primary) | Geometric mean over the held-out shapes of t_SDPA / t_yours, where each t is the median of 20 CUDA-event-timed calls after 5 warm-up calls, then mean over 3 seeds; higher is better | — |
+  | Correctness | On every shape, max \|out − ref\| ≤ max(0.02, 4 × SDPA's own max error) and mean \|out − ref\| ≤ max(0.002, 4 × SDPA's mean error), against an fp32 reference | Threshold: all shapes |
+  | Forbidden APIs | Occurrences of SDPA, FlashAttention, xFormers or cuDNN-attention entry points in your source files | Threshold: 0 |
+  | Slowest shape | The smallest per-shape t_SDPA / t_yours | reported |
+
+  **Timing and decision**
+
+  - Each seed runs in a new process with empty compiler caches (`interface/abench_stage.py`). Importing `kernel.py` (including any compilation or autotuning at import) must finish within 600 s; all held-out shapes, including the reference computations and timing, must finish within 900 s.
+  - A submission is valid only if every shape is correct and no forbidden API is used; valid submissions are ranked by relative speed.
+  - If any seed crashes, exceeds a time limit or returns a wrong shape, the whole submission is invalid.
+  - The final ABench score is driven mainly by relative speed, and also considers how different the method is from existing kernels and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 3
+  dev_budget: "1 GPU-hour"
+  software: "Python 3, PyTorch (CUDA, Triton; `torch.utils.cpp_extension.load_inline` with the CUDA toolkit), NumPy"
+  notes: |
+    - Timings include any per-call overhead of your Python wrapper; autotuning and compilation should happen at import time (it is outside the timed calls but inside the 600 s import limit).
+    - The fp32 reference is computed one (batch, head) at a time; your kernel does not need to match SDPA bit for bit, only the error bounds.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── kernel.py           # required: attention()
+    ├── src/                # optional: helper modules, .py only (CUDA sources go in Python strings)
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - No attention library calls (SDPA, FlashAttention, xFormers, cuDNN attention) and no stored results; the kernel must compute exact attention on the inputs it is given.
+  - Do not cache outputs across calls or detect the timing loop; every call must do the full computation.
+interface_md: |
+  # K-FA-003 interface
+
+  ## Entry point: `kernel.py`
+
+  ```python
+  def attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, causal: bool = False) -> torch.Tensor:
+      """Exact softmax attention, softmax(q kᵀ / sqrt(D) + mask) v.
+
+      q, k, v  contiguous bfloat16 CUDA tensors of shape (B, H, T, D), D in {64, 128}, T not necessarily a multiple of 64
+      causal   if True, query position i attends only to key positions 0..i
+      returns  bfloat16 tensor of shape (B, H, T, D)
+      """
+  ```
+
+  - The evaluator imports `kernel.py` once per seed (compilation and autotuning happen then), and calls `attention` with fresh tensors for every shape, first for accuracy and then 5 + 20 times for timing.
+
+  ## Evaluator code you can read
+
+  - `stages.py`: the shapes of the self-check, the fp32 reference, the timing loop and the forbidden-API scan.
+  - `metrics.py`, `abench_metrics.py`: correctness rule and relative speed; `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton, `torch.utils.cpp_extension`), NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 1.0, session_hours: 3.0}
+  data:
+    public_dir: sandbox/data/K-FA-003
+    public: []
+    hidden: {path: sandbox/hidden/K-FA-003/hidden.npz.enc, sha256_plain: pending, keys: [shapes]}
+    sources:
+      - name: "Generated shape list (tools/prepare/k_fa_003.py, seeds secret)"
+        url: https://arxiv.org/abs/2205.14135
+        license: "generated by ABench"
+  submission:
+    kind: code_only
+    entry: kernel.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, kernel.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch and Triton versions frozen at activation)"
+    seeds: [2205, 14135, 64]          # kept secret by the operator (process repetitions; data seeds are in the shape list)

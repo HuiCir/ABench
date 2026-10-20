@@ -1,0 +1,41 @@
+case_id: X-SFT-005
+status: scaffold
+resource_rating: medium
+offline_bundle: instruction_mix_v1 + capability_holdout_v1 + pretrain_probe_v1 (server-side
+  signed manifest)
+datasets:
+- Fixed JSONL instruction data (license, sample hashes, dedup and split manifest frozen by the server)
+- Hidden capability-family tasks (math, classification, structured output)
+- Small pretraining probe corpus for measuring forgetting
+models:
+- Decoder-only base checkpoint of ≤ 350M; two fixed versions provided, fp16 and 4-bit calibrated weights
+software:
+- PyTorch 2.6
+- PEFT/transformers/bitsandbytes versions frozen by lockfile
+hardware: One 24GB GPU; CPU only for data validation and manifest generation
+private_resources:
+- Hidden tasks, reference recipes, contamination/template-overlap checker
+sandbox_constraints:
+- No network; other checkpoints or data must not be downloaded
+- The submission may read only the fixed base/data and must not write to shared caches
+- All adapter, quantization configurations and random seeds are written to the manifest
+blocked_inputs:
+- frozen_base_checkpoint_tokenizer_and_quantization_config
+- offline_instruction_mix_and_hidden_task_split
+- server_gpu_memory_and_wall_clock_measurement
+no_download_or_training_in_scaffold: true
+resource_profile: posttrain_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: posttrain_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 4
+  per_submission_verify: 2
+  reference_precompute: 20
+limits_unit: GPU-h
+

@@ -1,0 +1,64 @@
+schema: abench.references/v2
+references:
+  - id: jordan2024muon
+    title: "Muon: An optimizer for hidden layers in neural networks"
+    authors: "Keller Jordan et al."
+    year: 2024
+    venue: "blog"
+    url: "https://kellerjordan.github.io/posts/muon/"
+    used_for: "Nesterov momentum and the quintic Newton–Schulz orthogonalization with its coefficients"
+    code_location: "optimizer.py: RankGate.update steps 1) and 2); harness/optim_api.py: newton_schulz5"
+  - id: kingma2015adam
+    title: "Adam: A Method for Stochastic Optimization"
+    authors: "Diederik P. Kingma, Jimmy Ba"
+    year: 2015
+    venue: "ICLR"
+    arxiv: "1412.6980"
+    used_for: "Anchor; first- and second-moment updates and bias correction for 1D parameters"
+    code_location: "optimizer.py: RankGate._adamw"
+  - id: liu2025muon
+    title: "Muon is Scalable for LLM Training"
+    authors: "Jingyuan Liu, Jianlin Su, Xingcheng Yao et al."
+    year: 2025
+    venue: "technical report"
+    arxiv: "2502.16982"
+    used_for: "Muon with weight decay and RMS matching to 0.2·sqrt(max(m,n))"
+    code_location: "optimizer.py: RankGate.update step 2)"
+  - id: rudelson2007sampling
+    title: "Sampling from large matrices: an approach through geometric functional analysis"
+    authors: "Mark Rudelson, Roman Vershynin"
+    year: 2007
+    venue: "Journal of the ACM"
+    arxiv: "math/0503442"
+    used_for: "Definition of stable rank and its insensitivity to small singular values, used as the gating signal"
+    code_location: "optimizer.py: RankGate.update step 4) r_norm"
+  - id: shazeer2018adafactor
+    title: "Adafactor: Adaptive Learning Rates with Sublinear Memory Cost"
+    authors: "Noam Shazeer, Mitchell Stern"
+    year: 2018
+    venue: "ICML"
+    arxiv: "1804.04235"
+    used_for: "Factored row/column second-moment estimate"
+    code_location: "optimizer.py: RankGate.update step 3) vr, vc"
+  - id: vonmises1929
+    title: "Praktische Verfahren der Gleichungsauflösung"
+    authors: "Richard von Mises, Hilda Pollaczek-Geiringer"
+    year: 1929
+    venue: "ZAMM"
+    doi: "10.1002/zamm.19290090105"
+    used_for: "Power iteration to estimate the largest singular value"
+    code_location: "optimizer.py: RankGate.update step 4) w, u_new"
+  - id: wen2025fantastic
+    title: "Fantastic Pretraining Optimizers and Where to Find Them"
+    authors: "Kaiyue Wen, David Hall, Tengyu Ma, Percy Liang"
+    year: 2025
+    arxiv: "2509.02046"
+    used_for: "Motivation: the advantage of matrix optimizers shrinks with scale"
+    code_location: null
+  - id: zhao2024deconstructing
+    title: "Deconstructing What Makes a Good Optimizer for Language Models"
+    authors: "Rosie Zhao, Depen Morwani, David Brandfonbrener, Nikhil Vyas, Sham Kakade"
+    year: 2024
+    arxiv: "2407.07972"
+    used_for: "Motivation: the effect of adaptivity is concentrated in a few layers"
+    code_location: null

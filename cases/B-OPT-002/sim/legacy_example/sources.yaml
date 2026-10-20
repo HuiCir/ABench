@@ -1,0 +1,17 @@
+sources:
+  - id: "arXiv:2302.06675"
+    borrowed: "Lion's symbolic program-search paradigm, dual EMA states and sign update"
+    code: "search.py: programs; optimizer.py: RidgeSign.update"
+  - id: "arXiv:1412.6980"
+    borrowed: "Baseline definitions of EMA states and gradient updates"
+    code: "optimizer.py: m_fast/m_slow updates"
+  - id: "arXiv:2409.03137"
+    borrowed: "Maintaining fast and slow momentum in parallel, as a point of comparison"
+    code: "optimizer.py: state design of the two EMAs"
+  - id: "arXiv:2509.02046"
+    borrowed: "Motivation for comparing only final loss, the reference envelope and multi-setting final evaluation"
+    code: "case/eval_protocol.yaml; the follow-up μ1 confirmation in search.py"
+
+  - id: "arXiv:2407.07972"
+    borrowed: "Adaptivity helps conditionally in a few layers and settings, used as the problem diagnosis behind the confidence gate"
+    code: "design.md: motivation, and the target in search_spec.yaml"

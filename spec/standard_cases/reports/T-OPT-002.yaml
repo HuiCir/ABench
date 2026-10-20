@@ -1,0 +1,85 @@
+case: T-OPT-002
+title: Muon with Update-RMS Matching, Transferred Unchanged to a Vision Transformer
+abstract: 'This submission gives the reference point for transferring language-model optimizers to vision transformers: the
+  anchor''s recipe applied as-is. Weight matrices are updated with Muon, i.e. Nesterov momentum orthogonalised by a quintic
+  Newton–Schulz iteration [@jordan2024muon], scaled by 0.2·sqrt(max(rows, cols)) so that the update RMS matches that of AdamW
+  and the learning rate and weight decay can be shared [@liu2025muon]. All other parameters use AdamW [@loshchilov2019adamw].
+  Nothing is adapted to vision; that adaptation is what the task asks of entries.'
+sections:
+- title: Introduction
+  paras:
+  - 'Orthogonalised updates have become a strong alternative to Adam-type methods for language-model pretraining [@jordan2024muon;@liu2025muon].
+    Vision transformers differ in ways that may matter to an optimizer: much smaller widths, a linear patch embedding whose
+    input dimension is tiny (48), heavy data augmentation, and short training measured in epochs [@dosovitskiy2021vit]. A
+    faithful transfer of the anchor is the natural baseline.'
+- title: Related Work
+  paras:
+  - Muon replaces the momentum matrix M by an approximation of its polar factor UVᵀ, computed with a few Newton–Schulz iterations,
+    so that all singular directions are updated at the same rate [@jordan2024muon]. The anchor shows that adding decoupled
+    weight decay and scaling the update to match the RMS of AdamW updates makes Muon work at scale with AdamW's hyperparameters
+    [@liu2025muon].
+  - Muon was tuned for language models; vision transformers differ in width, embedding shape and augmentation, and no adaptation
+    of the update rule to them is part of this reference, which is the gap.
+- title: Method
+  subsections:
+  - title: Update rule
+    paras:
+    - 'For a matrix parameter W with gradient G: m ← μm + G, N ← G + μm, O ← NS5(N) · 0.2·sqrt(max(r, c)), ΔW = −η(O + λW),
+      with μ = 0.95 and λ = 0.05. For every other parameter: bias-corrected AdamW moments with β = (0.9, 0.99) and no weight
+      decay. The framework supplies η (with warm-up and cosine decay) and uses 0.15η for one-dimensional parameters.'
+    algorithm_caption: One update of a matrix parameter
+    algorithm:
+    - m ← μ m + G
+    - N ← G + μ m  `# Nesterov`
+    - O ← NewtonSchulz5(N / ‖N‖_F) · 0.2 · sqrt(max(rows, cols))
+    - return −η (O + λ W)
+  - title: Complexity
+    paras:
+    - For an r × c matrix with r ≤ c, five Newton–Schulz steps cost O(r²c) each; the state is one momentum matrix per weight
+      and two moments per non-matrix parameter, well under the 3× limit.
+- title: Design Rationale
+  paras:
+  - Update-RMS matching decouples the choice of learning rate from the matrix shape, which matters in a ViT where the patch
+    embedding (192 × 48), attention (576 × 192) and MLP (768 × 192) matrices have very different aspect ratios. Keeping AdamW
+    for gains, biases, the class token and the position embedding follows the anchor, which applies Muon only to hidden weight
+    matrices.
+- title: Scope and Limitations
+  paras:
+  - Whether the patch embedding and the classification head should be orthogonalised, how augmentation noise interacts with
+    momentum, and whether the RMS target should depend on width are left open; these are the questions an entry should answer.
+references:
+- id: liu2025muon
+  title: Muon is Scalable for LLM Training
+  authors: Jingyuan Liu, Jianlin Su, Xingcheng Yao, Zhejun Jiang, Guokun Lai, Yulun Du and others
+  year: 2025
+  arxiv: '2502.16982'
+  used_for: 'Anchor: update-RMS matching and decoupled weight decay for Muon'
+  code_location: 'optimizer.py: MuonRMS.update (0.2·sqrt(max(rows, cols)), wd)'
+- id: jordan2024muon
+  title: 'Muon: An optimizer for hidden layers in neural networks'
+  authors: Keller Jordan, Yuchen Jin, Vlado Boza, Jiacheng You, Franz Cesista, Laker Newhouse and Jeremy Bernstein
+  year: 2024
+  url: https://kellerjordan.github.io/posts/muon/
+  used_for: Orthogonalised Nesterov momentum and the quintic Newton–Schulz coefficients
+  code_location: 'optim_api.py: newton_schulz5; optimizer.py: MuonRMS.update'
+- id: loshchilov2019adamw
+  title: Decoupled Weight Decay Regularization
+  authors: Ilya Loshchilov and Frank Hutter
+  year: 2019
+  venue: ICLR
+  arxiv: '1711.05101'
+  used_for: AdamW for non-matrix parameters
+  code_location: 'optimizer.py: MuonRMS.update (else branch)'
+- id: dosovitskiy2021vit
+  title: 'An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale'
+  authors: Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner and others
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.11929'
+  used_for: Vision transformer architecture of the fixed model
+  code_location: null
+changes:
+- text: Muon is applied to weight matrices unchanged, with update RMS matched to AdamW by 0.2·sqrt(max(rows, cols)).
+  code: 'optimizer.py: MuonRMS.update'
+- text: All non-matrix parameters use AdamW.
+  code: 'optimizer.py: MuonRMS.update (else branch)'

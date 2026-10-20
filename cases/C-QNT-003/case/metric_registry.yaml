@@ -1,0 +1,11 @@
+schema_version: '1.0'
+case_id: C-QNT-003
+status: calibration_required
+generated_by: manual_scaffold
+metrics:
+- {id: quantized_quality, name: Quantized quality, direction: higher_is_better, unit: normalized_score, aggregation: benchmark_defined, required: true, pareto_role: quality, inference: benchmark_defined}
+- {id: model_size_mb, name: Quantized model size, direction: lower_is_better, unit: MB, aggregation: benchmark_defined, required: true, pareto_role: cost, inference: benchmark_defined}
+- {id: throughput_tokens_per_s, name: Decode throughput, direction: higher_is_better, unit: tokens/s, aggregation: median, required: true, pareto_role: objective, inference: benchmark_defined}
+- {id: p95_decode_latency_ms, name: P95 decode latency, direction: lower_is_better, unit: ms/token, aggregation: benchmark_defined, required: true, pareto_role: cost, inference: benchmark_defined}
+- {id: peak_memory_gb, name: Peak GPU memory, direction: lower_is_better, unit: GB, aggregation: median, required: true, pareto_role: cost, inference: benchmark_defined}
+- {id: calibration_gpu_hours, name: Calibration compute, direction: lower_is_better, unit: GPU-h, aggregation: benchmark_defined, required: true, pareto_role: cost, inference: benchmark_defined}

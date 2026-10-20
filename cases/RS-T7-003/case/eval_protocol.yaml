@@ -1,0 +1,45 @@
+version: scaffold-v1
+case_id: RS-T7-003
+hardware:
+  primary: fixed reference GPU/CPU image (to be frozen)
+  software: container, libraries and driver hashes required
+  timing: server-side wall-clock; warmup and windows logged
+budget:
+  agent_dev_hours: 1
+  per_submission_verify_hours: 0.3
+  reference_precompute_hours: 0
+  unit: CPU-h or GPU-h
+  plan: Judgment question + one minimal verification experiment at μ1 or equivalent scale; no new large-scale training
+ladder:
+  L0_smoke:
+    visibility: agent
+    checks:
+    - schema and evidence fields
+    - deterministic serialization
+    - no hidden answer access
+  L1_proxy:
+    visibility: agent
+    purpose: public calibration items only; no score claims
+  L2_main:
+    visibility: benchmark
+    purpose: blind judge on frozen packet
+  holdout:
+    visibility: hidden
+    purpose: answer-key and minimal-experiment validity
+data_split: Public evidence packet for development; hidden answer key and holdout
+  cases for final scoring.
+metrics:
+  primary: blind judgment accuracy with calibrated confidence
+  raw_metrics: Judgment accuracy
+artifacts:
+  required:
+  - submission manifest
+  - run metadata
+  - metrics.json
+  - stdout/stderr
+  - resource usage
+  forbidden:
+  - simulated runs
+  - fabricated reference curves
+  - hidden-label access
+status: scaffold_only_real_resources_and_reference_runs_pending

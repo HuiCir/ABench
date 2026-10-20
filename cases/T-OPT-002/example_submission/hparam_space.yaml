@@ -1,0 +1,9 @@
+rule: MuonRMS
+tunable:
+  lr: {default: 0.002, range: [0.0002, 0.01], scale: log}
+  wd: {default: 0.05, range: [0.0, 0.2], scale: linear}
+fixed:
+  mu: 0.95
+  b1: 0.9
+  b2: 0.99
+owns_schedule: false

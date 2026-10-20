@@ -1,0 +1,37 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: FN-T7-005
+readiness: deferred
+title: Judge whether the gains of a given time-series model exceed a strong linear baseline
+version: v2026.07
+cutoff: '2026-07-01'
+track: FN
+track_name: Finance
+group: domain
+priority: P1
+type: T7
+subset: calibration
+difficulty: medium
+budget_tier: low
+status: deferred
+anchor:
+  name: Are Transformers Effective for Time Series Forecasting? (DLinear)
+  arxiv: '2205.13504'
+  verify_before_freeze: false
+task: Judge whether the gains of a given time-series model exceed a strong linear baseline
+metrics: Judgment accuracy
+verify_plan:
+  proxy:
+  - JUDGE
+  dev: 1
+  verify: 0.3
+  ref: 0
+  risk: []
+  plan: Judgment question + one minimal verification experiment at μ1 or equivalent scale; no new large-scale training
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- licensed_time_forward_data_snapshot
+- transaction_cost_and_survivorship_rules
+- post_cutoff_hidden_window
+- specific_anchor_or_citation_verification

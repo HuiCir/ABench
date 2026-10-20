@@ -1,0 +1,67 @@
+case_id: T-AUDIO-005
+scope: active_v1
+readiness: contract_only
+title: Lightweight CTC/adapter ASR on a frozen audio encoder, Pareto-optimal over recognition quality, training cost and inference latency
+version: v2026.07
+cutoff: '2026-07-01'
+track: T
+track_name: Cross-domain transfer
+group: method
+priority: P1
+type: TX
+subset: main
+difficulty: medium
+budget_tier: medium
+status: scaffold
+anchor:
+  name: "wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations"
+  arxiv: '2006.11477'
+  verify_before_freeze: true
+task: Freeze a small wav2vec 2.0/HuBERT audio encoder and design a lightweight CTC/adapter/classification head on a fixed offline speech bundle, Pareto-optimal over WER, trainable parameters, memory, latency and out-of-speaker generalization
+metrics: WER/CER; speaker-held-out WER; trainable parameters; peak memory; real-time factor; GPU-h Pareto
+resource_rating: medium
+verify_plan:
+  proxy:
+  - FROZEN
+  - SUBSET
+  dev: 3
+  verify: 1.5
+  ref: 15
+  risk:
+  - Inconsistent audio preprocessing and sample rates
+  - speaker_leakage
+  - Transfer gap of frozen representations to short utterances/accents
+  plan: Freeze a wav2vec 2.0/HuBERT audio encoder of ≤ 100M parameters and train only CTC/adapter/lightweight pooling heads; use a fixed 16 kHz, 2–8 second speech bundle with a hidden split isolated by speaker
+pareto_objective:
+  enabled: true
+  policy: pareto_frontier
+  note: No single-point SOTA threshold; WER/robustness maximization is turned into minimization, and cost and latency are evaluated by constraints and non-dominance
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_audio_encoder_processor_and_vocab_hash
+- offline_16khz_speech_bundle_and_speaker_holdout
+- fixed_audio_preprocess_and_server_asr_evaluator
+- fixed_gpu_timer_and_peak_memory_probe
+objective_mode: pareto
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev: {value: 3, unit: GPU-h}
+    per_submission_verify: {value: 1.5, unit: GPU-h}
+    reference_precompute: {value: 15, unit: GPU-h}
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md

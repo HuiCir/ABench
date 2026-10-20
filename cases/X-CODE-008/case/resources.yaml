@@ -1,0 +1,44 @@
+case_id: X-CODE-008
+status: scaffold
+resource_rating: medium
+offline_bundle: code_repo_bundle_v1 + patch_task_manifest_v1 + regression_suite_v1 (server-side signed manifest)
+datasets:
+- Fixed small Python repository snapshots, with licenses, commit/tree hashes, task descriptions and visible unit tests
+- Hidden repository/defect-family holdout, stratified by API, error type and file structure, never exposed in the development container
+- Training samples are offline issue→patch or function-level repair pairs; sample hashes, deduplication and contamination reports frozen by the server
+models:
+- Decoder-only code checkpoint of ≤ 350M; fixed tokenizer, revision, fp16 and 4-bit calibrated weights
+software:
+- PyTorch 2.6
+- transformers/PEFT/bitsandbytes, Python and pytest versions frozen by lockfile
+- Patch-test subprocesses use a runner with no network, read-only inputs and limited CPU/memory/wall clock
+hardware: One 24GB GPU; CPU handles data validation, patch parsing and the test sandbox
+private_resources:
+- hidden repository/task split and regression tests
+- reference recipes and tuned baselines
+- patch safety checker, network/filesystem monitor and contamination audit
+sandbox_constraints:
+- No network; other checkpoints, data or dependencies must not be downloaded, and online code search/APIs must not be called
+- The submission may read only the fixed model/data/repository bundles mounted by the server; output is written only to the submission workdir
+- Patches must be applied on an isolated copy; modifying the input repository or test files is forbidden
+- Test timeouts, process trees, file access, random seeds and hardware timing are recorded server-side
+blocked_inputs:
+- offline_repo_bundle_and_test_manifest
+- frozen_code_model_tokenizer_and_training_split
+- hidden_patch_tests_and_regression_suite
+- server_patch_sandbox_and_resource_measurement
+no_download_or_training_in_scaffold: true
+resource_profile: posttrain_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: posttrain_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 4
+  per_submission_verify: 2
+  reference_precompute: 25
+limits_unit: GPU-h

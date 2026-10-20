@@ -1,0 +1,113 @@
+case: DS-PIPE-002
+title: 'Histogram Gradient Boosting with Early Stopping: A Single-Model Tabular Baseline'
+abstract: This submission gives a baseline for the six-dataset tabular task. It fits one histogram-based gradient-boosted
+  tree ensemble per dataset [@friedman2001gbm;@ke2017lightgbm], with shrinkage, L2 leaf regularisation and early stopping
+  on an internal validation split [@prechelt1998early]. Missing values are routed natively by the tree learner, so the pipeline
+  has no imputation step. The design deliberately omits the multi-model stacking of the anchor [@erickson2020autogluon] so
+  that entries have a clear, reproducible starting point.
+sections:
+- title: Introduction
+  paras:
+  - On medium-sized tables of numeric features, tree ensembles remain hard to beat [@grinsztajn2022tree], and the anchor shows
+    that robust defaults and ensembling across model families add further accuracy without per-dataset tuning [@erickson2020autogluon].
+    A pipeline for this task must be generic, because the same training procedure runs on six datasets.
+- title: Related Work
+  paras:
+  - Gradient boosting fits an additive model of regression trees by functional gradient descent on the loss [@friedman2001gbm].
+    Histogram-based learners bin each feature once and grow trees on bin statistics, which makes split finding linear in the
+    number of bins rather than the number of rows [@ke2017lightgbm;@chen2016xgboost].
+  - The anchor's gains come from stacking many model families, which costs training time and complexity; this reference keeps
+    only its robust single-model defaults, which leaves ensembling and model selection as the gap for entries.
+- title: Method
+  subsections:
+  - title: Model
+    paras:
+    - For each dataset, a binary log-loss gradient-boosted ensemble is fitted with learning rate 0.06, at most 31 leaves per
+      tree, at least 20 rows per leaf and L2 penalty 1e-3 on leaf values. Ten percent of the training rows are held aside
+      (by the seed) and boosting stops when their loss has not improved for 40 rounds, with at most 800 rounds. The implementation
+      is scikit-learn's histogram booster [@pedregosa2011sklearn].
+    algorithm_caption: Per-dataset fit
+    algorithm:
+    - '**fit_one**(X, y, seed):'
+    - '  split X into train (90%) and validation (10%) using seed'
+    - '  bin each feature into at most 255 histogram bins'
+    - '  for m = 1 … 800: fit a 31-leaf tree to the log-loss gradient; stop if validation loss stalls for 40 rounds'
+    - '**predict_proba**(X): sigmoid of the summed tree outputs, as (1 − p, p)'
+  - title: Complexity
+    paras:
+    - With N rows, F features, B bins and M rounds, binning costs O(NF log N) once and each round O(NF) for the histograms
+      plus O(LFB) for split search with L leaves. Prediction costs O(M · depth) per row.
+- title: Design Rationale
+  paras:
+  - 'Early stopping makes the number of rounds adapt to each dataset without a search loop, which keeps training cheap and
+    is the main source of robustness across datasets of different size. Native handling of missing values avoids an imputation
+    choice that could hurt some datasets. The remaining development budget is unused on purpose: spending it on diverse models
+    and ensembling is the obvious axis for entries.'
+- title: Scope and Limitations
+  paras:
+  - A single model family cannot exploit the complementary errors of neural or linear models, and fixed hyperparameters are
+    not tuned to dataset size. Both are addressed in the anchor by bagging and multi-layer stacking.
+references:
+- id: erickson2020autogluon
+  title: 'AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data'
+  authors: Nick Erickson, Jonas Mueller, Alexander Shirkov, Hang Zhang, Pedro Larroy, Mu Li and Alexander Smola
+  year: 2020
+  arxiv: '2003.06505'
+  used_for: 'Anchor: robust defaults and ensembling for generic tabular pipelines'
+  code_location: null
+- id: grinsztajn2022tree
+  title: Why do tree-based models still outperform deep learning on tabular data?
+  authors: Léo Grinsztajn, Edouard Oyallon and Gaël Varoquaux
+  year: 2022
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2207.08815'
+  used_for: Benchmark suite and the choice of a tree ensemble as baseline
+  code_location: null
+- id: friedman2001gbm
+  title: 'Greedy function approximation: A gradient boosting machine'
+  authors: Jerome H. Friedman
+  year: 2001
+  venue: Annals of Statistics
+  doi: 10.1214/aos/1013203451
+  used_for: Gradient boosting with shrinkage
+  code_location: 'train.py: fit_one'
+- id: ke2017lightgbm
+  title: 'LightGBM: A Highly Efficient Gradient Boosting Decision Tree'
+  authors: Guolin Ke, Qi Meng, Thomas Finley, Taifeng Wang, Wei Chen, Weidong Ma, Qiwei Ye and Tie-Yan Liu
+  year: 2017
+  venue: NeurIPS
+  url: https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree
+  used_for: Histogram-based split finding and leaf-wise growth
+  code_location: 'train.py: fit_one (HistGradientBoostingClassifier)'
+- id: chen2016xgboost
+  title: 'XGBoost: A Scalable Tree Boosting System'
+  authors: Tianqi Chen and Carlos Guestrin
+  year: 2016
+  venue: KDD
+  arxiv: '1603.02754'
+  used_for: Regularised leaf values (L2 penalty)
+  code_location: 'train.py: fit_one (l2_regularization)'
+- id: prechelt1998early
+  title: Early Stopping - But When?
+  authors: Lutz Prechelt
+  year: 1998
+  venue: 'Neural Networks: Tricks of the Trade'
+  doi: 10.1007/3-540-49430-8_3
+  used_for: Validation-based early stopping
+  code_location: 'train.py: fit_one (early_stopping)'
+- id: pedregosa2011sklearn
+  title: 'Scikit-learn: Machine Learning in Python'
+  authors: Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort and others
+  year: 2011
+  venue: JMLR
+  arxiv: '1201.0490'
+  used_for: Implementation
+  code_location: 'train.py: imports'
+changes:
+- text: One histogram gradient-boosted model per dataset with early stopping replaces the anchor's multi-layer stack of model
+    families.
+  code: 'train.py: fit_one'
+- text: Missing values are routed by the booster natively instead of the anchor's per-type preprocessing.
+  code: 'train.py: fit_one (HistGradientBoostingClassifier)'
+- text: Fitted models are pickled per dataset and selected by dataset id at prediction time.
+  code: 'model.py: load, predict_proba'

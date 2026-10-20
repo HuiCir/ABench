@@ -1,0 +1,34 @@
+schema: abench.references/v2
+references:
+- id: hu2020ogb
+  title: 'Open Graph Benchmark: Datasets for Machine Learning on Graphs'
+  authors: Weihua Hu, Matthias Fey, Marinka Zitnik, Yuxiao Dong, Hongyu Ren, Bowen Liu, Michele Catasta and Jure
+    Leskovec
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2005.00687'
+  used_for: 'Anchor: dataset, time split and metric'
+  code_location: null
+- id: kipf2017gcn
+  title: Semi-Supervised Classification with Graph Convolutional Networks
+  authors: Thomas N. Kipf and Max Welling
+  year: 2017
+  venue: ICLR
+  arxiv: '1609.02907'
+  used_for: Symmetric-normalised adjacency with self-loops
+  code_location: 'model.py: adjacency'
+- id: wu2019sgc
+  title: Simplifying Graph Convolutional Networks
+  authors: Felix Wu, Tianyi Zhang, Amauri Holanda de Souza Jr., Christopher Fifty, Tao Yu and Kilian Q. Weinberger
+  year: 2019
+  venue: ICML
+  arxiv: '1902.07153'
+  used_for: Fixed propagation followed by a linear classifier
+  code_location: 'model.py: features; train.py: main'
+- id: frasca2020sign
+  title: 'SIGN: Scalable Inception Graph Neural Networks'
+  authors: Fabrizio Frasca, Emanuele Rossi, Davide Eynard, Ben Chamberlain, Michael Bronstein and Federico Monti
+  year: 2020
+  arxiv: '2004.11198'
+  used_for: Concatenation of several propagation depths
+  code_location: 'model.py: features'

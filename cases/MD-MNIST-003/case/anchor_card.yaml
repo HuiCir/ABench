@@ -1,0 +1,38 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: MD-MNIST-003
+readiness: deferred
+title: Lightweight medical image classification on BloodMNIST and OrganAMNIST
+version: v2026.07
+cutoff: '2026-07-01'
+track: MD
+track_name: Medicine
+group: domain
+priority: P1
+type: T1
+subset: calibration
+difficulty: low
+budget_tier: low
+status: deferred
+anchor:
+  name: MedMNIST v2
+  arxiv: '2110.14795'
+  verify_before_freeze: false
+task: Lightweight 2D medical image classification (BloodMNIST, OrganAMNIST; calibration)
+metrics: Mean accuracy; mean AUC
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 1
+  verify: 0.3
+  ref: 3
+  risk: []
+  plan: 2 MedMNIST subsets each in 2D and 3D
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- public_deidentified_dataset_and_licence
+- patient_level_split_and_preprocessing_lock
+- medical_metric_review
+- specific_anchor_or_citation_verification
+standard_case: spec/standard_cases/MD-MNIST-003.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

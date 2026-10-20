@@ -1,0 +1,38 @@
+# Resource registry scaffold; URLs/checkpoints are intentionally not fabricated.
+case_id: U-KAN-009
+status: scaffold
+required:
+  datasets: freeze source, version, split, license and sha256 before activation
+  models: freeze config/checkpoint/revision and sha256
+  software: freeze container, compiler/CUDA/PyTorch versions
+  hardware: record device model, driver, clocks and thermal state
+public_resources:
+  anchor: KAN
+  arxiv: '2404.19756'
+  track_proxy:
+  - JUDGE
+  - MICRO
+  notes:
+  - Judgment question and minimal verification experiment; no simulated training results are output
+  - Micro-scale training ladder; real model, tokenizer and data hashes are frozen by the benchmark operator
+private_resources:
+- hidden test split or task instances
+- reference runs and tuned baselines
+- server signing key / run manifest
+blocked_inputs:
+- frozen_checkpoint_or_synthetic_task_suite
+- long_context_and_compute_calibration
+- reference_runs
+- specific_anchor_or_citation_verification
+no_download_or_training_in_scaffold: true
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: single_gpu_24gb
+budget_tier: low
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 2
+  per_submission_verify: 0.5
+  reference_precompute: 5
+limits_unit: GPU-h
+

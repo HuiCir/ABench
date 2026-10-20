@@ -1,0 +1,93 @@
+case: RS-SEQ-001
+title: 'Item Transitions with Decayed Popularity: A Count-Based Next-Item Baseline'
+abstract: This submission gives a transparent baseline for next-item recommendation. It keeps the first-order Markov view
+  of sequential behaviour that factorised models such as FPMC learn implicitly [@rendle2010fpmc], but estimates the transition
+  table directly from counts, and blends it with item popularity weighted by an exponential time decay [@koren2009temporal].
+  Items already consumed are excluded and every item is ranked, matching full-ranking protocols that avoid the biases of sampled
+  metrics [@krichene2020sampled]. The anchor's self-attentive encoder [@kang2018sasrec] is left to the entries.
+sections:
+- title: Introduction
+  paras:
+  - Next-item prediction mixes short-term dynamics (what follows the last item) with long-term preference and global trends.
+    Self-attention models both by attending over the whole history [@kang2018sasrec]. A count-based model captures the short-term
+    part with no training cost and gives entries a floor that any learned model should beat.
+- title: Related Work
+  paras:
+  - FPMC models the probability of the next item as a factorised user-specific Markov chain [@rendle2010fpmc]. Temporal effects
+    in rating data, such as drift in item popularity, are well documented [@koren2009temporal]. The data are the MovieLens-1M
+    ratings [@harper2015movielens], used here as implicit interactions.
+  - Self-attentive models need training and tuning, and count-based Markov models ignore long-term preference; this reference
+    covers only the short-term transition part, which leaves sequence modelling of the whole history as the gap.
+- title: Method
+  subsections:
+  - title: Scoring rule
+    paras:
+    - Let T[i, j] count how often item j directly follows item i in a training sequence, and let p(j) be the sum over interactions
+      with j of exp(−Δt / 90 days), where Δt is the time before the latest timestamp. For a user whose last item is i, item
+      j is scored by log(1 + T[i, j]) + 0.35 · log(1 + p(j)). Items in the user's history and the padding id are removed,
+      and the ten highest scores are returned.
+    algorithm_caption: Training and recommendation
+    algorithm:
+    - '**train**(data): T ← transition counts within each user''s sequence; p ← time-decayed item counts'
+    - '**recommend**(u): i ← last item of u; s ← log(1 + T[i]) + β log(1 + p)'
+    - '  s[history(u)] ← −∞; return the 10 items with the largest s'
+  - title: Complexity
+    paras:
+    - Training is O(L) for L interactions plus O(I²) memory for the dense transition table over I items. Ranking one user
+      costs O(I + |history|), so all users cost O(UI).
+- title: Design Rationale
+  paras:
+  - Log-damped counts keep a handful of very frequent transitions from dominating, and the popularity term breaks ties among
+    items never seen after the last item, which is the common case for a sparse table. The time decay favours items that are
+    popular near the end of the log, which is when the held-out interactions happen.
+- title: Scope and Limitations
+  paras:
+  - The model looks only one step back and has no user-specific long-term preference; learned sequence encoders address both.
+references:
+- id: kang2018sasrec
+  title: Self-Attentive Sequential Recommendation
+  authors: Wang-Cheng Kang and Julian McAuley
+  year: 2018
+  venue: ICDM
+  arxiv: '1808.09781'
+  used_for: 'Anchor: task protocol (leave-one-out next item)'
+  code_location: null
+- id: rendle2010fpmc
+  title: Factorizing personalized Markov chains for next-basket recommendation
+  authors: Steffen Rendle, Christoph Freudenthaler and Lars Schmidt-Thieme
+  year: 2010
+  venue: WWW
+  doi: 10.1145/1772690.1772773
+  used_for: First-order Markov view of the next item
+  code_location: 'train.py: main (transition counts)'
+- id: koren2009temporal
+  title: Collaborative filtering with temporal dynamics
+  authors: Yehuda Koren
+  year: 2009
+  venue: KDD
+  doi: 10.1145/1557019.1557072
+  used_for: Time-dependent item popularity
+  code_location: 'train.py: main (decayed popularity)'
+- id: krichene2020sampled
+  title: On Sampled Metrics for Item Recommendation
+  authors: Walid Krichene and Steffen Rendle
+  year: 2020
+  venue: KDD
+  doi: 10.1145/3394486.3403226
+  used_for: Full ranking over all items
+  code_location: 'model.py: recommend'
+- id: harper2015movielens
+  title: 'The MovieLens Datasets: History and Context'
+  authors: F. Maxwell Harper and Joseph A. Konstan
+  year: 2015
+  venue: ACM TiiS
+  doi: 10.1145/2827872
+  used_for: Dataset
+  code_location: null
+changes:
+- text: First-order transition counts between consecutive items replace the anchor's self-attention over the history.
+  code: 'train.py: main (transition counts); model.py: recommend'
+- text: A 90-day time-decayed popularity prior is added to every score, which the anchor does not have.
+  code: 'train.py: main (decayed popularity)'
+- text: Items already in the user's history are excluded from the ranking.
+  code: 'model.py: recommend'

@@ -1,0 +1,69 @@
+# ABench anchor card: C-T7-005
+case_id: C-T7-005
+readiness: deferred
+title: "Audit of speculative-decoding efficiency claims"
+version: v2026.07
+cutoff: "2026-07-01"
+
+anchor:
+  title: "Analysis of speculative-decoding efficiency"
+  arxiv: ""
+  type: T7
+  track: C
+  age_band: mature
+
+task_family: judgement
+deliverable_kind: submission_artifacts
+
+budget:
+  tier: low
+  dev_plan: "Judgment questions and minimal verification experiments covering counterfactual settings such as low acceptance, large batch and long context; no large-scale training."
+  verification: "Run only after the benchmark operator's real resources and hidden configurations are frozen"
+  submissions: 1
+
+metrics:
+  - "Judgment accuracy"
+  - "Speedup prediction error"
+  - "Falsifiability of the experimental design"
+
+holdout:
+  - "Hidden workload cards"
+  - "Different draft/target model ratios"
+  - "Changes in server-side concurrency"
+
+deferred:
+  - "Specific paper/claim cards to be frozen"
+  - "Serving-workload baseline"
+  - "Blind expert review"
+
+# Canonical ratings copied from index.yaml
+difficulty: medium
+budget_tier: low
+status: scaffold
+track: C
+priority: P1
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: frozen_inference_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 1
+      unit: GPU-h
+    per_submission_verify:
+      value: 0.3
+      unit: GPU-h
+    reference_precompute:
+      value: 0
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: low

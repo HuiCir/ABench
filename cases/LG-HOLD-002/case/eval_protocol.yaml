@@ -1,0 +1,56 @@
+# Generic protocol scaffold; no simulated evaluation outputs.
+case_id: LG-HOLD-002
+version: v2026.07
+cutoff: '2026-07-01'
+hardware:
+  reference: single 24GB GPU (Budget; resource_profile pending)
+  software: benchmark manifest required
+  timing: server-side wall clock; median over fixed seeds
+proxy:
+  types:
+  - SUBSET
+  plan: Small encoder fine-tuning
+  fidelity_gate: track-level calibration must reproduce at least 5 known pairwise
+    orderings with >=80% agreement
+budget:
+  agent_dev_gpu_h: 1
+  per_submission_verify_gpu_h: 0.3
+  reference_precompute_gpu_h: 3
+  submissions: 1
+ladder:
+  L0_smoke:
+    visibility: agent
+    checks:
+    - interface
+    - finite outputs
+    - determinism
+    - resource limits
+    - no input mutation
+  L1_proxy:
+    visibility: agent
+    settings: smallest documented proxy
+  L2_main:
+    visibility: benchmark
+    settings: public validation split and fixed seeds
+  L3_holdout:
+    visibility: hidden
+    settings: scale/length/parameter/OOD holdout as appropriate
+inputs:
+  public: resources.yaml
+  private: benchmark-side manifests and hidden split
+  required_hashes: true
+outputs:
+  required:
+  - manifest.json
+  - run.jsonl
+  - artifacts.sha256
+  - metrics.json
+  forbidden:
+  - simulated_scores
+  - fabricated_reference_runs
+  - undeclared_network_access
+special_blockers:
+- licensed_legal_dataset_snapshot
+- jurisdiction_and_time_split
+- blind_legal_review_protocol
+activation: deferred until blocked_inputs are frozen and real reference runs exist

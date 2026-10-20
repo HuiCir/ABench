@@ -1,0 +1,32 @@
+# C-QNT-003 external resource contract; before freezing only URI/version/hash are registered, with no download and no training
+case_id: C-QNT-003
+status: deferred
+resource_rating: medium
+resource_profile: frozen_inference_24gb
+offline_bundle: fixed 0.5B–1.5B decoder checkpoints + calibration_text_v1 + hidden task/shape bundle
+required:
+  - {id: runtime, description: "Fixed runtime, GPU, quantization kernels and dependency lockfile", uri: to be filled in by the benchmark operator, sha256: to be frozen}
+  - {id: public_inputs, description: "Public calibration text, FP16 checkpoint, tokenizer and reference quantization configurations", uri: to be filled in by the benchmark operator, sha256: to be frozen}
+  - {id: hidden_inputs, description: "Hidden model/task/shape and activation-outlier tests", uri: "benchmark-private://C-QNT-003/holdout", sha256: benchmark-private}
+datasets:
+- Calibration text under a fixed license; sample hashes and the dedup manifest are frozen by the server
+- Hidden models, tasks, batch/sequence shapes and low-batch decode workloads outside the calibration set
+models:
+- 0.5B–1.5B decoder FP16 checkpoint; tokenizer and numerical-equivalence checker provided
+software:
+- PyTorch/CUDA/runtime and the AWQ/GPTQ/SmoothQuant implementations and kernel versions are frozen by lockfile
+hardware: One 24GB GPU; model size, throughput, p95 latency and memory are measured server-side
+private_resources: [hidden task/shape suite, reference envelope, numerical-equivalence checker, leakage audit]
+sandbox_constraints:
+- No network; do not replace the model/tokenizer, read hidden inputs or download other kernels
+- Quantized outputs, configurations, calibration seed and runtime hash must be written to the manifest
+- Runs may write only to an isolated output directory; time and memory are measured server-side
+blocked_inputs: [frozen_model_tokenizer_and_runtime_hash, quantization_kernel_and_hardware_baseline, hidden_quality_suite_and_server_timer]
+no_download_or_training_in_scaffold: true
+spec_refs: [spec/pareto_protocol.md, spec/sandbox_profiles.md]
+sandbox_profile: frozen_inference_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits: {agent_dev: 3, per_submission_verify: 1, reference_precompute: 5}
+limits_unit: GPU-h

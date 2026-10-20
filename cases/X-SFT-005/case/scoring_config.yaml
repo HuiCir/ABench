@@ -1,0 +1,82 @@
+version: v0-scaffold
+case_id: X-SFT-005
+objective: pareto_frontier
+primary_metrics:
+- name: instruction_quality
+  direction: higher
+  unit: hidden_task_score
+  role: quality
+- name: pretrain_ce_regression
+  direction: lower
+  unit: nats/token
+  role: constraint
+- name: trainable_params_m
+  direction: lower
+  unit: million
+  role: cost
+- name: peak_memory_gb
+  direction: lower
+  unit: GB
+  role: cost
+- name: train_gpu_hours
+  direction: lower
+  unit: GPU-h
+  role: cost
+normalization:
+  direction: per metric declaration
+  baseline: server reference envelope
+  aggregation: non-dominated set + normalized hypervolume; publish per-dimension values
+gates:
+- valid_run_manifest
+- resource_and_time_budget
+- finite_metrics
+- deterministic_replay
+- no_hidden_input_or_network_access
+- quality_and_safety_constraints
+pareto_policy:
+  no_single_sota_gate: true
+  constraint_fail: dominated_and_ineligible
+  tie_break: lower total measured cost then lower variance
+simulation_policy: 'none: this scaffold does not generate scores'
+missing_real_artifacts: report pending rather than zeroing a fabricated score
+deferred_due_to:
+- frozen_base_checkpoint_tokenizer_and_quantization_config
+- offline_instruction_mix_and_hidden_task_split
+- server_gpu_memory_and_wall_clock_measurement
+objective_mode: pareto
+resource_profile: posttrain_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+pareto:
+  axes:
+  - id: instruction_quality
+    direction: maximize
+    unit: hidden_task_score
+    primary: true
+  - id: pretrain_ce_regression
+    direction: minimize
+    unit: nats/token
+    primary: false
+  - id: trainable_params_m
+    direction: minimize
+    unit: million
+    primary: false
+  - id: peak_memory_gb
+    direction: minimize
+    unit: GB
+    primary: false
+  - id: train_gpu_hours
+    direction: minimize
+    unit: GPU-h
+    primary: false
+  feasibility:
+  - metric: instruction_quality
+    op: '>='
+    threshold: reference_quality_floor
+  aggregation: empirical_frontier
+  report:
+  - frontier_points
+  - hypervolume
+  - knee_point
+  - dominated_by_reference

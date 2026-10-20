@@ -1,0 +1,1 @@
+# Anti-gaming checklist\n\n1. Do not read hidden labels, test examples or evaluator state.\n2. All metrics must be server-generated from hashed inputs and logged runtime.\n3. Public examples validate interface only and carry no score.\n4. Use full-catalog chronological ranking.\n5. Report popularity-stratified performance; reject sampled-only claims.\n

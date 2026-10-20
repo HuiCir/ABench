@@ -1,0 +1,57 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: PRO-SRV-005
+readiness: deferred
+title: "LLM serving optimization: for an MoE or dense model of ≤ 30B, design scheduling, KV management and kernels that maximize throughput under latency SLOs"
+version: v2026.07
+cutoff: '2026-07-01'
+track: PRO
+track_name: Industrial-scale essentials
+group: pro
+priority: P1
+type: T6
+subset: main
+difficulty: high
+budget_tier: pro
+status: deferred
+anchor:
+  name: PagedAttention (vLLM)
+  arxiv: '2309.06180'
+  verify_before_freeze: false
+task: "LLM serving optimization: for an MoE or dense model of ≤ 30B, design scheduling, KV management and kernels that maximize throughput under latency SLOs"
+metrics: Goodput on hidden traffic traces (throughput that meets TTFT/TPOT SLOs); output-equivalence check
+verify_plan:
+  proxy:
+  - RERUN
+  - EVAL
+  dev: 96
+  verify: 8
+  ref: 16
+  unit: H100-h
+  risk: []
+  plan: The benchmark reruns twice on hidden traffic traces, about 1 hour × 4 GPUs each; references are tuned vLLM and SGLang configurations
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- 4xH100_scheduler_and_network_sandbox
+- hidden_tasks_and_post_cutoff_eval
+- hash_chain_and_1h_resume_audit
+- pro_hardware_quota_and_resume_audit
+- specific_anchor_or_citation_verification
+resource_profile:
+  sandbox_profile: pro_4xh100
+  hardware_class: 4xh100_80gb
+  accelerator: H100_SXM
+  accelerator_count: 4
+  memory_gib: 80
+  cost_unit: H100-h
+  leaderboard: pro
+  limits:
+    agent_dev: {value: 96, unit: H100-h}
+    per_submission_verify: {value: 12, unit: H100-h}
+    reference_precompute: {value: 192, unit: H100-h}
+  sandbox:
+    network: allowlisted_hf_pip_only
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side

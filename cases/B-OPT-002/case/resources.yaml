@@ -1,0 +1,60 @@
+# External resources: this case provides only Hugging Face links; nothing is downloaded or trained.
+# Entries marked verify need manual confirmation of repo and config names before freezing.
+
+tokenizer:
+  repo: "To be released: 8k BPE vocabulary trained by the benchmark operator on FineWeb-Edu"
+  note: "At micro scale the output head of a 49k vocabulary would take more than half of the parameters and compute, so an 8k vocabulary is used instead; trained once (CPU only) and then released on HF"
+
+model_configs:                 # structure template from SmolLM2 (Llama style: RMSNorm, RoPE, SwiGLU, GQA), random init, trained from scratch
+  template:
+    repo: HuggingFaceTB/SmolLM2-135M
+    url: https://huggingface.co/HuggingFaceTB/SmolLM2-135M
+  mu1: {overrides: {vocab_size: 8192, hidden_size: 256, intermediate_size: 683, num_hidden_layers: 6, num_attention_heads: 4, num_key_value_heads: 2, tie_word_embeddings: true}, effective_params: "about 7M"}
+  mu2: {overrides: {vocab_size: 8192, hidden_size: 384, intermediate_size: 1024, num_hidden_layers: 8, num_attention_heads: 6, num_key_value_heads: 2, tie_word_embeddings: true}, effective_params: "about 17M"}
+  mu3: {overrides: {vocab_size: 8192, hidden_size: 512, intermediate_size: 1365, num_hidden_layers: 12, num_attention_heads: 8, num_key_value_heads: 4, tie_word_embeddings: true}, effective_params: "about 42M"}
+  outer_validation:
+    repo: HuggingFaceTB/SmolLM2-135M
+    note: "Used only for the unscored outer review"
+
+reference_checkpoints:          # sanity comparison only (loss magnitude, curve shape); not used in scoring
+  - repo: OptimizerStudy
+    url: https://huggingface.co/OptimizerStudy
+    note: "The 0.3B-class checkpoint collection released by Fantastic Pretraining Optimizers (2509.02046), such as the muon_* series"
+  - repo: HuggingFaceFW/ablation-model-fineweb-edu
+    url: https://huggingface.co/HuggingFaceFW/ablation-model-fineweb-edu
+    note: "Official FineWeb-Edu ablation model, used to check the data pipeline"
+
+datasets:
+  train:
+    repo: HuggingFaceFW/fineweb-edu
+    url: https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu
+    config: sample-10BT        # verify: community docs write "10BT"; confirm the config name before freezing
+    split: train
+    usage: "Shuffle with a fixed seed and split; use only the first ~2B tokens (each tier reads sequentially from the start), so the full 10BT need not be downloaded"
+  val_in_distribution:
+    repo: HuggingFaceFW/fineweb-edu
+    config: sample-10BT
+    usage: "Cut 20M tokens from the tail of train as a fixed validation set, deduplicated at document level, with no overlap with the training portion"
+  val_ood:                     # hidden: the agent does not know which OOD sets are used
+    - repo: Salesforce/wikitext
+      url: https://huggingface.co/datasets/Salesforce/wikitext
+      config: wikitext-103-raw-v1
+      split: validation
+    - repo: bigcode/the-stack-smol   # verify
+      url: https://huggingface.co/datasets/bigcode/the-stack-smol
+      config: "data/python"
+      usage: "Take 2M tokens of Python code"
+
+reference_implementations:     # code sources of the reference methods, see reference_pool.yaml
+  note: "Prefer the official paper implementation or the PyTorch built-in, wrapped uniformly behind the harness/optim_api.py interface"
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: single_gpu_24gb
+budget_tier: high
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 8
+  per_submission_verify: 5.5
+  reference_precompute: 0
+limits_unit: GPU-h
+

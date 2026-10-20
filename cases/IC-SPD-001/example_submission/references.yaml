@@ -1,0 +1,63 @@
+schema: abench.references/v2
+references:
+  - id: jordan2024airbench
+    title: "94% on CIFAR-10 in 3.29 Seconds on a Single GPU"
+    authors: "Keller Jordan"
+    year: 2024
+    arxiv: "2404.00498"
+    used_for: "Anchor: task definition and the speedrun approach"
+    code_location: null
+  - id: page2018resnet
+    title: "How to Train Your ResNet"
+    authors: "David Page"
+    year: 2018
+    venue: "Myrtle.ai blog"
+    url: "https://myrtle.ai/learn/how-to-train-your-resnet/"
+    used_for: "ResNet-9 structure, 1/8 scaling of the classifier, 24-epoch training procedure"
+    code_location: "method.py: ResNet9"
+  - id: he2016resnet
+    title: "Deep Residual Learning for Image Recognition"
+    authors: "Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun"
+    year: 2016
+    venue: "CVPR"
+    arxiv: "1512.03385"
+    used_for: "Residual connections"
+    code_location: "method.py: Residual"
+  - id: ioffe2015bn
+    title: "Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift"
+    authors: "Sergey Ioffe, Christian Szegedy"
+    year: 2015
+    venue: "ICML"
+    arxiv: "1502.03167"
+    used_for: "Batch normalization"
+    code_location: "method.py: conv_bn"
+  - id: devries2017cutout
+    title: "Improved Regularization of Convolutional Neural Networks with Cutout"
+    authors: "Terrance DeVries, Graham W. Taylor"
+    year: 2017
+    arxiv: "1708.04552"
+    used_for: "8×8 cutout augmentation"
+    code_location: "method.py: _augment"
+  - id: szegedy2016inception
+    title: "Rethinking the Inception Architecture for Computer Vision"
+    authors: "Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe, Jonathon Shlens, Zbigniew Wojna"
+    year: 2016
+    venue: "CVPR"
+    arxiv: "1512.00567"
+    used_for: "Label smoothing"
+    code_location: "method.py: train (label_smoothing)"
+  - id: smith2017superconvergence
+    title: "Super-Convergence: Very Fast Training of Neural Networks Using Large Learning Rates"
+    authors: "Leslie N. Smith, Nicholay Topin"
+    year: 2017
+    arxiv: "1708.07120"
+    used_for: "One-cycle learning rate"
+    code_location: "method.py: train (LambdaLR)"
+  - id: sutskever2013momentum
+    title: "On the importance of initialization and momentum in deep learning"
+    authors: "Ilya Sutskever, James Martens, George Dahl, Geoffrey Hinton"
+    year: 2013
+    venue: "ICML"
+    url: "https://proceedings.mlr.press/v28/sutskever13.html"
+    used_for: "Nesterov momentum"
+    code_location: "method.py: train (SGD nesterov=True)"

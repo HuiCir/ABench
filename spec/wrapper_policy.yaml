@@ -1,0 +1,33 @@
+schema: abench.wrapper/v1
+description: >-
+  Benchmark wrappers are an allow-list, not an arbitrary command prefix.  A
+  benchmark run is scoreable only when one of these launchers provides the
+  declared isolation and, for containers, pins the image by digest.  The
+  checker rejects equivalent unsafe spellings such as --volume=, --env=,
+  --mount, --env-file, --privileged=true, host networking, and read-only
+  workspace mounts.  Host devices/namespaces, extra capabilities, and
+  security overrides are also rejected.
+allowed:
+  - id: docker_digest
+    launcher: docker
+    kind: container
+    required_flags: [run, --rm, --network, none]
+    required_mounts: [view_ro, workspace_rw]
+    allowed_mount_sources: [ABENCH_VIEW_DIR, ABENCH_WORKSPACE, ABENCH_SUBMISSION_DIR, ABENCH_DATA_DIR, ABENCH_MODEL_DIR, ABENCH_CHECKPOINT_DIR, ABENCH_HOME_DIR, ABENCH_TMP_DIR]
+    allowed_env_prefix: ABENCH_
+    image_digest_required: true
+  - id: podman_digest
+    launcher: podman
+    kind: container
+    required_flags: [run, --rm, --network, none]
+    required_mounts: [view_ro, workspace_rw]
+    allowed_mount_sources: [ABENCH_VIEW_DIR, ABENCH_WORKSPACE, ABENCH_SUBMISSION_DIR, ABENCH_DATA_DIR, ABENCH_MODEL_DIR, ABENCH_CHECKPOINT_DIR, ABENCH_HOME_DIR, ABENCH_TMP_DIR]
+    allowed_env_prefix: ABENCH_
+    image_digest_required: true
+  - id: sudo_abench_agent
+    launcher: sudo
+    kind: user
+    required_flags: [-u, abench-agent, --]
+    required_user: abench-agent
+    exact_prefix: true
+    image_digest_required: false

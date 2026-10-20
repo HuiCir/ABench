@@ -1,0 +1,36 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: V-T7-007
+readiness: contract_only
+title: Judge whether the FID gain of a given generative method comes from memorization or metric bias
+version: v2026.07
+cutoff: '2026-07-01'
+track: V
+track_name: Vision
+group: method
+priority: P1
+type: T7
+subset: calibration
+difficulty: medium
+budget_tier: low
+status: scaffold
+anchor:
+  name: Analysis of the limits of generative evaluation metrics (specific paper to be chosen)
+  arxiv: null
+  verify_before_freeze: true
+task: Judge whether the FID gain of a given generative method comes from memorization or metric bias
+metrics: Judgment accuracy
+verify_plan:
+  proxy:
+  - JUDGE
+  dev: 1
+  verify: 0.3
+  ref: 0
+  risk: []
+  plan: Judgment question + one minimal verification experiment at μ1 or equivalent scale; no new large-scale training
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_weights_or_dataset_snapshot
+- fid_or_scene_metric_calibration
+- reference_runs_and_fixed_hardware

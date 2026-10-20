@@ -1,0 +1,69 @@
+# Scoring contract scaffold; calibrate coefficients before leaderboard use.
+version: scaffold-v1
+case_id: TC-T7-003
+primary_metric: blind judgment accuracy
+metrics:
+  judgment_accuracy: fraction correct on hidden items
+  calibration: Brier/ECE or confidence-weighted accuracy
+  evidence_quality: rubric score for evidence and minimal test
+weights:
+  judgment_accuracy: 0.6
+  calibration: 0.2
+  evidence_quality: 0.2
+gates:
+- answer key and rubric frozen before submissions
+- no hidden labels or evaluator prompts exposed
+statistics:
+  seeds: 1
+  confidence_interval: Wilson/bootstrap on hidden items
+status: scaffold_only_no_real_judge_outputs
+primary_metrics: []
+# Shared multi-objective evaluation; formal coefficients are frozen after calibration.
+objective_mode: pareto
+pareto:
+  axes:
+    - id: quality
+      metric: case_defined_macro_quality
+      direction: maximize
+      unit: normalized_score
+      required: true
+      source: server
+    - id: throughput
+      metric: samples_per_s
+      direction: maximize
+      unit: case_defined_per_s
+      required: false
+      source: server
+    - id: peak_memory
+      metric: peak_rss_mb
+      direction: minimize
+      unit: MiB
+      required: false
+      source: server
+    - id: compute_cost
+      metric: compute_cost_cpu_h
+      direction: minimize
+      unit: reference_h
+      required: false
+      source: server
+    - id: stability
+      metric: stable_success_rate
+      direction: maximize
+      unit: fraction
+      required: true
+      source: server
+  feasibility:
+    - metric: quality
+      op: ">="
+      threshold: reference_quality_floor
+    - metric: compute_cost
+      op: "<="
+      threshold: declared_budget
+  comparison:
+    scope: same_case_same_hardware_same_budget_tier
+    reference: reference_envelope
+    unavailable_axis: null_and_exclude_from_frontier
+    uncertainty: confidence_interval_then_noise_floor
+  aggregation: empirical_frontier
+  report: [frontier_points, normalized_hypervolume, knee_point, dominated_by_reference, confidence_intervals]
+  tie_break: lower_compute_cost_then_lower_peak_memory_then_lower_variance

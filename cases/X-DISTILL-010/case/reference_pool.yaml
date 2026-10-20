@@ -1,0 +1,20 @@
+# X-DISTILL-010 reference-pool contract (real results only)
+verify: true
+references:
+  - id: kd_anchor
+    name: "Distilling the Knowledge in a Neural Network"
+    arxiv: "1503.02531"
+    role: anchor
+    impl: "Before freezing, register the teacher/student, loss, temperature, commit and container hash"
+  - id: distilbert_reference
+    name: "DistilBERT"
+    arxiv: "1910.01108"
+    role: strong_baseline
+    impl: "Before freezing, register the official distillation recipe, checkpoint, commit and container hash"
+  - id: tinybert_reference
+    name: "TinyBERT"
+    arxiv: "1909.10351"
+    role: strong_baseline
+    impl: "Before freezing, register the official distillation recipe, checkpoint, commit and container hash"
+precomputed_results: outputs/reference_runs/
+provenance: real_only

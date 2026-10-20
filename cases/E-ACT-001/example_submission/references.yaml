@@ -1,0 +1,27 @@
+schema: abench.references/v2
+references:
+- id: chi2023diffusion
+  title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'
+  authors: Cheng Chi, Zhenjia Xu, Siyuan Feng, Eric Cousineau, Yilun Du, Benjamin Burchfiel, Russ Tedrake and Shuran
+    Song
+  year: 2023
+  venue: RSS
+  arxiv: '2303.04137'
+  used_for: 'Anchor: task, coverage metric and receding-horizon action execution'
+  code_location: 'policy.py: _Policy.act (queue)'
+- id: zhao2023act
+  title: Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware
+  authors: Tony Z. Zhao, Vikash Kumar, Sergey Levine and Chelsea Finn
+  year: 2023
+  venue: RSS
+  arxiv: '2304.13705'
+  used_for: Action chunking
+  code_location: 'train.py: main (chunks)'
+- id: pari2022vinn
+  title: The Surprising Effectiveness of Representation Learning for Visual Imitation
+  authors: Jyothish Pari, Nur Muhammad Shafiullah, Sridhar Pandian Arunachalam and Lerrel Pinto
+  year: 2022
+  venue: RSS
+  arxiv: '2112.01511'
+  used_for: Nearest-neighbour action retrieval
+  code_location: 'policy.py: _Policy.act (nearest neighbours)'

@@ -1,0 +1,38 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: LG-RSN-003
+readiness: deferred
+title: With a fixed base model, design a retrieval and reasoning pipeline for legal reasoning
+version: v2026.07
+cutoff: '2026-07-01'
+track: LG
+track_name: Law
+group: domain
+priority: P2
+type: T2
+subset: main
+difficulty: medium
+budget_tier: medium
+status: deferred
+anchor:
+  name: LegalBench
+  arxiv: '2308.11462'
+  verify_before_freeze: false
+task: With a fixed base model, design a retrieval and reasoning pipeline for legal reasoning
+metrics: Mean task accuracy; accuracy on unseen tasks
+verify_plan:
+  proxy:
+  - INFER
+  dev: 3
+  verify: 1
+  ref: 5
+  risk: []
+  plan: ≤ 1.5B base, 20 LegalBench subtasks
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- licensed_legal_dataset_snapshot
+- jurisdiction_and_time_split
+- blind_legal_review_protocol
+- fixed_checkpoint_and_runtime_stack
+- specific_anchor_or_citation_verification

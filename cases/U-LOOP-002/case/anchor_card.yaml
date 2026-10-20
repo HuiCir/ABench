@@ -1,0 +1,62 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: U-LOOP-002
+readiness: contract_only
+title: Search adaptive halting/exit rules so a looped model allocates test-time compute by sample difficulty
+version: v2026.07
+cutoff: '2026-07-01'
+track: U
+track_name: Non-mainstream paradigms
+group: frontier
+priority: P1
+type: T6
+subset: primitive
+difficulty: high
+budget_tier: medium
+status: scaffold
+anchor:
+  name: Recurrent Depth (Huginn)
+  arxiv: '2502.05171'
+  verify_before_freeze: false
+task: Search adaptive halting/exit rules so a looped model allocates test-time compute by sample difficulty
+metrics: Accuracy–test-time FLOPs Pareto (synthetic reasoning tasks)
+verify_plan:
+  proxy:
+  - SYN
+  dev: 4
+  verify: 1
+  ref: 10
+  risk: []
+  plan: Accuracy–test-time-compute Pareto on synthetic reasoning tasks such as arithmetic and graph reachability
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_checkpoint_or_synthetic_task_suite
+- long_context_and_compute_calibration
+- reference_runs
+- specific_anchor_or_citation_verification
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 4
+      unit: GPU-h
+    per_submission_verify:
+      value: 1
+      unit: GPU-h
+    reference_precompute:
+      value: 10
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: medium

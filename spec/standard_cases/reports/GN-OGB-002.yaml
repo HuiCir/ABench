@@ -1,0 +1,83 @@
+case: GN-OGB-002
+title: 'Propagated Features with a Closed-Form Classifier: An SGC Baseline for ogbn-arxiv'
+abstract: This submission gives a fast baseline for transductive node classification. Following simplified graph convolution
+  [@wu2019sgc], node features are smoothed by repeated multiplication with the symmetric-normalised adjacency of the undirected
+  graph with self-loops [@kipf2017gcn], and the original and propagated features are concatenated, as in SIGN [@frasca2020sign].
+  A linear classifier is fitted in closed form by ridge regression to one-hot labels, with the ridge strength chosen on the
+  valid nodes. There is no iterative training, so the whole fit takes seconds.
+sections:
+- title: Introduction
+  paras:
+  - ogbn-arxiv asks for the subject area of recent papers given a citation graph whose labelled nodes are older [@hu2020ogb].
+    Neighbouring papers tend to share a subject, so smoothing features over the graph is the main source of accuracy; much
+    of the gain of deep message passing can be obtained by fixed propagation followed by a linear model [@wu2019sgc].
+- title: Related Work
+  paras:
+  - A graph convolutional layer multiplies features by Â = D^{-1/2}(A + I)D^{-1/2} before a linear map [@kipf2017gcn]. SGC
+    removes the nonlinearities between layers, which collapses K layers into the fixed operator Â^K followed by one linear
+    classifier [@wu2019sgc]; SIGN concatenates several propagation depths instead of choosing one [@frasca2020sign].
+  - Deep message passing couples propagation with nonlinear training; propagation-only models decouple them but use a fixed
+    depth; this reference uses fixed propagation and leaves learned propagation and label reuse as the gap.
+- title: Method
+  subsections:
+  - title: Features and classifier
+    paras:
+    - Features are standardised per dimension. The citation edges are symmetrised and self-loops added; with Â the normalised
+      adjacency, the feature matrix is F = [X, ÂX, Â²X, 1]. Weights W minimise ||F_train W − Y_train||² + λ||W||², solved
+      in closed form for λ ∈ {0.1, 1, 10, 100}; the λ with the best valid accuracy is kept. Scores for any node are F W.
+    algorithm_caption: Training
+    algorithm:
+    - Â ← D^{-1/2}(sym(A) + I)D^{-1/2};  X ← standardise(X)
+    - F ← [X, ÂX, Â²X, 1]
+    - 'for λ in {0.1, 1, 10, 100}: W_λ ← (F_trᵀF_tr + λI)^{-1} F_trᵀ Y_tr'
+    - W ← the W_λ with the highest valid accuracy;  predict(v) = F[v] W
+  - title: Complexity
+    paras:
+    - Propagation costs O(K · E · d) for K = 2 hops, E edges and d = 128. The normal equations cost O(n d'²) to form and O(d'³)
+      to solve for d' = 3d + 1, independent of the number of edges.
+- title: Design Rationale
+  paras:
+  - Fixed propagation turns graph learning into linear regression on precomputed features, which removes all optimisation
+    noise across seeds and fits in seconds. Concatenating depths lets the classifier weight short- and longer-range evidence
+    per class. Choosing λ on valid nodes from 2018 partially accounts for the temporal shift between training and test papers.
+- title: Scope and Limitations
+  paras:
+  - The model is linear in the propagated features and ignores the labels of neighbours at prediction time; label propagation
+    post-processing and nonlinear message passing are natural improvements.
+references:
+- id: hu2020ogb
+  title: 'Open Graph Benchmark: Datasets for Machine Learning on Graphs'
+  authors: Weihua Hu, Matthias Fey, Marinka Zitnik, Yuxiao Dong, Hongyu Ren, Bowen Liu, Michele Catasta and Jure Leskovec
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2005.00687'
+  used_for: 'Anchor: dataset, time split and metric'
+  code_location: null
+- id: kipf2017gcn
+  title: Semi-Supervised Classification with Graph Convolutional Networks
+  authors: Thomas N. Kipf and Max Welling
+  year: 2017
+  venue: ICLR
+  arxiv: '1609.02907'
+  used_for: Symmetric-normalised adjacency with self-loops
+  code_location: 'model.py: adjacency'
+- id: wu2019sgc
+  title: Simplifying Graph Convolutional Networks
+  authors: Felix Wu, Tianyi Zhang, Amauri Holanda de Souza Jr., Christopher Fifty, Tao Yu and Kilian Q. Weinberger
+  year: 2019
+  venue: ICML
+  arxiv: '1902.07153'
+  used_for: Fixed propagation followed by a linear classifier
+  code_location: 'model.py: features; train.py: main'
+- id: frasca2020sign
+  title: 'SIGN: Scalable Inception Graph Neural Networks'
+  authors: Fabrizio Frasca, Emanuele Rossi, Davide Eynard, Ben Chamberlain, Michael Bronstein and Federico Monti
+  year: 2020
+  arxiv: '2004.11198'
+  used_for: Concatenation of several propagation depths
+  code_location: 'model.py: features'
+changes:
+- text: Fixed SGC propagation of standardised features (depths 0, 1, 2, concatenated) replaces the anchor's trained GNN baselines.
+  code: 'model.py: adjacency, features'
+- text: A closed-form one-vs-rest ridge readout with the strength selected on validation nodes replaces gradient training.
+  code: 'train.py: main'

@@ -1,0 +1,14 @@
+# B-OPT-004 reference-pool contract (real results only)
+verify: true
+references:
+  - id: anchor_baseline
+    name: "LAMB"
+    arxiv: "1904.00962"
+    role: anchor
+    impl: "Before freezing, the benchmark operator registers the official implementation, commit and container hash"
+  - id: strong_baseline
+    name: "Strong baseline to be chosen by the benchmark operator"
+    role: envelope
+    impl: "to be frozen"
+precomputed_results: outputs/reference_runs/
+provenance: real_only

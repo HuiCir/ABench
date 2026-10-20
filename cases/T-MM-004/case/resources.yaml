@@ -1,0 +1,39 @@
+case_id: T-MM-004
+status: scaffold
+resource_rating: medium
+offline_bundle: captioned_images_v1 (≤ 50k thumbnails + captions, packaged by the server) + compositional_holdout_v1
+datasets:
+- Fixed image–text pair bundle; image licenses and sample hashes frozen by the server
+- Hidden compositional attributes and cross-domain category split
+- Fixed text tokenizer and image preprocessing configuration
+models:
+- Frozen vision encoder of ≤ 150M + frozen text encoder of ≤ 150M; fixed projection checkpoint provided
+software:
+- PyTorch 2.6, torchvision and transformers versions locked; external downloads disabled
+hardware: One 24GB GPU; CPU only for image-decoding pre-caching
+private_resources:
+- Hidden compositional retrieval set, contamination checks, reference adapter runs
+sandbox_constraints:
+- No network; encoders must not be replaced and external image search must not be accessed
+- Only the declared adapter parameters may be trained
+- Image caches and results are written to an isolated working directory
+blocked_inputs:
+- frozen_vision_text_encoder_and_tokenizer_hash
+- offline_image_text_bundle_and_hidden_compositions
+- fixed_gpu_timer_and_retrieval_evaluator
+no_download_or_training_in_scaffold: true
+resource_profile: single_gpu_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: single_gpu_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 3
+  per_submission_verify: 1.5
+  reference_precompute: 15
+limits_unit: GPU-h

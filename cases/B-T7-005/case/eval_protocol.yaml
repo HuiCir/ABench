@@ -1,0 +1,61 @@
+# B-T7-005 evaluation protocol (scaffold; no simulated runs)
+case_id: B-T7-005
+status: scaffold
+hardware:
+  reference_card: "CPU reference image for judgment-only evaluation; exact model, BLAS and runtime hashes frozen server-side"
+  timing: "Wall-clock median and p95 collected server-side; submitters must not self-report"
+  isolation: "Network allowlist, file-system isolation, process/memory/timeout limits"
+
+budget:
+  tier: low
+  verify_plan: "Reuse the real reference results and hidden claim cards of B-OPT-001; judgment, ranking prediction and minimal verification design only, with no new large-scale training."
+
+visibility:
+  public: [case_contract, public_resources, submission_schema]
+  benchmark: [reference_runs, calibration_seeds]
+  hidden: [holdout_inputs, final_configs, judge_prompts]
+
+ladder:
+  L0_smoke: {visibility: agent, checks: [schema, deterministic_replay, finite_outputs, no_undeclared_io]}
+  L1_public: {visibility: benchmark, checks: [public_proxy, resource_limits]}
+  L2_main: {visibility: benchmark, checks: [real_metrics, multi_seed]}
+  L3_holdout: {visibility: hidden, checks: [holdout_metrics, anti_gaming, reproducibility]}
+
+metrics:
+  - "Accuracy of judging claim truthfulness"
+  - "Rank correlation of speedups"
+  - "Information content of the verification experiment"
+
+holdout:
+  - "Unpublished claims"
+  - "New scales and large-batch points"
+  - "Counterexamples that disagree with the reference results"
+
+real_artifacts:
+  runs: "outputs/reference_runs/ or benchmark-side immutable artifact store"
+  judge: "benchmark-side blind judge output"
+  hashes: "config, code, data, checkpoint and runtime hashes required"
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: low_cpu
+  hardware_class: cpu_only
+  accelerator: benchmark_cpu
+  accelerator_count: 1
+  memory_gib: null
+  cost_unit: CPU-h
+  leaderboard: budget_t7
+  limits:
+    agent_dev:
+      value: 1
+      unit: CPU-h
+    per_submission_verify:
+      value: 0.3
+      unit: CPU-h
+    reference_precompute:
+      value: 0
+      unit: CPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side

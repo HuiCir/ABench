@@ -1,0 +1,99 @@
+case: A-LIN-002
+title: 'Gated Linear Attention in Chunkwise-Parallel Form: A Reference Mixer for Associative Recall'
+abstract: 'This submission is the anchor''s layer, re-implemented in plain PyTorch as the reference point for the task. Each
+  head keeps a matrix state updated as S_t = diag(α_t) S_{t−1} + k_tᵀ v_t with a data-dependent, per-channel decay α_t, and
+  reads it out with o_t = q_t S_t [@yang2024gla]. Training uses the chunkwise-parallel form: within a chunk of 64 tokens the
+  contributions are computed as a masked, decay-weighted attention matrix, and across chunks through the carried state, which
+  makes the cost linear in the sequence length [@katharopoulos2020linear]. Associative recall probes how much of the context
+  such a fixed-size state can retrieve [@arora2023zoology].'
+sections:
+- title: Introduction
+  paras:
+  - 'Linear attention replaces the growing key-value cache of softmax attention by a fixed-size state, which makes inference
+    cost constant per token but limits what can be recalled [@katharopoulos2020linear;@arora2023zoology]. The update rule
+    decides what the state keeps: gated linear attention lets each key channel decay at a learned, input-dependent rate [@yang2024gla];
+    the delta rule instead overwrites the value stored for a key [@schlag2021fastweights;@yang2024deltanet].'
+- title: Related Work
+  paras:
+  - MQAR presents several key-value pairs and then queries keys in random order; a model succeeds only if its state stores
+    many associations with little interference [@arora2023zoology]. The chunkwise form of linear recurrences trades a small
+    quadratic block for parallelism within a chunk [@yang2024gla].
+  - Decay-based updates forget uniformly, while delta-rule updates overwrite selectively but are harder to parallelise; combining
+    selective overwriting with gating at linear cost is the open gap for entries.
+- title: Method
+  subsections:
+  - title: Layer
+    paras:
+    - 'With d_k = d_v = d_model / h per head: q, k, v and a gate g are linear projections of x; log α = logsigmoid(g)/16 per
+      key channel. Within chunk c, with cumulative log decays G_i = Σ_{s ≤ i} log α_s, the output is o_i = (q_i ⊙ e^{G_i})
+      S_c + Σ_{j ≤ i} [Σ_d q_{id} k_{jd} e^{G_{id} − G_{jd}}] v_j, and the state moves on as S_{c+1} = diag(e^{G_C}) S_c +
+      Σ_j (k_j ⊙ e^{G_C − G_j})ᵀ v_j. Pairwise differences G_i − G_j ≤ 0 keep every exponential in (0, 1]. The output is gated
+      by swish(W_r x) and projected by W_o.'
+    algorithm_caption: Chunkwise gated linear attention for one head
+    algorithm:
+    - S ← 0
+    - 'for each chunk c: G ← cumsum(log α) within c'
+    - '  inter ← (Q ⊙ e^G) S;  A_ij ← Σ_d Q_id K_jd e^{G_id − G_jd} for j ≤ i'
+    - '  O_c ← inter + A V;  S ← diag(e^{G_last}) S + (K ⊙ e^{G_last − G})ᵀ V'
+    - y ← (O ⊙ swish(x W_r)) W_o
+  - title: Complexity
+    paras:
+    - 'For T tokens, chunk size C and head dimension d: O(T · C · d) for the intra-chunk part (with the pairwise decay tensor,
+      O(T · C · d) memory per head) and O(T · d²) for the state updates, i.e. linear in T.'
+- title: Design Rationale
+  paras:
+  - Computing decay differences pairwise instead of as e^{G_i} · e^{−G_j} avoids overflow for long chunks at the cost of a
+    larger intermediate tensor; the temperature 1/16 keeps initial decays close to 1 so that early training does not forget
+    the key-value pairs before the queries arrive.
+- title: Scope and Limitations
+  paras:
+  - A decay-only update cannot remove a stale association for a key without also fading the others; delta-rule and hybrid
+    updates address this. The implementation is a reference in PyTorch, not a fused kernel.
+references:
+- id: yang2024gla
+  title: Gated Linear Attention Transformers with Hardware-Efficient Training
+  authors: Songlin Yang, Bailin Wang, Yikang Shen, Rameswar Panda and Yoon Kim
+  year: 2024
+  venue: ICML
+  arxiv: '2312.06635'
+  used_for: 'Anchor: gated update rule, gate temperature and chunkwise form'
+  code_location: 'mixer.py: Mixer.forward'
+- id: katharopoulos2020linear
+  title: 'Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention'
+  authors: Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas and François Fleuret
+  year: 2020
+  venue: ICML
+  arxiv: '2006.16236'
+  used_for: Linear attention as a recurrence over a matrix state
+  code_location: 'mixer.py: Mixer.forward (state S)'
+- id: arora2023zoology
+  title: 'Zoology: Measuring and Improving Recall in Efficient Language Models'
+  authors: Simran Arora, Sabri Eyuboglu, Aman Timalsina, Isys Johnson, Michael Poli, James Zou, Atri Rudra and Christopher
+    Ré
+  year: 2023
+  arxiv: '2312.04927'
+  used_for: MQAR task
+  code_location: null
+- id: schlag2021fastweights
+  title: Linear Transformers Are Secretly Fast Weight Programmers
+  authors: Imanol Schlag, Kazuki Irie and Jürgen Schmidhuber
+  year: 2021
+  venue: ICML
+  arxiv: '2102.11174'
+  used_for: Delta-rule update as the main alternative
+  code_location: null
+- id: yang2024deltanet
+  title: Parallelizing Linear Transformers with the Delta Rule over Sequence Length
+  authors: Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen and Yoon Kim
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.06484'
+  used_for: Chunkwise training of delta-rule updates
+  code_location: null
+changes:
+- text: A full-rank gate projection replaces the anchor's low-rank gate.
+  code: 'mixer.py: Mixer.__init__ (g)'
+- text: No normalisation of the output before gating, and fp32 computation inside the layer.
+  code: 'mixer.py: Mixer.forward'
+- text: Chunkwise-parallel computation with chunk size 64 in plain PyTorch instead of the anchor's Triton kernels.
+  code: 'mixer.py: Mixer.forward (chunks)'

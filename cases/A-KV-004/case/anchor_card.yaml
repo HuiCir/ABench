@@ -1,0 +1,61 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: A-KV-004
+readiness: contract_only
+title: Design an attention/KV structure that minimizes quality loss under a given KV memory budget
+version: v2026.07
+cutoff: '2026-07-01'
+track: A
+track_name: LLM architecture
+group: method
+priority: P1
+type: T2
+subset: main
+difficulty: medium
+budget_tier: medium
+status: scaffold
+anchor:
+  name: GQA
+  arxiv: '2305.13245'
+  verify_before_freeze: true
+task: Design an attention/KV structure that minimizes quality loss under a given KV memory budget
+metrics: Loss; KV bytes; length extrapolation
+verify_plan:
+  proxy:
+  - SURG
+  - SYN
+  dev: 4
+  verify: 2
+  ref: 20
+  risk: []
+  plan: Replace attention in SmolLM2-135M with the candidate KV structure and continue training for 30M tokens; KV-byte and length-extrapolation probes
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_tokenizer_model_data_and_long_context_probe
+- reference_runs_and_fixed_hardware_throughput
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 4
+      unit: GPU-h
+    per_submission_verify:
+      value: 2
+      unit: GPU-h
+    reference_precompute:
+      value: 20
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: medium

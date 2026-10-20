@@ -1,0 +1,42 @@
+case_id: X-DATA-007
+status: scaffold
+resource_rating: low
+offline_bundle: pretrain_docs_v1 (256MB–1GB, document hashes and licenses frozen by the server) + synthetic_duplicate_v1 + rare_topic_holdout_v1
+datasets:
+- Fixed offline document bundle with document-level hashes but without exposing hidden duplicate labels
+- Hidden set of synthetic duplicate/near-duplicate clusters and rare topics
+- Small training corpus for the 7M/17M proxy
+models:
+- 7M/17M decoder-only proxy checkpoint/config; tokenizer frozen by the server
+software:
+- Allowlist of plain Python/SQLite/xxhash/MinHash; PyTorch 2.6 only for short training
+hardware: CPU preprocessing and small probes (≤ 4 cores, 8GB RAM); if the training probe needs a GPU, create a separate single_gpu_24gb variant with its own timing
+private_resources:
+- Hidden contamination labels, duplicate clusters, reference dedup curves and CPU timer
+sandbox_constraints:
+- No network; external document metadata or hidden labels must not be read
+- The dedup program must output a keep/delete manifest and a hash chain
+- File read/write scope is limited, and forking undeclared processes is forbidden
+blocked_inputs:
+- frozen_document_bundle_and_duplicate_clusters
+- server_hidden_contamination_labels
+- fixed_cpu_timer_and_training_probe
+no_download_or_training_in_scaffold: true
+resource_profile: low_cpu
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: low_cpu
+budget_tier: low
+hardware_class: cpu_only
+accelerator: benchmark_cpu
+accelerator_count: 1
+memory_gib: 8
+cost_unit: CPU-h
+resource_limits:
+  agent_dev: 1
+  per_submission_verify: 0.5
+  reference_precompute: 10
+limits_unit: CPU-h
+

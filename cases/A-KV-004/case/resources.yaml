@@ -1,0 +1,36 @@
+# Resource registry scaffold; URLs/checkpoints are intentionally not fabricated.
+case_id: A-KV-004
+status: scaffold
+required:
+  datasets: freeze source, version, split, license and sha256 before activation
+  models: freeze config/checkpoint/revision and sha256
+  software: freeze container, compiler/CUDA/PyTorch versions
+  hardware: record device model, driver, clocks and thermal state
+public_resources:
+  anchor: GQA
+  arxiv: '2305.13245'
+  track_proxy:
+  - SURG
+  - SYN
+  notes:
+  - Frozen small-model surgery/short continued training; weights and preprocessing snapshots must be frozen
+  - Synthetic mechanism probes; the probe generator and hidden instances must be held by the server
+private_resources:
+- hidden test split or task instances
+- reference runs and tuned baselines
+- server signing key / run manifest
+blocked_inputs:
+- frozen_tokenizer_model_data_and_long_context_probe
+- reference_runs_and_fixed_hardware_throughput
+no_download_or_training_in_scaffold: true
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: single_gpu_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 4
+  per_submission_verify: 2
+  reference_precompute: 20
+limits_unit: GPU-h
+

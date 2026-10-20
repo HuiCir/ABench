@@ -1,0 +1,25 @@
+# Resource registry scaffold; URLs/checkpoints are intentionally not fabricated.
+case_id: FN-TS-001
+status: deferred
+required:
+  datasets: freeze source, version, split, license and sha256 before activation
+  models: freeze config/checkpoint/revision and sha256
+  software: freeze container, compiler/CUDA/PyTorch versions
+  hardware: record device model, driver, clocks and thermal state
+public_resources:
+  anchor: PatchTST
+  arxiv: '2211.14730'
+  track_proxy:
+  - SUBSET
+  notes:
+  - Subset, fewer-fold or low-resolution proxy; fidelity calibration before launch
+private_resources:
+- hidden test split or task instances
+- reference runs and tuned baselines
+- server signing key / run manifest
+blocked_inputs:
+- licensed_time_forward_data_snapshot
+- transaction_cost_and_survivorship_rules
+- post_cutoff_hidden_window
+- specific_anchor_or_citation_verification
+no_download_or_training_in_scaffold: true

@@ -1,0 +1,15 @@
+schema_version: '1.0'
+case_id: T-SPEC-003
+status: calibration_required
+generated_by: abench-normalize-contracts
+metrics:
+- id: metric_01
+  name: FID at NFE + source claims
+  direction: benchmark_defined
+  unit: benchmark_defined
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: objective
+  inference: heuristic
+  notes: Direction, unit, aggregation and Pareto thresholds must be frozen from real
+    calibration.

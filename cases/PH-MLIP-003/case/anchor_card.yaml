@@ -1,0 +1,37 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: PH-MLIP-003
+readiness: deferred
+title: Equivariant interatomic potential model
+version: v2026.07
+cutoff: '2026-07-01'
+track: PH
+track_name: Physics
+group: domain
+priority: P1
+type: T1
+subset: main
+difficulty: medium
+budget_tier: medium
+status: deferred
+anchor:
+  name: MACE
+  arxiv: '2206.07697'
+  verify_before_freeze: false
+task: Equivariant interatomic potential model
+metrics: Energy/force MAE; molecular-dynamics stable duration; inference speed
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 4
+  verify: 1.5
+  ref: 15
+  risk: []
+  plan: Small datasets at the rMD17 / 3BPA level, MD stability measured over 10 ps
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- molecular_dataset_and_units_snapshot
+- energy_force_stress_baselines
+- molecule_and_composition_holdouts
+- specific_anchor_or_citation_verification

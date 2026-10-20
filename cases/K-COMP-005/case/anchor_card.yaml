@@ -1,0 +1,66 @@
+case_id: K-COMP-005
+scope: active_v1
+readiness: contract_only
+title: In a fixed operator graph and single-GPU sandbox, design graph-capture, fusion, layout or compilation strategies so that end-to-end throughput, compile overhead, peak memory and numerical error form a better Pareto front
+version: v2026.07
+cutoff: '2026-07-01'
+track: K
+track_name: Systems and kernels
+group: method
+priority: P1
+type: T6
+subset: main
+difficulty: high
+budget_tier: medium
+status: scaffold
+anchor:
+  name: PyTorch 2 torch.compile / Inductor
+  arxiv: null
+  verify_before_freeze: true
+anchor_link: https://pytorch.org/docs/stable/torch.compiler.html
+task: In a fixed operator graph and single-GPU sandbox, design graph-capture, fusion, layout or compilation strategies so that end-to-end throughput, compile overhead, peak memory and numerical error form a better Pareto front
+metrics: End-to-end tokens/s; compile time; peak memory; numerical error; first-iteration/steady-state latency Pareto
+resource_rating: medium
+verify_plan:
+  proxy:
+  - STREAM
+  dev: 2
+  verify: 1
+  ref: 10
+  risk:
+  - hardware_dependent
+  - graph_capture_failure
+  plan: 12 fixed Transformer/MLP operator graphs, 3 shape distributions; only the torch.compile/Inductor/Triton
+    allowlist is permitted, no custom drivers or network dependencies
+pareto_objective:
+  enabled: true
+  policy: pareto_frontier
+  note: No single-point SOTA threshold; quality, cost and constraint metrics are evaluated by non-dominance
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- fixed_torch_cuda_container_and_gpu_model
+- operator_graphs_and_hidden_shapes
+- server_timer_numeric_equivalence_checker
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev: {value: 2, unit: GPU-h}
+    per_submission_verify: {value: 1, unit: GPU-h}
+    reference_precompute: {value: 10, unit: GPU-h}
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+objective_mode: pareto
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md

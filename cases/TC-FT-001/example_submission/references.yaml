@@ -1,0 +1,58 @@
+schema: abench.references/v2
+references:
+- id: joulin2017fasttext
+  title: Bag of Tricks for Efficient Text Classification
+  authors: Armand Joulin, Edouard Grave, Piotr Bojanowski and Tomas Mikolov
+  year: 2017
+  venue: EACL
+  arxiv: '1607.01759'
+  used_for: 'Anchor: bag-of-n-gram linear classification with hashed bigrams'
+  code_location: 'model.py: vectorizer, predict; train.py: main'
+- id: weinberger2009hashing
+  title: Feature Hashing for Large Scale Multitask Learning
+  authors: Kilian Weinberger, Anirban Dasgupta, John Langford, Alex Smola and Josh Attenberg
+  year: 2009
+  venue: ICML
+  arxiv: '0902.2206'
+  used_for: Hashing trick for n-gram features
+  code_location: 'model.py: vectorizer'
+- id: salton1988tfidf
+  title: Term-weighting approaches in automatic text retrieval
+  authors: Gerard Salton and Christopher Buckley
+  year: 1988
+  venue: Information Processing & Management
+  doi: 10.1016/0306-4573(88)90021-0
+  used_for: Sublinear tf and idf weighting
+  code_location: 'train.py: main (TfidfTransformer)'
+- id: zhang2004sgd
+  title: Solving large scale linear prediction problems using stochastic gradient descent algorithms
+  authors: Tong Zhang
+  year: 2004
+  venue: ICML
+  doi: 10.1145/1015330.1015332
+  used_for: SGD for linear classifiers; modified Huber loss
+  code_location: 'train.py: main (SGDClassifier)'
+- id: polyak1992averaging
+  title: Acceleration of Stochastic Approximation by Averaging
+  authors: Boris T. Polyak and Anatoli B. Juditsky
+  year: 1992
+  venue: SIAM Journal on Control and Optimization
+  doi: 10.1137/0330046
+  used_for: Iterate averaging
+  code_location: 'train.py: main (average=True)'
+- id: zhang2015charcnn
+  title: Character-level Convolutional Networks for Text Classification
+  authors: Xiang Zhang, Junbo Zhao and Yann LeCun
+  year: 2015
+  venue: NeurIPS
+  arxiv: '1509.01626'
+  used_for: Source of the AG News dataset and n-gram baselines
+  code_location: null
+- id: pedregosa2011sklearn
+  title: 'Scikit-learn: Machine Learning in Python'
+  authors: Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort and others
+  year: 2011
+  venue: JMLR
+  arxiv: '1201.0490'
+  used_for: Implementation of hashing, tf-idf and SGD
+  code_location: 'model.py, train.py: imports'

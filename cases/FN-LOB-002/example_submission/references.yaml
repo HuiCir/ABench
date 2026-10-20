@@ -1,0 +1,26 @@
+schema: abench.references/v2
+references:
+- id: zhang2019deeplob
+  title: 'DeepLOB: Deep Convolutional Neural Networks for Limit Order Books'
+  authors: Zihao Zhang, Stefan Zohren and Stephen Roberts
+  year: 2019
+  venue: IEEE Transactions on Signal Processing
+  arxiv: '1808.03668'
+  used_for: 'Anchor: task setup (window 100, horizon 10, days 1-7 / 8-10)'
+  code_location: null
+- id: ntakaris2018fi2010
+  title: Benchmark Dataset for Mid-Price Forecasting of Limit Order Book Data with Machine Learning Methods
+  authors: Adamantios Ntakaris, Martin Magris, Juho Kanniainen, Moncef Gabbouj and Alexandros Iosifidis
+  year: 2018
+  venue: Journal of Forecasting
+  arxiv: '1705.03233'
+  used_for: Dataset and label definition
+  code_location: null
+- id: cont2014ofi
+  title: The Price Impact of Order Book Events
+  authors: Rama Cont, Arseniy Kukanov and Sasha Stoikov
+  year: 2014
+  venue: Journal of Financial Econometrics
+  arxiv: '1011.6402'
+  used_for: Order-flow / volume imbalance as a short-horizon predictor
+  code_location: 'model.py: feats (imb)'

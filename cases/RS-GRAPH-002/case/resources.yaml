@@ -1,0 +1,25 @@
+status: resource_contract_only_no_downloads_or_runs
+datasets:
+- name: MovieLens-1M temporal calibration
+  source: to_be_frozen_by_benchmark
+  visibility: public
+- name: Gowalla/Yelp-scale hidden temporal ranking
+  source: to_be_frozen_by_benchmark
+  visibility: hidden
+baselines:
+- name: tuned matrix factorization
+  implementation: to_be_frozen_by_benchmark
+- name: LightGCN/SASRec reference
+  implementation: to_be_frozen_by_benchmark
+special_notes:
+- Full-catalog ranking, exposure filtering, time cutoffs and item universe must be
+  frozen; sampled metrics are not primary.
+integrity:
+  content_hashes: required before release
+  licenses: required before release
+  network: disabled unless allowlisted
+runtime:
+  evaluator: official where available
+  hashes: required
+  ranking: full-catalog primary
+  candidate_sampling: not allowed for primary

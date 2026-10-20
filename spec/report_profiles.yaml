@@ -1,0 +1,52 @@
+schema_version: "2.0"
+cutoff: "2026-07-01"
+description: >-
+  v2 report specification. Reports explain only the principles of the algorithm design and contain no experiments, results, ablations, metrics or evaluation settings;
+  scores come only from the benchmark operator's automatic evaluation of the submitted model and checkpoint, never from the report text.
+  The report layout follows arXiv HTML (LaTeXML markup); templates are in sandbox/templates/.
+
+profiles:
+  design_report_v2:
+    purpose: "All non-T7 cases: explain the design idea, definitions, algorithm, complexity and principles of the submitted method"
+    template: sandbox/templates/design_report.html
+    required_files: ["report/index.html", "references.yaml"]
+    required_anchors: ["abstract1", "S1", "S2", "S3", "S4", "changes", "bib"]
+    optional_anchors: ["S5"]
+    # S2 is Related Work (what existing methods do, where they fall short, the gap addressed). The list
+    # <ol id="changes"> ("Changes relative to the anchor") states every change with its code location in a <code>
+    # element; a report without it, or with an item lacking a code location, fails the format check.
+    changes_list: {id: changes, min_items: 1, require_code_location: true}
+  judgment_report_v2:
+    purpose: "T7 judgment cases: give a judgment, reasons and a minimal verification plan for one published claim"
+    template: sandbox/templates/judgment_report.html
+    required_files: ["report/index.html", "references.yaml"]
+    required_anchors: ["abstract1", "S1", "S2", "S3", "S4", "bib"]
+    optional_anchors: []
+
+# Section headings that must not appear in a report (matched as whole words, case-insensitive); any occurrence fails the format check.
+forbidden_heading_tokens:
+  - experiment
+  - result
+  - ablation
+  - evaluation
+  - assessment
+  - metric
+  - benchmark
+  - leaderboard
+
+assignment_rules:
+  precedence: "explicit exceptions > T7 suffix > default"
+  # A small number of report-only prompts predate the T7 naming convention.
+  # Keep these explicit so a case rename cannot silently change its submission
+  # contract.
+  exceptions:
+    U-KAN-009: judgment_report_v2
+  judgment_report_v2:
+    suffixes: ["-T7-"]
+  design_report_v2:
+    default: true
+
+retention:
+  reports_are_submission_artifacts: true
+  hash_with_submission: true
+  scores_must_not_be_derived_from_prose: true

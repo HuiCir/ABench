@@ -1,0 +1,31 @@
+# B-T7-005 external resource contract; before freezing only URI/version/hash are registered, with no download and no training
+status: deferred
+resource_profile: low_cpu
+required:
+  - id: runtime
+    description: "Fixed runtime, hardware and dependency lockfile"
+    uri: "to be filled in by the benchmark operator"
+    sha256: "to be frozen"
+  - id: public_inputs
+    description: "Public proxy inputs and tokenizer/model/kernel resources (as applicable to the case)"
+    uri: "to be filled in by the benchmark operator"
+    sha256: "to be frozen"
+  - id: hidden_inputs
+    description: "Hidden final-evaluation inputs, visible only server-side"
+    uri: "benchmark-private://B-T7-005/holdout"
+    sha256: "benchmark-private"
+notes:
+  - "Frozen paper/code snapshot"
+  - "Judgment cards reviewed by domain experts"
+  - "Shared real reference results"
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: low_cpu
+budget_tier: low
+hardware_class: cpu_only
+cost_unit: CPU-h
+resource_limits:
+  agent_dev: 1
+  per_submission_verify: 0.3
+  reference_precompute: 0
+limits_unit: CPU-h
+

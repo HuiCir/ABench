@@ -1,0 +1,82 @@
+version: v0-scaffold
+case_id: X-DPO-006
+objective: pareto_frontier
+primary_metrics:
+- name: preference_accuracy
+  direction: higher
+  unit: accuracy
+  role: quality
+- name: reference_kl
+  direction: lower
+  unit: nats/token
+  role: constraint
+- name: length_bias_abs
+  direction: lower
+  unit: tokens
+  role: robustness
+- name: safety_pass_rate
+  direction: higher
+  unit: fraction
+  role: constraint
+- name: train_gpu_hours
+  direction: lower
+  unit: GPU-h
+  role: cost
+normalization:
+  direction: per metric declaration
+  baseline: server reference envelope
+  aggregation: non-dominated set + normalized hypervolume; publish per-dimension values
+gates:
+- valid_run_manifest
+- resource_and_time_budget
+- finite_metrics
+- deterministic_replay
+- no_hidden_input_or_network_access
+- quality_and_safety_constraints
+pareto_policy:
+  no_single_sota_gate: true
+  constraint_fail: dominated_and_ineligible
+  tie_break: lower total measured cost then lower variance
+simulation_policy: 'none: this scaffold does not generate scores'
+missing_real_artifacts: report pending rather than zeroing a fabricated score
+deferred_due_to:
+- frozen_base_and_reference_checkpoint_hash
+- offline_preference_pairs_and_hidden_counterfactuals
+- reference_runs_and_kl_length_evaluator
+objective_mode: pareto
+resource_profile: posttrain_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+pareto:
+  axes:
+  - id: preference_accuracy
+    direction: maximize
+    unit: accuracy
+    primary: true
+  - id: reference_kl
+    direction: minimize
+    unit: nats/token
+    primary: false
+  - id: length_bias_abs
+    direction: minimize
+    unit: tokens
+    primary: false
+  - id: safety_pass_rate
+    direction: maximize
+    unit: fraction
+    primary: false
+  - id: train_gpu_hours
+    direction: minimize
+    unit: GPU-h
+    primary: false
+  feasibility:
+  - metric: preference_accuracy
+    op: '>='
+    threshold: reference_quality_floor
+  aggregation: empirical_frontier
+  report:
+  - frontier_points
+  - hypervolume
+  - knee_point
+  - dominated_by_reference

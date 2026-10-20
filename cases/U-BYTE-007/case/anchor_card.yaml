@@ -1,0 +1,64 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: U-BYTE-007
+readiness: contract_only
+title: Design a tokenizer-free dynamic patching scheme
+version: v2026.07
+cutoff: '2026-07-01'
+track: U
+track_name: Non-mainstream paradigms
+group: frontier
+priority: P1
+type: T2
+subset: main
+difficulty: high
+budget_tier: medium
+status: scaffold
+anchor:
+  name: Byte Latent Transformer
+  arxiv: '2412.09871'
+  verify_before_freeze: false
+task: Design a tokenizer-free dynamic patching scheme
+metrics: Bits-per-byte at equal FLOPs; robustness to character-level noise
+verify_plan:
+  proxy:
+  - SYN
+  - MICRO
+  dev: 4
+  verify: 2
+  ref: 20
+  risk:
+  - scale_mismatch
+  plan: "Downgraded: measure only bits-per-byte and character-noise robustness at μ2; scaling claims are handled by a judgment question"
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_checkpoint_or_synthetic_task_suite
+- long_context_and_compute_calibration
+- reference_runs
+- specific_anchor_or_citation_verification
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 4
+      unit: GPU-h
+    per_submission_verify:
+      value: 2
+      unit: GPU-h
+    reference_precompute:
+      value: 20
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: medium

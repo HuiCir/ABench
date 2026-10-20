@@ -1,0 +1,16 @@
+# Local-discovery claims (rules in abench/spec/discovery.md)
+discoveries:
+  - module: stable_rank_gate
+    problem: >
+      Muon whitens all 2D parameters with the same strength. In L1 self-tests, late in training the normalized stable rank of the Nesterov momentum of some projection layers
+      drops to the order of 0.01, at which point orthogonalization amplifies noise-dominated small singular directions to the same scale as the principal directions.
+    source: {id: "arXiv:math/0503442", year: 2007, field: math}
+    transferred: "Stable rank ||A||_F^2 / ||A||_2^2: a measure of effective dimension that is insensitive to small singular values and cheap to estimate"
+    code: "optimizer.py step 4): r_norm and gate a"
+    ablation_fallback: "Gate fixed at a = 0.5 (equal-weight mix of both branches)"
+  - module: power_iteration_sigma
+    problem: "An exact SVD per step to get the spectral norm costs more than the step-time cap allows"
+    source: {id: "vonmises1929", year: 1929, field: math}
+    transferred: "Power iteration on a persistent vector, one matrix–vector product per step to estimate the largest singular value"
+    code: "optimizer.py step 4): w, u_new"
+    ablation_fallback: "Exact SVD per step for the largest singular value"

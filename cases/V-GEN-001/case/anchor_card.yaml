@@ -1,0 +1,37 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: V-GEN-001
+readiness: contract_only
+title: Training recipe for a small diffusion model (calibration)
+version: v2026.07
+cutoff: '2026-07-01'
+track: V
+track_name: Vision
+group: method
+priority: P1
+type: T1
+subset: calibration
+difficulty: low
+budget_tier: medium
+status: scaffold
+anchor:
+  name: DDPM
+  arxiv: '2006.11239'
+  verify_before_freeze: true
+task: Training recipe for a small diffusion model (calibration)
+metrics: FID; training steps
+verify_plan:
+  proxy:
+  - SUBSET
+  - MICRO
+  dev: 4
+  verify: 2
+  ref: 20
+  risk: []
+  plan: Small diffusion model on CIFAR-10 32px, FID-10k
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_weights_or_dataset_snapshot
+- fid_or_scene_metric_calibration
+- reference_runs_and_fixed_hardware

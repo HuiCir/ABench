@@ -1,0 +1,11 @@
+rule: RankGate
+tunable:                      # at most 4
+  lr:    {default: 0.02, range: [0.004, 0.05], scale: log}
+  wd:    {default: 0.1,  range: [0.0, 0.2],    scale: linear}
+  tau:   {default: 0.15, range: [0.05, 0.4],   scale: linear}
+  kappa: {default: 20.0, range: [5.0, 60.0],   scale: log}
+fixed:
+  mu: 0.95
+  b2: 0.95
+lr_note: "lr is the peak learning rate of the orthogonalized branch; the AdamW learning rate of 1D parameters is tied as lr × 0.15 (shared benchmark rule)"
+owns_schedule: false

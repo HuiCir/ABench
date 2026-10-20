@@ -1,0 +1,84 @@
+case_id: TC-FT-001
+readiness: contract_only
+title: Text classification on AG News within a CPU budget
+version: v2026.07
+cutoff: '2026-07-01'
+anchor:
+  title: Bag of Tricks for Efficient Text Classification (fastText)
+  arxiv: '1607.01759'
+  type: T1
+  track: TC
+  age_band: mature
+task_family: design
+deliverable_kind: text_classifier
+neighborhood:
+  retrieval: open
+  seed_snapshot: paper_snapshot/seed_neighborhood.jsonl
+  hidden_snapshot: benchmark-held; not distributed
+  weight_rule: scoring_config.yaml
+task: Design a text classifier within a CPU budget
+metrics:
+  raw: Accuracy; documents processed per second
+  primary: Accuracy; documents processed per second
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 0
+  verify: 0
+  ref: 0
+  cpu: true
+  risk: []
+  plan: CPU only
+subset: main
+difficulty: low
+status: scaffold
+budget:
+  agent_dev_budget: 0 CPU/GPU-h per task card
+  hardware: CPU-only
+  verify_per_submission: 0 CPU/GPU-h per task card
+  reference_precompute: 0 CPU/GPU-h per task card
+  scale_policy: CPU only
+  submissions: 1
+probes:
+- interface/schema and deterministic rerun
+- raw metric and resource usage audit
+- hidden holdout and anti-gaming checks
+holdout:
+- hidden datasets or post-cutoff distribution where available
+- fixed seed/temporal/split robustness check
+contamination:
+- Resources and evaluator hashes are benchmark-held until release.
+- Submitted code must not access hidden labels, test data or evaluator state.
+verify: false
+scaffold_status: contract_only_pending_resources_and_runs
+
+# Canonical ratings copied from index.yaml
+budget_tier: low
+track: TC
+priority: P1
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: low_cpu
+  hardware_class: cpu_only
+  accelerator: benchmark_cpu
+  accelerator_count: 1
+  memory_gib: null
+  cost_unit: CPU-h
+  leaderboard: budget_cpu
+  limits:
+    agent_dev:
+      value: 0
+      unit: CPU-h
+    per_submission_verify:
+      value: 0
+      unit: CPU-h
+    reference_precompute:
+      value: 0
+      unit: CPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: low
+standard_case: spec/standard_cases/TC-FT-001.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

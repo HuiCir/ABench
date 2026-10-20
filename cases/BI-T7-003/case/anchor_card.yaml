@@ -1,0 +1,37 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: BI-T7-003
+readiness: deferred
+title: Judge whether the zero-shot representations of single-cell foundation models beat simple baselines
+version: v2026.07
+cutoff: '2026-07-01'
+track: BI
+track_name: Biology
+group: domain
+priority: P1
+type: T7
+subset: calibration
+difficulty: medium
+budget_tier: low
+status: deferred
+anchor:
+  name: Assessing the limits of zero-shot foundation models in single-cell biology
+  arxiv: null
+  verify_before_freeze: false
+task: Judge whether the zero-shot representations of single-cell foundation models beat simple baselines
+metrics: Judgment accuracy
+verify_plan:
+  proxy:
+  - JUDGE
+  dev: 1
+  verify: 0.3
+  ref: 0
+  risk: []
+  plan: Judgment question + one minimal verification experiment at μ1 or equivalent scale; no new large-scale training
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- licensed_biological_dataset_snapshot
+- family_or_experiment_split
+- domain_expert_review
+- specific_anchor_or_citation_verification

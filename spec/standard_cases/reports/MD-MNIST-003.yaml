@@ -1,0 +1,86 @@
+case: MD-MNIST-003
+title: 'Random ReLU Features with Ridge Regression: A Training-Free-Optimiser Baseline for MedMNIST'
+abstract: This submission gives a deliberately simple baseline for the two-dataset MedMNIST task. Each image is standardised
+  and passed through a fixed random projection followed by a ReLU, giving 4,096 random features in the sense of random kitchen
+  sinks [@rahimi2007random], on top of which a ridge classifier is solved in closed form, as in extreme learning machines
+  [@huang2006elm]. The ridge strength is chosen on the validation split. There is no gradient-based training, which makes
+  the result reproducible and fast, and leaves convolutional models such as the anchor's ResNets [@yang2023medmnist;@he2016resnet]
+  as the obvious direction for entries.
+sections:
+- title: Introduction
+  paras:
+  - MedMNIST standardises small biomedical images at 28×28 to study lightweight models across modalities [@yang2023medmnist].
+    The two datasets here differ in colour, number of classes and size, so a method must be generic. A random-feature model
+    provides a floor that needs no tuning beyond one regulariser.
+- title: Related Work
+  paras:
+  - A random nonlinear map followed by a linear model approximates a kernel machine [@rahimi2007random]; with a ReLU nonlinearity
+    and a least-squares readout this is the extreme learning machine [@huang2006elm]. Ridge regression to one-hot targets
+    is a stable closed-form surrogate for multiclass classification.
+  - MedMNIST's reference models are trained ResNets; random features need no training but cannot adapt their representation;
+    this reference is the latter and leaves learned convolutional features as the gap.
+- title: Method
+  subsections:
+  - title: Features and classifier
+    paras:
+    - Pixels are scaled to [0, 1], flattened and standardised per pixel. With R a Gaussian matrix scaled by 1/sqrt(d) and
+      b uniform in [−1, 1], features are h = max(0, zR + b) plus a bias. The weights solve (HᵀH + λI)W = HᵀY for λ ∈ {1, 10,
+      100, 1000}; the λ with the best validation accuracy is kept. One model is fitted per dataset with its own R drawn from
+      the seed.
+    algorithm_caption: Training for one dataset
+    algorithm:
+    - z ← standardise(flatten(x / 255));  draw R, b from the seed
+    - H ← [max(0, zR + b), 1]
+    - 'for λ in {1, 10, 100, 1000}: W_λ ← (HᵀH + λI)^{-1} HᵀY'
+    - keep the W_λ with the best validation accuracy; predict(x) = softmax(H(x) W)
+  - title: Complexity
+    paras:
+    - With n images of d pixels and D = 4,096 features, featurisation costs O(ndD), forming HᵀH O(nD²) and each solve O(D³).
+      Prediction costs O(dD) per image.
+- title: Design Rationale
+  paras:
+  - A closed-form readout removes optimiser choices and seed sensitivity, so differences between seeds come only from the
+    random features. Per-pixel standardisation lets the same projection scale work for RGB microscopy and grayscale CT. Selecting
+    λ on held-aside data is the only adaptation to each dataset.
+- title: Scope and Limitations
+  paras:
+  - Random features ignore spatial structure and translation invariance, which convolutional networks exploit; data augmentation
+    and learned features are the main levers for entries.
+references:
+- id: yang2023medmnist
+  title: MedMNIST v2 - A large-scale lightweight benchmark for 2D and 3D biomedical image classification
+  authors: Jiancheng Yang, Rui Shi, Donglai Wei, Zequan Liu, Lin Zhao, Bilian Ke, Hanspeter Pfister and Bingbing Ni
+  year: 2023
+  venue: Scientific Data
+  arxiv: '2110.14795'
+  used_for: 'Anchor: datasets, splits and metrics'
+  code_location: null
+- id: rahimi2007random
+  title: Random Features for Large-Scale Kernel Machines
+  authors: Ali Rahimi and Benjamin Recht
+  year: 2007
+  venue: NeurIPS
+  url: https://papers.nips.cc/paper/3182-random-features-for-large-scale-kernel-machines
+  used_for: Random nonlinear features as a kernel approximation
+  code_location: 'model.py: phi'
+- id: huang2006elm
+  title: 'Extreme learning machine: Theory and applications'
+  authors: Guang-Bin Huang, Qin-Yu Zhu and Chee-Kheong Siew
+  year: 2006
+  venue: Neurocomputing
+  doi: 10.1016/j.neucom.2005.12.126
+  used_for: Random hidden layer with a least-squares readout
+  code_location: 'train.py: fit_one'
+- id: he2016resnet
+  title: Deep Residual Learning for Image Recognition
+  authors: Kaiming He, Xiangyu Zhang, Shaoqing Ren and Jian Sun
+  year: 2016
+  venue: CVPR
+  arxiv: '1512.03385'
+  used_for: Reference architecture of the anchor's baselines
+  code_location: null
+changes:
+- text: A fixed random ReLU projection of standardised pixels replaces the anchor's trained ResNet backbones.
+  code: 'model.py: phi; train.py: fit_one'
+- text: A closed-form ridge readout with the strength chosen on a validation split replaces end-to-end training.
+  code: 'train.py: fit_one'

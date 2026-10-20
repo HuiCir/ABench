@@ -1,0 +1,342 @@
+<title>ABench Case Index</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: version and subset mix at the top, track-card grid in the middle (click to filter), case tables grouped by track at the bottom */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --ink:#18212b; --muted:#5b6876; --line:#d8dee5;
+  --accent:#1f4f8a; --accent-soft:#e3ecf7;
+  --ok:#2f7d4f; --ok-soft:#e2f2e8; --warn:#9a6a10; --warn-soft:#f7eed9; --idle:#6b7684; --idle-soft:#eceff2;
+  --f-display:"Newsreader", "Iowan Old Style", Georgia, serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11161c; --surface:#18202a; --ink:#e6ebf0; --muted:#97a3b1; --line:#2a3542;
+  --accent:#8fb6e8; --accent-soft:#1f2d3f;
+  --ok:#7cc79a; --ok-soft:#1a3326; --warn:#e2b45c; --warn-soft:#3a2f17; --idle:#9aa5b2; --idle-soft:#222b36; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161c; --surface:#18202a; --ink:#e6ebf0; --muted:#97a3b1; --line:#2a3542;
+  --accent:#8fb6e8; --accent-soft:#1f2d3f;
+  --ok:#7cc79a; --ok-soft:#1a3326; --warn:#e2b45c; --warn-soft:#3a2f17; --idle:#9aa5b2; --idle-soft:#222b36; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding-block:32px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:36px}
+h1,h2{font-family:var(--f-display);font-weight:600;text-wrap:balance;margin:0}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.15}
+h2{font-size:22px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+header{display:grid;gap:12px}
+header p{margin:0;max-width:68ch;color:var(--muted)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:500}
+
+/* overview */
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;display:grid;gap:12px;min-width:0}
+.statusrow{display:flex;gap:20px;flex-wrap:wrap}
+.statusrow div{display:grid}
+.big{font-family:var(--f-mono);font-size:28px;font-weight:500;line-height:1.1}
+.mix{display:grid;gap:8px}
+.mixrow{display:grid;grid-template-columns:5.5em 1fr 7.5em;gap:10px;align-items:center;font-size:13px}
+.bar{position:relative;height:8px;background:var(--idle-soft);border-radius:4px}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:4px}
+.bar s{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55}
+.gap{color:var(--warn);font-weight:500}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+
+/* track cards */
+.tracks{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.tgroup{display:grid;gap:12px}
+.tgroup-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.tgroup-head h3{margin:0;font-family:var(--f-display);font-size:18px;font-weight:600}
+.rules{margin:0;padding-left:1.2em;display:grid;gap:4px;font-size:13px;color:var(--muted);max-width:90ch}
+.rules b{color:var(--ink);font-weight:500}
+.track{all:unset;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;display:grid;gap:10px;align-content:start;min-width:0}
+.track:hover{border-color:var(--accent)}
+.track:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.track[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
+.track-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.track-id{font-family:var(--f-mono);font-size:13px;color:var(--accent);font-weight:500}
+.track-name{font-family:var(--f-display);font-size:19px;font-weight:600}
+.track p{margin:0;font-size:13.5px;color:var(--muted)}
+.track p.hooks{font-size:12.5px;border-top:1px dashed var(--line);padding-top:8px}
+.track p.hooks b{color:var(--accent);font-weight:500;margin-right:4px}
+.policy{grid-column:1 / -1}
+.policy dl{margin:0;display:grid;grid-template-columns:7em 1fr;gap:8px 16px;font-size:13.5px}
+.policy dt{color:var(--muted)}
+.policy dd{margin:0;min-width:0}
+@media (max-width:560px){.policy dl{grid-template-columns:1fr}.policy dt{margin-top:6px}}
+.facts{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.facts b{color:var(--ink);font-weight:500}
+.pips{display:flex;gap:4px;flex-wrap:wrap}
+.pip{width:12px;height:12px;border-radius:3px;background:var(--idle-soft);border:1px solid var(--line)}
+.pip.built{background:var(--ok);border-color:var(--ok)}
+.pip.spec{background:var(--warn);border-color:var(--warn)}
+.pip.std{background:var(--accent);border-color:var(--accent)}
+.std-tag{display:block;margin-top:3px;font-size:11.5px;color:var(--accent);font-weight:500}
+.prio{font-family:var(--f-mono);font-size:12px;padding:1px 7px;border-radius:999px;border:1px solid var(--line)}
+.prio.P0{background:var(--accent);color:var(--surface);border-color:var(--accent)}
+.prio.P1{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft)}
+
+/* filters */
+.filters{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.fgroup{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.fgroup > span{font-size:12px;color:var(--muted);margin-right:2px}
+.chip{font:inherit;font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=search]{font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:220px;max-width:100%}
+.count{font-size:13px;color:var(--muted);margin-left:auto}
+
+/* case table */
+.group{display:grid;gap:10px}
+.group-head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.group-head .mono{color:var(--accent)}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:1080px;font-size:13.5px}
+th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.id{font-family:var(--f-mono);font-size:12.5px;white-space:nowrap;font-weight:500}
+.anchor{font-weight:500}
+.arx{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.arx a{color:var(--accent);text-decoration:none}
+.arx a:hover{text-decoration:underline}
+.task{color:var(--ink)}
+.metrics{display:block;font-size:12.5px;color:var(--muted);margin-top:3px}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:4px;white-space:nowrap;background:var(--idle-soft);color:var(--ink)}
+.tag.type{font-family:var(--f-mono)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap}
+.st::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--idle)}
+.st.built::before{background:var(--ok)} .st.built{color:var(--ok);font-weight:500}
+.st.spec::before{background:var(--warn)} .st.spec{color:var(--warn);font-weight:500}
+.vf{font-size:11.5px;color:var(--warn);display:block;margin-top:2px}
+td.vp{min-width:260px;max-width:340px}
+.pxs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px}
+.px{font-family:var(--f-mono);font-size:11px;padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent)}
+.rk{font-size:11px;padding:1px 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn)}
+.gh{font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.compute-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.compute-grid div{display:grid;gap:2px}
+.compute-grid .big{font-size:22px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted)}
+.legend b{font-family:var(--f-mono);color:var(--ink);font-weight:500}
+@media (prefers-reduced-motion:no-preference){.track,.chip{transition:border-color .15s,background .15s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">ABench · architecture ability benchmark</span>
+    <h1>Tracks and case index</h1>
+    <p>Budget cases all run on one 24GB reference card under the reduced-scale verification protocol, never at the paper's full or large scale; a separate Pro Set provides 4 × H100 and 24 hours for compute-heavy industrial tasks. Every case starts from an anchor paper: the agent retrieves research from before the cutoff, synthesizes it and designs a new method, scored on SOTA margin, method divergence and reference quality. Each track has at least one standard case whose task statement, interface, sandbox guide and judge are complete. The index has five groups: general method tracks, non-mainstream frontier exploration with innovation potential, professional domains such as finance, law, physics, biology and medicine, the industrial Pro Set, and a classic-ML entry level serving as difficulty ladder and calibration.</p>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <section class="summary" aria-label="Overall progress">
+    <div class="panel">
+      <span class="eyebrow">Build status</span>
+      <div class="statusrow" id="statusrow"></div>
+      <p class="note">Green = built and run end to end, amber = task card finalized, blue = standard case (task statement v2.1 + judge), gray = scheduled, anchor to be verified.</p>
+    </div>
+    <div class="panel">
+      <span class="eyebrow">Subset mix · actual vs target</span>
+      <div class="mix" id="mix"></div>
+      <p class="note">The vertical line marks the target share. The stress/counterfactual set overlaps the other subsets and has no target. Local discovery runs through all tasks and occupies no subset.</p>
+    </div>
+    <div class="panel policy" id="compute"></div>
+    <div class="panel policy" id="policy"></div>
+  </section>
+
+  <section style="display:grid;gap:14px" aria-label="Tracks">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+      <h2>Tracks to watch</h2>
+      <span class="note">Click a card to filter the case table below; click again to clear</span>
+    </div>
+    <div id="tracks" style="display:grid;gap:26px"></div>
+  </section>
+
+  <section style="display:grid;gap:16px" aria-label="Case set">
+    <h2>Case set</h2>
+    <div class="filters">
+      <div class="fgroup" id="f-subset"><span>Subset</span></div>
+      <div class="fgroup" id="f-status"><span>Status</span></div>
+      <input type="search" id="q" placeholder="Search anchor, arXiv ID, task" aria-label="Search cases">
+      <span class="count" id="count"></span>
+    </div>
+    <div id="groups" style="display:grid;gap:26px"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+const L = D.legend;
+const allCases = D.tracks.flatMap(t => t.cases.map(c => ({...c, track: t.id})));
+const STATUS_ORDER = ["built","spec","scaffold","planned"];
+const SUBSET_NAME = {calibration:"calibration",main:"main",primitive:"primitive search",stress:"stress"};
+const STATUS_NAME = {built:"built",spec:"spec final",scaffold:"skeleton built",planned:"scheduled"};
+const state = {track:null, subset:null, status:null, q:""};
+try{ const s = JSON.parse(localStorage.getItem("abench-index-filter")||"null"); if(s) Object.assign(state, s, {q:""}); }catch(e){}
+const save = () => { try{ localStorage.setItem("abench-index-filter", JSON.stringify({track:state.track,subset:state.subset,status:state.status})); }catch(e){} };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const $ = id => document.getElementById(id);
+
+$("meta").innerHTML = `<span>Version <b class="mono">${esc(D.version)}</b></span><span>Corpus cutoff <b class="mono">${esc(D.cutoff)}</b></span><span>Tracks <b class="mono">${D.tracks.length}</b></span><span>Cases <b class="mono">${allCases.length}</b></span><span>Standard cases <b class="mono">${allCases.filter(c=>c.standard).length}</b></span>`;
+
+// status
+const sc = Object.fromEntries(STATUS_ORDER.map(s => [s, allCases.filter(c => c.status===s).length]));
+$("statusrow").innerHTML = STATUS_ORDER.map(s => `<div><span class="big" style="color:var(${s==="built"?"--ok":s==="spec"?"--warn":s==="scaffold"?"--blue":"--idle"})">${sc[s]}</span><span class="note">${STATUS_NAME[s]}</span></div>`).join("");
+
+// subset mix
+const n = allCases.length;
+$("mix").innerHTML = ["calibration","main","primitive","stress"].map(k => {
+  const cnt = allCases.filter(c => c.subset===k).length, pct = cnt/n, tgt = D.subset_targets[k];
+  const short = tgt != null && pct < tgt - 0.05;
+  const right = tgt != null ? `${Math.round(pct*100)}% / ${Math.round(tgt*100)}%` : `${Math.round(pct*100)}%`;
+  return `<div class="mixrow"><span>${SUBSET_NAME[k]}</span><div class="bar"><i style="width:${(pct*100).toFixed(1)}%"></i>${tgt!=null?`<s style="left:${tgt*100}%"></s>`:""}</div><span class="mono ${short?"gap":""}">${right}${short?` · short by ${Math.ceil(tgt*n-cnt)}`:""}</span></div>`;
+}).join("");
+
+// compute
+if(D.compute_policy){
+  const cs = allCases.map(c=>c.verify_plan).filter(v => v && !v.unit);
+  const ps = allCases.map(c=>c.verify_plan).filter(v => v && v.unit);
+  const psum = k => ps.reduce((a,v)=>a+(v[k]||0),0);
+  const sum = k => cs.reduce((a,v)=>a+(v[k]||0),0);
+  const dev=sum("dev"), ver=sum("verify"), ref=sum("ref");
+  const risky = allCases.filter(c=>c.verify_plan && c.verify_plan.risk.length).length;
+  const P = D.compute_policy, N = 10;
+  $("compute").innerHTML = `<span class="eyebrow">Budget edition · reference-card GPU-h</span>
+    <div class="compute-grid">
+      <div><span class="big">${Math.round(ref)}</span><span class="note">reference-method precompute (one-off)</span></div>
+      <div><span class="big">${Math.round(dev)}</span><span class="note">development budget for one agent across all cases</span></div>
+      <div><span class="big">${Math.round(ver)}</span><span class="note">verification of all of one agent's submissions</span></div>
+      <div><span class="big">${Math.round(ref + N*(dev+ver)).toLocaleString()}</span><span class="note">total for ${N} agents submitting once each</span></div>
+      <div><span class="big" style="color:var(--warn)">${risky}</span><span class="note">cases still carry residual risk (scale mismatch, variance, IO, memory, simulation throughput)</span></div>
+    </div>
+    ${ps.length?`<span class="eyebrow">Pro Set · H100-h (counted separately)</span>
+    <div class="compute-grid">
+      <div><span class="big">${Math.round(psum("ref"))}</span><span class="note">reference recipes (one-off, ${ps.length} cases)</span></div>
+      <div><span class="big">${Math.round(psum("dev")+psum("verify"))}</span><span class="note">one agent through all Pro cases (incl. verification)</span></div>
+      <div><span class="big">${Math.round(psum("ref") + N*(psum("dev")+psum("verify"))).toLocaleString()}</span><span class="note">total for ${N} agents</span></div>
+    </div>`:""}
+    <dl>
+      <dt>Principle</dt><dd>${esc(P.principle)}</dd>
+      <dt>Reference card</dt><dd>${esc(P.reference_card)}</dd>
+      <dt>Fidelity</dt><dd>${esc(P.fidelity_gate)}</dd>
+      <dt>Outer review</dt><dd>${esc(P.outer_validation)}</dd>
+      <dt>Proxies</dt><dd>${Object.entries(L.proxies).map(([k,v])=>`<span class="px">${k}</span> ${esc(v)}`).join("  ")}</dd>
+    </dl>`;
+}
+
+// definition of discovery
+if(D.discovery_policy){
+  const P = D.discovery_policy;
+  $("policy").innerHTML = `<span class="eyebrow">Definition of discovery</span><dl>
+    <dt>Definition</dt><dd>${esc(P.definition)}</dd>
+    <dt>Reference case</dt><dd>${esc(P.exemplar)}</dd>
+    <dt>Scoring</dt><dd class="mono" style="font-size:12.5px">${esc(P.scoring)}</dd>
+    <dt>Source weights</dt><dd>${esc(P.weighting)}</dd></dl>
+    <p class="note">${esc(P.hooks_note)}</p>`;
+}
+
+// track cards
+const GROUP_ORDER = ["method","frontier","domain","pro","entry"];
+const GROUP_TITLE = {method:"Method tracks",frontier:"Frontier exploration",domain:"Professional domains",pro:"Pro Set",entry:"Classic ML entry level"};
+const RULE_NAME = {sota_reference:"SOTA judgment",neighborhood:"Neighborhood",t7:"T7 setup",objective:"Objective"};
+function groupRules(g){
+  if(g==="frontier" && D.frontier_rules) return `<ul class="rules">${Object.entries(D.frontier_rules).map(([k,v])=>`<li><b>${esc(RULE_NAME[k]||k)}</b>: ${esc(v)}</li>`).join("")}</ul>`;
+  if(g==="pro" && D.pro_rules) return `<ul class="rules">${D.pro_rules.map(v=>`<li>${esc(v)}</li>`).join("")}</ul>`;
+  if(g==="entry" && D.entry_rules) return `<ul class="rules">${D.entry_rules.map(v=>`<li>${esc(v)}</li>`).join("")}</ul>`;
+  if(g==="domain" && D.domain_rules) return `<ul class="rules">${D.domain_rules.map(v=>`<li>${esc(v)}</li>`).join("")}</ul>`;
+  return "";
+}
+function trackCard(t){ return `
+    <button class="track" data-track="${t.id}" aria-pressed="${state.track===t.id}">
+      <div class="track-head"><span class="track-id">Track ${esc(t.id)}</span><span class="prio ${esc(t.priority)}">${esc(t.priority)}</span></div>
+      <span class="track-name">${esc(t.name)}</span>
+      <p>${esc(t.why_focus)}</p>
+      ${t.discovery_hooks?`<p class="hooks"><b>Potential provenance</b> ${esc(t.discovery_hooks)}</p>`:""}
+      <div class="facts"><span>Quota <b class="mono">${esc(t.v1_quota)}</b></span><span>Listed <b class="mono">${t.cases.length}</b></span><span>Verification cost <b>${esc(t.verify_cost)}</b></span>${t.cases.some(c=>c.standard)?`<span>Standard <b class="mono">${t.cases.filter(c=>c.standard).map(c=>c.id).join(", ")}</b></span>`:""}</div>
+      <div class="pips" aria-label="case status">${t.cases.map(c => `<span class="pip ${c.standard?"std":c.status}" title="${esc(c.id)} · ${c.standard?"standard case":STATUS_NAME[c.status]}"></span>`).join("")}</div>
+    </button>`; }
+function renderTracks(){
+  $("tracks").innerHTML = GROUP_ORDER.map(g => {
+    const ts = D.tracks.filter(t => t.group===g);
+    if(!ts.length) return "";
+    const n = ts.reduce((a,t)=>a+t.cases.length,0);
+    return `<div class="tgroup"><div class="tgroup-head"><h3>${GROUP_TITLE[g]}</h3><span class="note">${esc(D.legend.groups[g])} · ${ts.length} tracks · ${n} cases</span></div>${groupRules(g)}<div class="tracks">${ts.map(trackCard).join("")}</div></div>`;
+  }).join("");
+  document.querySelectorAll(".track").forEach(b => b.onclick = () => { state.track = state.track===b.dataset.track ? null : b.dataset.track; save(); render(); });
+}
+
+// filter chips
+function chips(id, key, values, names){
+  const box = $(id);
+  box.querySelectorAll(".chip").forEach(x => x.remove());
+  values.forEach(v => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.textContent = names[v]; b.setAttribute("aria-pressed", state[key]===v);
+    b.onclick = () => { state[key] = state[key]===v ? null : v; save(); render(); };
+    box.appendChild(b);
+  });
+}
+
+const gh = v => v===0 ? "0" : (Math.round(v*10)/10).toString();
+function vpCell(v){
+  if(!v) return "";
+  const u = v.unit || "GPU-h";
+  const nums = v.cpu ? `<span class="gh">CPU only</span>` : `<span class="gh" title="${u==="GPU-h"?"reference-card GPU-h":"H100-h"}: agent development · per verification · reference precompute">dev ${gh(v.dev)} · verify ${gh(v.verify)} · precompute ${gh(v.ref)}${u==="GPU-h"?"":" "+u}</span>`;
+  return `<div class="pxs">${v.proxy.map(x=>`<span class="px" title="${esc(L.proxies[x]||x)}">${esc(x)}</span>`).join("")}${v.risk.map(r=>`<span class="rk">${esc(r)}</span>`).join("")}</div>${nums}<span class="metrics">${esc(v.plan)}</span>`;
+}
+function arxivCell(c){
+  if(!c.arxiv && c.link) return `<span class="arx"><a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.venue||"link")}</a></span>`;
+  if(!c.arxiv) return `<span class="arx">to be chosen</span>`;
+  return `<span class="arx"><a href="https://arxiv.org/abs/${esc(c.arxiv)}" target="_blank" rel="noopener">arXiv:${esc(c.arxiv)}</a></span>`;
+}
+
+function renderGroups(){
+  const q = state.q.trim().toLowerCase();
+  const hit = c => (!state.track || c.track===state.track) && (!state.subset || c.subset===state.subset) && (!state.status || c.status===state.status)
+    && (!q || [c.id,c.anchor,c.arxiv,c.task,c.metrics].join(" ").toLowerCase().includes(q));
+  let total = 0;
+  const html = GROUP_ORDER.flatMap(g => D.tracks.filter(t => t.group===g)).map(t => {
+    const rows = allCases.filter(c => c.track===t.id && hit(c));
+    total += rows.length;
+    if(!rows.length) return "";
+    return `<div class="group">
+      <div class="group-head"><span class="mono">${esc(t.id)}</span><span class="tag">${GROUP_TITLE[t.group]}</span><h2 style="font-size:19px">${esc(t.name)}</h2><span class="note">Risks: ${t.risks.map(esc).join("; ")}</span></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Case</th><th>Anchor</th><th>Task and metrics</th><th>Reduced verification</th><th>Type</th><th>Subset</th><th>Resources / difficulty</th><th>Status</th></tr></thead>
+        <tbody>${rows.map(c => `<tr>
+          <td class="id">${esc(c.id)}</td>
+          <td><span class="anchor">${esc(c.anchor)}</span><br>${arxivCell(c)}</td>
+          <td><span class="task">${esc(c.task)}</span><span class="metrics">${esc(c.metrics)}</span>${c.pairs_with?`<span class="metrics">paired with: <span class="mono">${esc(c.pairs_with)}</span></span>`:""}</td>
+          <td class="vp">${vpCell(c.verify_plan)}</td>
+          <td><span class="tag type" title="${esc(L.types[c.type])}">${esc(c.type)}</span></td>
+          <td><span class="tag">${SUBSET_NAME[c.subset]}</span><span class="metrics">${c.age==="mature"?"mature":"frontier"}</span></td>
+          <td class="mono">${esc(c.budget)}<span class="metrics">difficulty ${esc(c.difficulty||"")}</span></td>
+          <td><span class="st ${c.status}">${STATUS_NAME[c.status]}</span>${c.standard?`<span class="std-tag">standard case</span>`:""}${c.verify?`<span class="vf">anchor to be verified</span>`:""}${c.path?`<span class="metrics mono">${esc(c.path)}</span>`:""}</td>
+        </tr>`).join("")}</tbody></table></div>
+    </div>`;
+  }).join("");
+  $("groups").innerHTML = html || `<div class="panel empty">No cases match the filters. Clear the filters and try again.</div>`;
+  $("count").textContent = `Showing ${total} / ${allCases.length}`;
+}
+
+$("legend").innerHTML = Object.entries(L.types).map(([k,v]) => `<span><b>${k}</b> ${esc(v)}</span>`).join("")
+  + Object.entries(L.budget_tiers).map(([k,v]) => `<span><b>${k}</b> ${esc(v)}</span>`).join("");
+
+$("q").addEventListener("input", e => { state.q = e.target.value; renderGroups(); });
+
+function render(){
+  renderTracks();
+  chips("f-subset","subset",["main","calibration","primitive","stress"],SUBSET_NAME);
+  chips("f-status","status",STATUS_ORDER,STATUS_NAME);
+  renderGroups();
+}
+render();
+</script>

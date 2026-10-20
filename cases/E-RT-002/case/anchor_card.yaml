@@ -1,0 +1,37 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: E-RT-002
+readiness: deferred
+title: Asynchronous/real-time execution strategy under a 30 Hz control-frequency constraint
+version: v2026.07
+cutoff: '2026-07-01'
+track: E
+track_name: Embodied AI
+group: method
+priority: P2
+type: T6
+subset: stress
+difficulty: high
+budget_tier: medium
+status: deferred
+anchor:
+  name: ACT (action chunking)
+  arxiv: '2304.13705'
+  verify_before_freeze: true
+task: Asynchronous/real-time execution strategy under a 30 Hz control-frequency constraint
+metrics: Success rate under the latency cap
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 4
+  verify: 2
+  ref: 15
+  risk:
+  - sim_throughput
+  plan: Single LIBERO suite, evaluated under a 30 Hz latency cap
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- LIBERO_or_SimplerEnv_version_and_assets
+- simulator_determinism_and_30Hz_measurement
+- perturbation_holdout_tasks

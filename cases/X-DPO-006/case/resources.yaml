@@ -1,0 +1,41 @@
+case_id: X-DPO-006
+status: scaffold
+resource_rating: medium
+offline_bundle: preference_pairs_v1 + counterfactual_prompt_v1 + safety_probe_v1 (server-signed, mounted offline)
+datasets:
+- Fixed chosen/rejected JSONL preference pairs; sample hashes and licenses frozen
+- Hidden counterfactual preference pairs and a length-balanced set
+- Safety/refusal probes for reward-hacking checks
+models:
+- ≤350M base checkpoint
+- Reference checkpoint at the same revision; submitting a custom reference to evade the KL constraint is forbidden
+software:
+- PyTorch 2.6
+- Fixed lockfile for TRL/PEFT/transformers; networked logging disabled
+hardware: One 24GB GPU; ≤ 2 GPU-h of verification per submission
+private_resources:
+- Hidden pairs, reference envelope, length and safety evaluators
+sandbox_constraints:
+- No network and no external reward model
+- Only the fixed chosen/rejected pairs and reference weights may be accessed
+- The evaluator does not expose per-sample rewards or hidden labels
+blocked_inputs:
+- frozen_base_and_reference_checkpoint_hash
+- offline_preference_pairs_and_hidden_counterfactuals
+- reference_runs_and_kl_length_evaluator
+no_download_or_training_in_scaffold: true
+resource_profile: posttrain_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: posttrain_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 4
+  per_submission_verify: 2
+  reference_precompute: 25
+limits_unit: GPU-h
+

@@ -1,0 +1,65 @@
+case_id: X-DATA-007
+scope: active_v1
+readiness: contract_only
+title: Within a fixed offline corpus and training budget, design deduplication, quality-filtering and data-mixing strategies that jointly optimize validation loss, effective token coverage, preprocessing cost and contamination risk
+version: v2026.07
+cutoff: '2026-07-01'
+track: X
+track_name: Training recipes / RL / PEFT
+group: method
+priority: P1
+type: T3
+subset: main
+difficulty: high
+budget_tier: low
+status: scaffold
+anchor:
+  name: Deduplicating Training Data Makes Language Models Better
+  arxiv: '2107.06499'
+  verify_before_freeze: true
+task: Within a fixed offline corpus and training budget, design deduplication, quality-filtering and data-mixing strategies that jointly optimize validation loss, effective token coverage, preprocessing cost and contamination risk
+metrics: Validation cross-entropy; effective unique-token coverage; dedup recall/false-deletion rate; preprocessing CPU time; training throughput; quality–data-volume–preprocessing-cost Pareto
+resource_rating: low
+verify_plan:
+  proxy:
+  - SUBSET
+  - MICRO
+  dev: 1
+  verify: 0.5
+  ref: 10
+  risk:
+  - dedup_threshold_sensitivity
+  - rare_sample_removal
+  plan: Fixed 256MB–1GB offline document bundle and 7M/17M small models; compare exact/MinHash/SimHash/quality-tiered mixtures, with hidden duplicate clusters and rare-topic tests
+pareto_objective:
+  enabled: true
+  policy: pareto_frontier
+  note: No single-point SOTA threshold; quality, cost and constraint metrics are evaluated by non-dominance
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_document_bundle_and_duplicate_clusters
+- server_hidden_contamination_labels
+- fixed_cpu_timer_and_training_probe
+resource_profile:
+  sandbox_profile: low_cpu
+  hardware_class: cpu_only
+  accelerator: benchmark_cpu
+  accelerator_count: 1
+  memory_gib: null
+  cost_unit: CPU-h
+  leaderboard: budget_cpu
+  limits:
+    agent_dev: {value: 1, unit: CPU-h}
+    per_submission_verify: {value: 0.5, unit: CPU-h}
+    reference_precompute: {value: 10, unit: CPU-h}
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+objective_mode: pareto
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md

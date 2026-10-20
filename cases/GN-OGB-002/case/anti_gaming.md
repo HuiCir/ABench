@@ -1,0 +1,1 @@
+# Anti-gaming checklist\n\n1. Do not read hidden labels, test examples or evaluator state.\n2. All metrics must be server-generated from hashed inputs and logged runtime.\n3. Public examples validate interface only and carry no score.\n4. Use official splits/evaluator and multiple seeds.\n5. Reject split changes, graph leakage and transductive hidden-label access.\n

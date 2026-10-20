@@ -1,0 +1,61 @@
+schema_version: '1.0'
+case_id: X-DISTILL-010
+status: calibration_required
+generated_by: manual_scaffold
+metrics:
+- id: hidden_capability_score
+  name: Hidden capability score
+  direction: higher_is_better
+  unit: hidden_task_score
+  aggregation: macro_mean
+  required: true
+  pareto_role: quality
+  inference: benchmark_defined
+- id: teacher_gap
+  name: Teacher capability gap
+  direction: lower_is_better
+  unit: score_gap
+  aggregation: macro_mean
+  required: true
+  pareto_role: quality_constraint
+  inference: benchmark_defined
+- id: pretrain_ce_regression
+  name: Pretraining CE regression
+  direction: lower_is_better
+  unit: nats/token
+  aggregation: mean
+  required: true
+  pareto_role: constraint
+  inference: benchmark_defined
+- id: student_params_m
+  name: Student parameters
+  direction: lower_is_better
+  unit: million
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: cost
+  inference: benchmark_defined
+- id: student_tokens_per_s
+  name: Student inference throughput
+  direction: higher_is_better
+  unit: tokens/s
+  aggregation: median
+  required: true
+  pareto_role: objective
+  inference: benchmark_defined
+- id: peak_memory_gb
+  name: Peak GPU memory
+  direction: lower_is_better
+  unit: GB
+  aggregation: median
+  required: true
+  pareto_role: cost
+  inference: benchmark_defined
+- id: train_gpu_hours
+  name: Training compute
+  direction: lower_is_better
+  unit: GPU-h
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: cost
+  inference: benchmark_defined

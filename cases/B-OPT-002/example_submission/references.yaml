@@ -1,0 +1,34 @@
+schema: abench.references/v2
+references:
+  - id: lion
+    title: "Symbolic Discovery of Optimization Algorithms"
+    authors: "Xiangning Chen et al."
+    year: 2023
+    venue: "arXiv"
+    arxiv: "2302.06675"
+    used_for: "Frozen grammar, program search, symbolic updates and deterministic candidate screening"
+    code_location: "search.py:programs; optimizer.py:RidgeSign.update"
+  - id: adam
+    title: "Adam: A Method for Stochastic Optimization"
+    authors: "Diederik P. Kingma, Jimmy Ba"
+    year: 2015
+    venue: "ICLR"
+    arxiv: "1412.6980"
+    used_for: "Baseline definitions of first-order exponential averaging and adaptive updates"
+    code_location: null
+  - id: ademamix
+    title: "The AdEMAMix Optimizer: Better, Faster, Older"
+    authors: "M. Pagliardini et al."
+    year: 2024
+    venue: "arXiv"
+    arxiv: "2409.03137"
+    used_for: "Motivation for maintaining fast and slow momentum in parallel"
+    code_location: "optimizer.py:RidgeSign.update"
+  - id: learned
+    title: "Learning to learn by gradient descent by gradient descent"
+    authors: "Marcin Andrychowicz et al."
+    year: 2016
+    venue: "NeurIPS"
+    arxiv: "1606.04474"
+    used_for: "Learned optimizers treat the update rule as the object of meta-learning; used to explain the boundary between a frozen search rule and meta-trained deployment"
+    code_location: null

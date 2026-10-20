@@ -1,0 +1,163 @@
+id: TC-FT-001
+title: Text classification on AG News within a CPU budget
+anchor:
+  authors: Armand Joulin, Edouard Grave, Piotr Bojanowski, Tomas Mikolov
+  title: Bag of Tricks for Efficient Text Classification
+  arxiv: '1607.01759'
+baseline: a hashed unigram+bigram linear classifier in the spirit of the anchor (`example_submission/`)
+reference_verification: The reference submission and the whole pipeline (dev split, stage runner, metrics, and the judge itself
+  through tools/oj_eval.py) run end to end on synthetic data in tests/test_standard_cases.py. Nothing has been run on the
+  real frozen data yet.
+n_seeds: 1
+task: |
+  Design a text classifier for the four-topic AG News task that reaches the **highest possible test accuracy** and still predicts quickly. Develop it on 8 CPU cores in the sandbox, train it there, and submit the trained model.
+
+  - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and classifies the held-out test documents; it never retrains.
+  - Only the provided training documents may be used: no pretrained embeddings, language models, vocabularies built from external text, or external data.
+  - You may build on any public work from before the cutoff (linear models over n-grams, hashing, subword features, small neural encoders, ensembles), but the design report must state what you borrowed and what you changed. This task tests algorithm design under a tight CPU budget: feature design, model choice, optimisation and inference efficiency are all open.
+data: |
+  `$ABENCH_DATA_DIR/train.npz` (read-only), from AG News (Zhang, Zhao & LeCun 2015; Hugging Face `fancyzhx/ag_news`):
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `text` | (120000,) | str | Title and description of a news article, as distributed |
+  | `y` | (120000,) | int64 | Class 0 World, 1 Sports, 2 Business, 3 Sci/Tech |
+  | `dev_idx` | (6000,) | int64 | Dev split for self-checking (5% per class), used only by `selfcheck.py` |
+
+  The held-out set is the official AG News test split (7,600 documents, 1,900 per class); it is not in the sandbox.
+interface: Implement `load(checkpoint_dir)` and `predict(model, texts)` in `model.py` at the root of the submission directory;
+  `predict` receives a list of strings and returns integer labels (0–3), one per text. Your `train.py` writes `checkpoint/`;
+  the evaluator imports `model.py` and calls `load` inside the timed phase.
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Accuracy** (primary) | Top-1 accuracy on the 7,600 held-out test documents; higher is better | — |
+  | Prediction throughput | Held-out documents divided by the seconds `predict()` takes | Threshold: ≥ 2,000 docs/s |
+  | Macro-F1 | Unweighted mean F1 over the 4 classes | reported |
+  | Load time | Seconds from the start signal to the return of `load()` (includes importing `model.py`) | reported (killed at 120 s) |
+
+  **Timing rules**
+
+  - Timing is done by the evaluator's parent process with its own clock (handshake protocol in `interface/abench_stage.py`), in a new process with 8 CPU threads (`OMP_NUM_THREADS=8`) and empty cache directories.
+  - `predict()` runs after the timed phase and must finish within 60 seconds.
+
+  **Decision**
+
+  - A submission is valid only if the throughput threshold holds; valid submissions are ranked by accuracy.
+  - If loading or prediction crashes, exceeds a time limit, or returns the wrong number of labels or labels outside 0–3, the submission is invalid.
+  - The final ABench score is driven mainly by accuracy, and also considers how different the method is from existing methods and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: cpu
+  session_hours: 3
+  dev_budget: 8 CPU-core-hours (one hour of the 8-core allotment)
+  software: Python 3, NumPy, SciPy, scikit-learn
+  notes: |
+    - No GPU is available in this case; the evaluation runs on CPU only. The submission may depend only on NumPy, SciPy, scikit-learn and the Python standard library.
+    - The self-check scores your checkpoint on the dev documents (`dev_idx`). Leave them out of training if you want an unbiased estimate; you may include them in the final checkpoint.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and predict()
+    ├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+    ├── checkpoint/         # required: trained parameters, any file types, at most 100 MB
+    ├── src/                # optional: other .py modules imported by model.py or train.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights, embeddings or vocabularies built from external text, no external data and no hand-set parameters copied from elsewhere.
+  - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
+  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights, embeddings or vocabularies built from external text, no external data and no hand-set parameters copied from elsewhere.
+  - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
+  - `predict()` must not train on or adapt to the held-out texts beyond computing features of each document independently.
+interface_md: |
+  # TC-FT-001 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str):
+      """Load your trained classifier from checkpoint/ and return it (any Python object)."""
+
+  def predict(model, texts: list[str]) -> numpy.ndarray:
+      """Return integer labels (M,) in 0..3 (0 World, 1 Sports, 2 Business, 3 Sci/Tech), one per text, in order."""
+  ```
+
+  - The evaluator calls `load` inside the timed phase and `predict` after it, once, on the held-out texts.
+  - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Training program: `train.py`
+
+  Write a `train.py` that produces `checkpoint/` from the files in `$ABENCH_DATA_DIR`, for example
+  `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`. The evaluator does not run it;
+  it is kept with the submission so the checkpoint can be audited and reproduced. The reference implementation under
+  `interface/baseline/` (its `model.py` and `train.py`) is a working starting point you may improve on or replace.
+
+  ## Evaluator code you can read
+
+  - `stages.py`: the pipeline (one stage, `predict`), the dev split used by the self-check and the time limits.
+  - `metrics.py` and `abench_metrics.py`: how the metrics are computed from your outputs.
+  - `abench_stage.py`: the process and timing protocol shared by all ABench standard cases.
+  - `selfcheck.py`: runs the files above on the dev split with your checkpoint.
+
+  ## Available software
+
+  Python 3, NumPy, SciPy and scikit-learn, CPU only. Nothing can be installed.
+oj:
+  agent_budget:
+    cpu_core_hours: 8
+    session_hours: 3
+  data:
+    public_dir: sandbox/data/TC-FT-001
+    public:
+    - path: sandbox/data/TC-FT-001/train.npz
+      sha256: pending
+      rows: 120000
+    hidden:
+      path: sandbox/hidden/TC-FT-001/hidden.npz.enc
+      sha256_plain: pending
+      rows: 7600
+      keys:
+      - text
+      - y
+    sources:
+    - name: AG News (Zhang, Zhao & LeCun 2015), Hugging Face fancyzhx/ag_news
+      url: https://huggingface.co/datasets/fancyzhx/ag_news
+      revision: eb185aade064a813bc0b7f42de02595523103ca4
+      files:
+      - data/train-00000-of-00001.parquet
+      - data/test-00000-of-00001.parquet
+      license: unknown on the dataset card; the card describes the corpus as provided for research and non-commercial use
+      verified: '2026-10-19: revision sha, file list and split sizes (train 120,000 / test 7,600) read from the Hugging Face
+        API'
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    checkpoint_dir: checkpoint
+    allowed_top_level:
+    - README.md
+    - model.py
+    - train.py
+    - checkpoint
+    - src
+    - report
+    - references.yaml
+    code_suffixes:
+    - .py
+    - .yaml
+    - .yml
+    - .md
+    - .txt
+    code_max_bytes: 200000
+    max_bytes: 106857600
+    checkpoint_max_bytes: 104857600
+    required_files:
+    - train.py
+  judge:
+    device: cpu
+    reference_hardware: 8 CPU cores (model frozen at activation)
+    seeds:
+    - 4441
+mode: checkpoint

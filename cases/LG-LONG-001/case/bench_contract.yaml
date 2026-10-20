@@ -1,0 +1,17 @@
+contract_version: abench-scaffold-v1
+case_id: LG-LONG-001
+status: scaffold
+simulated_outputs: false
+real_inputs_required: true
+blocked_inputs:
+- licensed_legal_dataset_snapshot
+- jurisdiction_and_time_split
+- blind_legal_review_protocol
+required_provenance:
+- runner_version
+- config_hash
+- resource_hash
+- artifact_hash
+formal_scoring: deferred_until_real_calibration
+report_profile: design_report_v2
+report_focus: architecture_design

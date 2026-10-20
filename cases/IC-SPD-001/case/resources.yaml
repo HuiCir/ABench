@@ -1,0 +1,26 @@
+status: resource_contract_only_no_downloads_or_runs
+datasets:
+- name: CIFAR-10 train/validation
+  source: to_be_frozen_by_benchmark
+  visibility: public
+- name: hidden CIFAR-10.1 and CIFAR-10-C
+  source: to_be_frozen_by_benchmark
+  visibility: hidden
+- name: Imagenette 128px calibration
+  source: to_be_frozen_by_benchmark
+  visibility: public
+baselines:
+- name: airbench-style CIFAR recipe
+  implementation: to_be_frozen_by_benchmark
+- name: ResNet reference
+  implementation: to_be_frozen_by_benchmark
+special_notes:
+- GPU model, driver, augmentation policy and timing window must be frozen; CIFAR-10
+  is contamination-prone.
+integrity:
+  content_hashes: required before release
+  licenses: required before release
+  network: disabled unless allowlisted
+runtime:
+  evaluator: official where available
+  hashes: required

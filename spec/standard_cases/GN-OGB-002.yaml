@@ -1,0 +1,156 @@
+id: GN-OGB-002
+title: Node classification on ogbn-arxiv
+anchor:
+  authors: Weihua Hu, Matthias Fey, Marinka Zitnik, Yuxiao Dong, Hongyu Ren, Bowen Liu, Michele Catasta, Jure Leskovec
+  title: 'Open Graph Benchmark: Datasets for Machine Learning on Graphs'
+  arxiv: '2005.00687'
+baseline: SGC-style propagated features with a closed-form ridge classifier (`example_submission/`)
+reference_verification: The reference submission and the whole pipeline (dev split, stage runner, metrics) run end to end
+  on synthetic data in tests/test_standard_cases.py. Nothing has been run on the real frozen data yet.
+n_seeds: 1
+task: |
+  Design a node classification model for the ogbn-arxiv citation graph that predicts the subject area of papers published in 2019 or later as accurately as possible. Develop and train it on one 24GB GPU in the sandbox, then submit the trained model.
+
+  - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and calls `predict()` on the test nodes with the public graph; it never retrains.
+  - The setting is transductive: the whole graph and every node's features are available, as are the labels of the train (≤ 2017) and valid (2018) nodes. Test labels are held out.
+  - Only the provided data may be used: no pretrained language models over titles or abstracts, no external citation data. You may build on any public work from before the cutoff (message passing, propagation-based models, label propagation and its post-processing variants), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/graph.npz` (read-only), the official ogbn-arxiv release (OGB, ODC-BY):
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `x` | (169343, 128) | float32 | Node features as released by OGB (averaged word embeddings of title and abstract) |
+  | `edge_index` | (2, 1166243) | int64 | Directed citation edges (source cites target) |
+  | `year` | (169343,) | int64 | Publication year |
+  | `y` | (169343,) | int64 | Subject area 0–39; **−1 for test nodes** |
+  | `train_idx`, `valid_idx`, `test_idx` | — | int64 | Official time split: ≤ 2017, 2018, ≥ 2019 |
+
+  The test labels are not in the sandbox. The self-check uses the valid nodes as its test nodes.
+interface: Implement `load(checkpoint_dir, device)` and `predict(model, graph, nodes)` in `model.py`. `graph` holds the arrays
+  above; `predict` returns a (len(nodes), 40) array of class scores whose argmax is the predicted class. Your `train.py` writes
+  `checkpoint/`.
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Test accuracy** (primary) | Accuracy of argmax(scores), averaged over all test nodes (the official OGB metric for ogbn-arxiv); one evaluation run; higher is better | — |
+  | Load time | Seconds from the start signal to the return of `load()` (includes importing `model.py`) | reported (killed at 120 s) |
+  | Prediction time | Seconds `predict()` takes | reported (limit 120 s) |
+
+
+  No threshold applies to any metric: a submission is valid if it loads, runs within the time limits and returns well-formed outputs (see below).
+  **Timing and decision**
+
+  - Loading and prediction run in a new process with empty cache directories, on the same GPU model, timed by the evaluator's parent process (`interface/abench_stage.py`); loading `graph.npz` and creating the CUDA context are not timed.
+  - If loading or prediction crashes, exceeds a time limit, or returns scores of the wrong shape or non-finite values, the submission is invalid; valid submissions are ranked by test accuracy.
+  - The final ABench score is driven mainly by test accuracy, and also considers how different the method is from existing methods and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 3
+  dev_budget: 2 GPU-hours
+  notes: |
+    - The reference submission uses NumPy and SciPy (CPU); PyTorch with CUDA is available and evaluated on the same GPU model. No graph library (PyG, DGL) is installed: write message passing with sparse tensors or index operations.
+    - The self-check hides the valid labels and scores your checkpoint on the valid nodes. Train without the valid labels (the reference `train.py` does by default) if you want an unbiased dev estimate; you may use them in the final checkpoint.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and predict()
+    ├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+    ├── checkpoint/         # required: trained parameters, any file types, at most 500 MB
+    ├── src/                # optional: other .py modules imported by model.py or train.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights, no external data and no hand-set parameters copied from elsewhere.
+  - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
+  - No pretrained weights or external data.
+  - Labels may be used only for train and valid nodes, as given; test labels are not available and must not be inferred from outside sources.
+interface_md: |
+  # GN-OGB-002 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, device: str):
+      """Load your trained node classifier from checkpoint/ and return it (any Python object). device is "cuda" at evaluation."""
+
+  def predict(model, graph: dict, nodes: numpy.ndarray) -> numpy.ndarray:
+      """Return float (len(nodes), 40) class scores for the given node ids (the evaluator passes test_idx).
+
+      graph["x"]           float32 (N, 128)
+      graph["edge_index"]  int64 (2, E), directed (source cites target); symmetrise if you want an undirected graph
+      graph["year"]        int64 (N,)
+      graph["y"]           int64 (N,), 0..39, -1 where the label is not given
+      graph["train_idx"], graph["valid_idx"], graph["test_idx"]   int64 node ids
+      """
+  ```
+
+  - The evaluator calls `load` inside the timed phase and `predict` once after it, with the public graph.
+  - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Training program: `train.py`
+
+  Write a `train.py` that produces `checkpoint/` from the files in `$ABENCH_DATA_DIR` (`graph.npz`), for example
+  `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`. The evaluator does not run it;
+  it is kept with the submission so the checkpoint can be audited and reproduced. The reference implementation under
+  `interface/baseline/` (its `model.py` and `train.py`) is a working starting point you may improve on or replace.
+
+  ## Evaluator code you can read
+
+  `stages.py` (pipeline, dev split, time limits), `metrics.py` and `abench_metrics.py` (accuracy),
+  `abench_stage.py` (process and timing protocol) and `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, SciPy. Nothing can be installed.
+oj:
+  agent_budget:
+    gpu_hours: 2.0
+    session_hours: 3.0
+  data:
+    public_dir: sandbox/data/GN-OGB-002
+    public:
+    - path: sandbox/data/GN-OGB-002/graph.npz
+      sha256: pending
+    hidden:
+      path: sandbox/hidden/GN-OGB-002/hidden.npz.enc
+      sha256_plain: pending
+      keys:
+      - y_test
+    sources:
+    - name: ogbn-arxiv (Hu et al. 2020, Open Graph Benchmark)
+      url: http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip
+      license: ODC-BY
+      verified: '2026-10-19: archive URL, 40 classes, time split and accuracy metric read from ogb/nodeproppred/master.csv;
+        license, 169,343 nodes and 1,166,243 edges from ogb.stanford.edu/docs/nodeprop'
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    checkpoint_dir: checkpoint
+    allowed_top_level:
+    - README.md
+    - model.py
+    - train.py
+    - checkpoint
+    - src
+    - report
+    - references.yaml
+    code_suffixes:
+    - .py
+    - .yaml
+    - .yml
+    - .md
+    - .txt
+    code_max_bytes: 200000
+    max_bytes: 526288000
+    checkpoint_max_bytes: 524288000
+    required_files:
+    - train.py
+  judge:
+    device: cuda
+    reference_gpu: RTX 4090-class 24GB (model, driver, CUDA and torch versions frozen at activation)
+    seeds:
+    - 2005
+mode: checkpoint

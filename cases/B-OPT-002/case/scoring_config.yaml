@@ -1,0 +1,83 @@
+# Scoring configuration. All coefficients are v1 proposals, to be finalized after backtesting on the calibration set (mature anchors).
+
+# ---------- 1. Paper weight (basis of reference quality) ----------
+paper_weight:
+  venue_tiers:                # venue-tier score V
+    A:  {score: 1.00, examples: [NeurIPS, ICML, ICLR, JMLR]}
+    A_oral_bonus: 0.10        # extra credit for oral / spotlight / outstanding paper; V is then truncated to 1.0
+    B:  {score: 0.80, examples: [TMLR, AAAI, IJCAI, ACL, EMNLP, CVPR, ICCV, ECCV, COLT, AISTATS]}
+    C:  {score: 0.60, examples: ["Technical report from a frontier lab (with evidence of large-scale deployment)"]}
+    D:  {score: 0.40, examples: ["arXiv preprint (not accepted)", "workshop"]}
+    E:  {score: 0.25, examples: ["Blog post, code repository README"]}
+  citations:
+    source: "Google Scholar, snapshot at the cutoff; no API, so the benchmark operator scrapes manually/semi-automatically and archives at freeze time. OpenAlex counts_by_year is used for cross-checking"
+    normalize: "Annual citations = citations / max(paper age in years, 0.5); take log1p and compute the percentile within the snapshot cohort, giving C ∈ [0,1]"
+    cohort: "Same track, same first-release year; if the cohort has fewer than 10 papers, fall back to the whole snapshot"
+  combine: "w = (1 - 0.6a)·V + 0.6a·C, where a = min(1, age / 2 years). New papers have weak citation signals, so their weight depends mainly on venue"
+  cross_field: "Venue tier is assessed in the source's own field; the citation percentile is computed within a same-field cohort. When the same-field cohort has fewer than min_cohort papers, C = cpy / (cpy + median annual citations of that field)"
+  min_cohort: 10
+  field_median_cpy: {ml: 20, math: 5, physics: 10, biology: 15, economics: 8, cs: 10}
+
+# ---------- 2. Reference quality Q ----------
+reference_quality:
+  max_counted_sources: 8      # only the 8 entries with the highest weight × usage count, to prevent citation padding
+  usage_levels: {core: 1.0, partial: 0.5, decorative: 0.0}   # judges decide whether the paper's idea is actually reflected in the code
+  aggregate: "Q = 1 - Π(1 - w_i·u_i), saturating aggregation: one or two high-quality core sources already bring it close to 1"
+  penalties:
+    post_cutoff_source: 0.8   # each post-cutoff source multiplies by 0.8
+    unresolvable_source: 0.8  # each unresolvable/suspected fabricated source multiplies by 0.8
+
+# ---------- 3. SOTA margin M ----------
+sota_margin:
+  cost_axis: "Cost = tokens × step-time ratio (relative to AdamW). Reference methods and submissions are both converted with their own step time, so a slow method cannot profit from token efficiency"
+  speedup_definition: "Effective speedup S = cost the reference envelope needs to reach the submission's final loss / the submission's own cost"
+  envelope: "At each cost point take the minimum over the 'budget–final loss' curves of all reference methods; the curves come from WSD decay branches (see eval_protocol.yaml)"
+  cap: 2.0                    # reference curves train only to 2× budget; speedups above 2 are recorded as 2 and flagged in the report
+  aggregate: "Weighted geometric mean with eval_protocol.settings_weights"
+  full_marks_speedup: 1.25    # 1.25× relative to the reference envelope (not relative to AdamW) earns full marks
+  map: "M = 0.1 + 0.9 · clip(log(S) / log(1.25), 0, 1); at least 0.1 once the thresholds pass"
+  gate:
+    min_aggregate_speedup: 1.00     # aggregate effective speedup not below 1 (staying at SOTA)
+    lcb_z: 1.0                      # lower bound of speedup from seed variance: S_lcb = S·exp(-z·σ_logS)
+    min_lcb: 0.98
+    min_per_setting: 0.90           # no single setting may be more than 10% slower than the envelope
+    ood_max_regression: 0.01        # OOD loss degrades by at most 1% relative to the best reference
+
+# ---------- 4. Method divergence D ----------
+divergence:
+  weights: {behavioral: 0.50, code: 0.15, mechanism: 0.35}
+  behavioral: "D_beh = 0.5·global + 0.5·patch. sim = 0.6·|cos(update direction)| + 0.4·spectral-distribution similarity; global = 1 - the maximum mean similarity to any single reference method; patch = 1 - mean of per-tensor nearest-reference similarity (splice detection)"
+  code: "1 - max_ref Jaccard(normalized AST token 5-grams)"
+  mechanism: "3 LLM judges + nearest-neighbor retrieval over the hidden snapshot; novelty on a 0–3 scale, median taken, mapped to {0, 0.33, 0.67, 1}"
+  gate:
+    min_total: 0.20
+    min_behavioral: 0.05      # lower bound of global behavioral divergence
+    noise_floor_multiplier: 1.5   # clone threshold = max(lower bound, 1.5 × hyperparameter-perturbation noise floor); below the threshold counts as a renamed/retuned clone
+
+# ---------- 5. Local discovery score X (defined in abench/spec/discovery.md) ----------
+discovery:
+  ablation_setting: L2_main
+  z: 1.0                         # ablation effect must exceed z·σ (combined seed noise of the full and ablated groups)
+  full_effect_speedup: 1.05      # a module contributing 5% effective speedup on its own gives a = 1
+  novelty_levels: {new: 1.0, transfer: 0.5, none: 0.0}
+  field_distance: {same_subfield: 0.0, ml: 0.3, cs: 0.6, other_discipline: 1.0}
+  max_counted: 3
+
+# ---------- 6. Overall score ----------
+composite:
+  formula: "Score = 100 · 1[SOTA threshold] · 1[divergence threshold] · M^0.5 · D^0.3 · Q^0.2 · (1 + 0.25·X)"
+  exponents: {M: 0.5, D: 0.3, Q: 0.2}
+  discovery_bonus: 0.25
+  rationale: "Weighted geometric mean of M, D and Q, so any dimension close to 0 pulls the total down sharply; local discovery is a multiplicative bonus: no discovery does not zero the score, and effective discoveries add at most 25%"
+
+# ---------- 7. Primitive-search audit ----------
+primitive_search:
+  grammar_version: lion-primitive-v1
+  candidate_limit: 256
+  required_log_fields: [eval, program_id, program, proxy_score, seed]
+  gate: "Grammar compliance, consecutive candidate numbering, line-by-line identical replay with the fixed seed"
+  report: "E is used only for auditing and efficiency reporting; the final score is still determined by M/D/Q/X"
+# This prototype still uses the historical gate/composite scorer. A Pareto
+# migration is planned after real reference runs and a server-side frontier runner exist.
+objective_mode: gate
+pareto_migration: planned_after_real_reference_runs

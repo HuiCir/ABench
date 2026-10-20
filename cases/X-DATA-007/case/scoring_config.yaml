@@ -1,0 +1,93 @@
+version: v0-scaffold
+case_id: X-DATA-007
+objective: pareto_frontier
+primary_metrics:
+- name: validation_ce
+  direction: lower
+  unit: nats/token
+  role: quality
+- name: unique_token_coverage
+  direction: higher
+  unit: fraction
+  role: quality
+- name: duplicate_recall
+  direction: higher
+  unit: fraction
+  role: constraint
+- name: false_delete_rate
+  direction: lower
+  unit: fraction
+  role: constraint
+- name: preprocess_cpu_hours
+  direction: lower
+  unit: CPU-h
+  role: cost
+- name: training_tokens_per_second
+  direction: higher
+  unit: tokens/s
+  role: cost
+normalization:
+  direction: per metric declaration
+  baseline: server reference envelope
+  aggregation: non-dominated set + normalized hypervolume; publish per-dimension values
+gates:
+- valid_run_manifest
+- resource_and_time_budget
+- finite_metrics
+- deterministic_replay
+- no_hidden_input_or_network_access
+- quality_and_safety_constraints
+pareto_policy:
+  no_single_sota_gate: true
+  constraint_fail: dominated_and_ineligible
+  tie_break: lower total measured cost then lower variance
+simulation_policy: 'none: this scaffold does not generate scores'
+missing_real_artifacts: report pending rather than zeroing a fabricated score
+deferred_due_to:
+- frozen_document_bundle_and_duplicate_clusters
+- server_hidden_contamination_labels
+- fixed_cpu_timer_and_training_probe
+objective_mode: pareto
+resource_profile: low_cpu
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+pareto:
+  axes:
+  - id: validation_ce
+    direction: minimize
+    unit: nats/token
+    primary: true
+  - id: unique_token_coverage
+    direction: maximize
+    unit: fraction
+    primary: true
+  - id: duplicate_recall
+    direction: maximize
+    unit: fraction
+    primary: false
+  - id: false_delete_rate
+    direction: minimize
+    unit: fraction
+    primary: false
+  - id: preprocess_cpu_hours
+    direction: minimize
+    unit: CPU-h
+    primary: false
+  - id: training_tokens_per_second
+    direction: maximize
+    unit: tokens/s
+    primary: false
+  feasibility:
+  - metric: validation_ce
+    op: '>='
+    threshold: reference_quality_floor
+  - metric: unique_token_coverage
+    op: '>='
+    threshold: reference_quality_floor
+  aggregation: empirical_frontier
+  report:
+  - frontier_points
+  - hypervolume
+  - knee_point
+  - dominated_by_reference

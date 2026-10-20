@@ -1,0 +1,57 @@
+schema: abench.references/v2
+references:
+- id: erickson2020autogluon
+  title: 'AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data'
+  authors: Nick Erickson, Jonas Mueller, Alexander Shirkov, Hang Zhang, Pedro Larroy, Mu Li and Alexander Smola
+  year: 2020
+  arxiv: '2003.06505'
+  used_for: 'Anchor: robust defaults and ensembling for generic tabular pipelines'
+  code_location: null
+- id: grinsztajn2022tree
+  title: Why do tree-based models still outperform deep learning on tabular data?
+  authors: Léo Grinsztajn, Edouard Oyallon and Gaël Varoquaux
+  year: 2022
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2207.08815'
+  used_for: Benchmark suite and the choice of a tree ensemble as baseline
+  code_location: null
+- id: friedman2001gbm
+  title: 'Greedy function approximation: A gradient boosting machine'
+  authors: Jerome H. Friedman
+  year: 2001
+  venue: Annals of Statistics
+  doi: 10.1214/aos/1013203451
+  used_for: Gradient boosting with shrinkage
+  code_location: 'train.py: fit_one'
+- id: ke2017lightgbm
+  title: 'LightGBM: A Highly Efficient Gradient Boosting Decision Tree'
+  authors: Guolin Ke, Qi Meng, Thomas Finley, Taifeng Wang, Wei Chen, Weidong Ma, Qiwei Ye and Tie-Yan Liu
+  year: 2017
+  venue: NeurIPS
+  url: https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree
+  used_for: Histogram-based split finding and leaf-wise growth
+  code_location: 'train.py: fit_one (HistGradientBoostingClassifier)'
+- id: chen2016xgboost
+  title: 'XGBoost: A Scalable Tree Boosting System'
+  authors: Tianqi Chen and Carlos Guestrin
+  year: 2016
+  venue: KDD
+  arxiv: '1603.02754'
+  used_for: Regularised leaf values (L2 penalty)
+  code_location: 'train.py: fit_one (l2_regularization)'
+- id: prechelt1998early
+  title: Early Stopping - But When?
+  authors: Lutz Prechelt
+  year: 1998
+  venue: 'Neural Networks: Tricks of the Trade'
+  doi: 10.1007/3-540-49430-8_3
+  used_for: Validation-based early stopping
+  code_location: 'train.py: fit_one (early_stopping)'
+- id: pedregosa2011sklearn
+  title: 'Scikit-learn: Machine Learning in Python'
+  authors: Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort and others
+  year: 2011
+  venue: JMLR
+  arxiv: '1201.0490'
+  used_for: Implementation
+  code_location: 'train.py: imports'

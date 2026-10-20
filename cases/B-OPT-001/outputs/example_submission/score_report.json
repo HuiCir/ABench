@@ -1,0 +1,457 @@
+{
+ "case_id": "B-OPT-001",
+ "submission": "rankgate",
+ "data_provenance": "SIMULATED: simulated data, used only to exercise the scoring pipeline",
+ "L0": {
+  "interface": true,
+  "state_ratio_max": 2.0,
+  "state_memory<=3x": true,
+  "finite": true,
+  "quadratic_loss_ratio": 0.0222,
+  "descends": true,
+  "deterministic": true,
+  "pass": true
+ },
+ "paper_weights": {
+  "adam": {
+   "V": 1.0,
+   "C": 0.974,
+   "age_years": 11.52,
+   "w": 0.9842
+  },
+  "adamw": {
+   "V": 1.0,
+   "C": 0.921,
+   "age_years": 8.63,
+   "w": 0.9526
+  },
+  "adafactor": {
+   "V": 1.0,
+   "C": 0.763,
+   "age_years": 8.22,
+   "w": 0.8579
+  },
+  "shampoo": {
+   "V": 1.0,
+   "C": 0.237,
+   "age_years": 8.34,
+   "w": 0.5421
+  },
+  "lamb": {
+   "V": 1.0,
+   "C": 0.868,
+   "age_years": 7.25,
+   "w": 0.9211
+  },
+  "crowded_valley": {
+   "V": 1.0,
+   "C": 0.342,
+   "age_years": 5.99,
+   "w": 0.6053
+  },
+  "lion": {
+   "V": 1.0,
+   "C": 0.711,
+   "age_years": 3.38,
+   "w": 0.8263
+  },
+  "sophia": {
+   "V": 1.0,
+   "C": 0.447,
+   "age_years": 3.11,
+   "w": 0.6684
+  },
+  "schedulefree": {
+   "V": 1.0,
+   "C": 0.553,
+   "age_years": 2.1,
+   "w": 0.7316
+  },
+  "deconstructing": {
+   "V": 1.0,
+   "C": 0.026,
+   "age_years": 1.97,
+   "w": 0.4234
+  },
+  "muon_blog": {
+   "V": 0.25,
+   "C": 0.816,
+   "age_years": 1.56,
+   "w": 0.5149
+  },
+  "ademamix": {
+   "V": 1.0,
+   "C": 0.184,
+   "age_years": 1.82,
+   "w": 0.5551
+  },
+  "soap": {
+   "V": 1.0,
+   "C": 0.5,
+   "age_years": 1.79,
+   "w": 0.7322
+  },
+  "mars": {
+   "V": 1.0,
+   "C": 0.132,
+   "age_years": 1.62,
+   "w": 0.577
+  },
+  "cautious": {
+   "V": 0.4,
+   "C": 0.079,
+   "age_years": 1.6,
+   "w": 0.2463
+  },
+  "muon_scalable": {
+   "V": 0.6,
+   "C": 0.605,
+   "age_years": 1.35,
+   "w": 0.6021
+  },
+  "kimi_k2": {
+   "V": 0.6,
+   "C": 0.658,
+   "age_years": 0.93,
+   "w": 0.6161
+  },
+  "bench_optim": {
+   "V": 0.4,
+   "C": 0.289,
+   "age_years": 0.83,
+   "w": 0.3725
+  },
+  "fantastic": {
+   "V": 1.0,
+   "C": 0.395,
+   "age_years": 0.83,
+   "w": 0.8499
+  },
+  "rudelson_vershynin_2007": {
+   "V": 1.0,
+   "C": 0.868,
+   "age_years": 21.28,
+   "w": 0.9208
+  },
+  "vonmises1929": {
+   "V": 0.8,
+   "C": 0.649,
+   "age_years": 97.49,
+   "w": 0.7092
+  }
+ },
+ "Q": {
+  "Q": 0.6393,
+  "Q_raw": 0.999,
+  "penalty": 0.64,
+  "sources": [
+   {
+    "id": "url:https://kellerjordan.github.io/posts/muon/",
+    "usage": "decorative",
+    "status": "unresolvable",
+    "w": 0.0,
+    "contribution": 0.0
+   },
+   {
+    "id": "arXiv:1412.6980",
+    "usage": "partial",
+    "status": "ok",
+    "title": "Adam: A Method for Stochastic Optimization",
+    "w": 0.9842,
+    "contribution": 0.4921
+   },
+   {
+    "id": "arXiv:2502.16982",
+    "usage": "core",
+    "status": "ok",
+    "title": "Muon is Scalable for LLM Training",
+    "w": 0.6021,
+    "contribution": 0.6021
+   },
+   {
+    "id": "arXiv:math/0503442",
+    "usage": "core",
+    "status": "ok",
+    "title": "Sampling from large matrices: an approach through geometric functional analysis",
+    "w": 0.9208,
+    "contribution": 0.9208
+   },
+   {
+    "id": "arXiv:1804.04235",
+    "usage": "core",
+    "status": "ok",
+    "title": "Adafactor: Adaptive Learning Rates with Sublinear Memory Cost",
+    "w": 0.8579,
+    "contribution": 0.8579
+   },
+   {
+    "id": "doi:10.1002/zamm.19290090105",
+    "usage": "decorative",
+    "status": "unresolvable",
+    "w": 0.0,
+    "contribution": 0.0
+   },
+   {
+    "id": "arXiv:2509.02046",
+    "usage": "partial",
+    "status": "ok",
+    "title": "Fantastic Pretraining Optimizers and Where to Find Them",
+    "w": 0.8499,
+    "contribution": 0.4249
+   },
+   {
+    "id": "arXiv:2407.07972",
+    "usage": "partial",
+    "status": "ok",
+    "title": "Deconstructing What Makes a Good Optimizer for Language Models",
+    "w": 0.4234,
+    "contribution": 0.2117
+   }
+  ]
+ },
+ "M": {
+  "M": 0.2366,
+  "aggregate_speedup": 1.0344,
+  "aggregate_speedup_lcb": 1.0311,
+  "gate_pass": true,
+  "gate_checks": {
+   "aggregate_speedup>=1.00": true,
+   "lcb>=0.98": true,
+   "per_setting>=0.90": true,
+   "ood_regression<=1%": true,
+   "step_time<=1.25x": true
+  },
+  "per_setting": {
+   "L2_main": {
+    "speedup": 1.0405,
+    "sigma_log": 0.0032,
+    "per_seed": [
+     1.0445,
+     1.034,
+     1.043
+    ],
+    "flags": [
+     "ok",
+     "ok",
+     "ok"
+    ],
+    "submission_loss_mean": 4.1319,
+    "envelope_leader_at_budget": "muon",
+    "best_ref_at_1x": "muon",
+    "best_ref_loss_at_1x": 4.1522,
+    "time_ratio": 1.07
+   },
+   "L3a_scale": {
+    "speedup": 1.0657,
+    "sigma_log": 0.0077,
+    "per_seed": [
+     1.0739,
+     1.0575
+    ],
+    "flags": [
+     "ok",
+     "ok"
+    ],
+    "submission_loss_mean": 3.6601,
+    "envelope_leader_at_budget": "muon",
+    "best_ref_at_1x": "muon",
+    "best_ref_loss_at_1x": 3.6836,
+    "time_ratio": 1.07
+   },
+   "L3b_long": {
+    "speedup": 1.0088,
+    "sigma_log": 0.0091,
+    "per_seed": [
+     1.018,
+     0.9997
+    ],
+    "flags": [
+     "ok",
+     "ok"
+    ],
+    "submission_loss_mean": 4.1614,
+    "envelope_leader_at_budget": "muon",
+    "best_ref_at_1x": "soap",
+    "best_ref_loss_at_1x": 4.1686,
+    "time_ratio": 1.07
+   },
+   "L3c_bigbatch": {
+    "speedup": 1.0056,
+    "sigma_log": 0.0054,
+    "per_seed": [
+     1.0111,
+     1.0002
+    ],
+    "flags": [
+     "ok",
+     "ok"
+    ],
+    "submission_loss_mean": 4.2024,
+    "envelope_leader_at_budget": "muon",
+    "best_ref_at_1x": "muon",
+    "best_ref_loss_at_1x": 4.2133,
+    "time_ratio": 1.07
+   }
+  },
+  "ood": {
+   "wikitext-103": {
+    "submission": 3.1179,
+    "best_ref": 3.112,
+    "regression": 0.0019
+   },
+   "the-stack-smol/python": {
+    "submission": 2.65,
+    "best_ref": 2.641,
+    "regression": 0.0034
+   }
+  }
+ },
+ "D": {
+  "D": 0.3988,
+  "gate_pass": true,
+  "gate_checks": {
+   "D>=0.20": true,
+   "D_global>=0.112 (noise floor 0.074 × 1.5)": true
+  },
+  "behavioral_threshold": 0.1117,
+  "behavioral": {
+   "D_beh": 0.1174,
+   "D_global": 0.1681,
+   "D_patch": 0.0666,
+   "nearest_reference": "cautious_adamw",
+   "similarity_by_reference": {
+    "cautious_adamw": 0.8319,
+    "adamw": 0.8237,
+    "ademamix": 0.8228,
+    "adafactor": 0.8188,
+    "mars": 0.7983,
+    "lion": 0.7458,
+    "muon": 0.7334
+   },
+   "nearest_by_tensor": {
+    "layers.4.self_attn.q_proj": {
+     "ref": "cautious_adamw",
+     "sim": 0.8339
+    },
+    "layers.4.mlp.up_proj": {
+     "ref": "muon",
+     "sim": 0.9948
+    },
+    "layers.20.self_attn.o_proj": {
+     "ref": "adafactor",
+     "sim": 0.9506
+    },
+    "layers.20.mlp.down_proj": {
+     "ref": "adafactor",
+     "sim": 0.9542
+    }
+   }
+  },
+  "code": {
+   "D_code": 0.7117,
+   "nearest_reference": "adafactor",
+   "jaccard_by_reference": {
+    "adafactor": 0.2883,
+    "adamw": 0.2114,
+    "ademamix": 0.2022,
+    "mars": 0.1922,
+    "muon": 0.1105,
+    "lion": 0.0917,
+    "cautious_adamw": 0.0895
+   }
+  },
+  "mechanism": {
+   "D_mech": 0.6667,
+   "levels": [
+    2,
+    1,
+    2
+   ],
+   "nearest_prior_art": "Muon (2502.16982); the hidden snapshot also contains work that switches optimizers per layer, but all of it is static assignment, with no dynamic gating by the spectral structure of the momentum",
+   "notes": [
+    "Continuous interpolation between Muon and Adafactor by stable rank; mechanistically a new combination, not simple stacking",
+    "A mixture of two known branches; the gating signal is new, but the update itself is still a convex combination of known updates",
+    "Whitening strength driven by stable rank was not found in the literature before the cutoff"
+   ]
+  },
+  "noise_floor": {
+   "floor": 0.0745,
+   "by_reference": {
+    "adamw": 0.0345,
+    "cautious_adamw": 0.0203,
+    "lion": 0.0376,
+    "adafactor": 0.038,
+    "ademamix": 0.0318,
+    "mars": 0.0312,
+    "muon": 0.0745
+   }
+  }
+ },
+ "X": {
+  "X": 0.9371,
+  "declarations": [
+   {
+    "module": "stable_rank_gate",
+    "source": "arXiv:math/0503442",
+    "source_year": 2007,
+    "source_field": "math",
+    "transferred": "Stable rank ||A||_F^2 / ||A||_2^2: a measure of effective dimension that is insensitive to small singular values and cheap to estimate",
+    "S_full": 1.0405,
+    "S_ablated": 0.994,
+    "effect_ln": 0.0457,
+    "sigma": 0.0161,
+    "significant": true,
+    "a": 0.9371,
+    "n": 1.0,
+    "c": 1.0,
+    "r": 1.0,
+    "x": 0.9371,
+    "status": "local discovery",
+    "judge_note": "Uses the stable rank from high-dimensional probability as the gating signal for orthogonalization strength; no precedent before the cutoff",
+    "ml_precedent": "In the hidden snapshot, stable rank is used for generalization-bound analysis and low-rank compression, but not to adjust the whitening strength of an optimizer"
+   },
+   {
+    "module": "power_iteration_sigma",
+    "source": "vonmises1929",
+    "source_year": 1929,
+    "source_field": "math",
+    "transferred": "Power iteration on a persistent vector, one matrix–vector product per step to estimate the largest singular value",
+    "S_full": 1.0405,
+    "S_ablated": 0.8747,
+    "effect_ln": 0.1736,
+    "sigma": 0.0059,
+    "significant": true,
+    "a": 1.0,
+    "n": 0.0,
+    "c": 1.0,
+    "r": 1.0,
+    "x": 0.0,
+    "status": "retrieval reuse (the same use already exists in ML)",
+    "judge_note": "Estimating the spectral norm by power iteration is standard practice in ML; this is retrieval reuse",
+    "ml_precedent": "Spectral Normalization (1802.05957) and others already estimate the spectral norm with persistent power iteration"
+   }
+  ]
+ },
+ "composite": {
+  "gates": {
+   "L0": true,
+   "SOTA": true,
+   "differentiated": true
+  },
+  "base": 33.76,
+  "score_if_gates_pass": 41.67,
+  "score": 41.67,
+  "M": 0.2366,
+  "D": 0.3988,
+  "Q": 0.6393,
+  "X": 0.9371,
+  "exponents": {
+   "M": 0.5,
+   "D": 0.3,
+   "Q": 0.2
+  },
+  "discovery_bonus": 0.25,
+  "simulated": true,
+  "leaderboard_eligible": false
+ }
+}

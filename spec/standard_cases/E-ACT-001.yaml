@@ -1,0 +1,161 @@
+id: E-ACT-001
+title: An action-generation policy for PushT from keypoint observations
+anchor:
+  authors: Cheng Chi, Zhenjia Xu, Siyuan Feng, Eric Cousineau, Yilun Du, Benjamin Burchfiel, Russ Tedrake, Shuran Song
+  title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'
+  arxiv: '2303.04137'
+baseline: k-nearest-neighbour behaviour cloning with action chunks (`example_submission/`)
+reference_verification: 'Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not
+  available where the case was built; the operator runs them at activation. The k-NN policy was exercised on synthetic arrays;
+  rollouts need gymnasium and gym-pusht and have not run.'
+n_seeds: 3
+task: |
+  Design an **action-generation policy** for the PushT task — push a T-shaped block into a target pose with a circular end-effector — learned by imitation from 206 human demonstrations with keypoint observations. Develop and train it on one 24GB GPU in the sandbox; the trained policy should achieve the **highest target-area coverage** in closed-loop rollouts from held-out initial states.
+
+  - Submit your policy code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and lets the policy control the simulator for 50 episodes from reset seeds you do not know, three times over (stochastic policies are averaged over the three runs); it never retrains.
+  - Only the provided demonstrations may be used: no pretrained weights, no reinforcement learning in the simulator during training, no scripted controller that solves the task.
+  - You may build on any public work from before the cutoff (diffusion and flow-matching action heads, action chunking with transformers, energy-based or mixture policies, temporal ensembling), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/demos.npz` (read-only), from Hugging Face `lerobot/pusht_keypoints` (Apache-2.0; 206 episodes, 25,650 frames at 10 Hz):
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `agent_pos` | (25650, 2) | float32 | End-effector position, pixels in [0, 512] |
+  | `environment_state` | (25650, 16) | float32 | Eight keypoints of the T block (x, y) |
+  | `action` | (25650, 2) | float32 | Commanded target position of the end-effector |
+  | `episode`, `frame` | (25650,) | int64 | Episode index and frame index within the episode |
+
+  The simulator is `gym-pusht` (`gym_pusht/PushT-v0`, observation type `environment_state_agent_pos`). The held-out set is 50 reset seeds; it is not in the sandbox. The self-check rolls out on public seeds.
+interface: 'Implement `load(checkpoint_dir, device)` and `make_policy(model)` in `policy.py`. The policy object has `reset()`
+  (called at the start of each episode) and `act(obs) -> action`, where `obs` is `{"agent_pos": (2,), "environment_state":
+  (16,)}` and the action is a target position (2,) in [0, 512]. Your `train.py` writes `checkpoint/`.'
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean max reward** (primary) | Per episode, the maximum over time of the simulator's reward, clip(coverage / 0.95, 0, 1), where coverage is the fraction of the target area covered by the block; averaged over the 50 held-out episodes, then over 3 evaluation runs (each with its own seed, which you can use for any sampling in the policy); higher is better | — |
+  | Success rate | Fraction of episodes in which coverage exceeded 95% (the simulator then ends the episode) | reported |
+  | Load time | Seconds from the start signal to the return of `load()` (includes importing `policy.py`) | reported (killed at 120 s) |
+
+
+  No threshold applies to any metric: a submission is valid if it loads, runs within the time limits and returns well-formed outputs (see below).
+  **Timing and decision**
+
+  - Each run is a new process with empty cache directories, timed by the evaluator's parent process (`interface/abench_stage.py`). Rollouts run after the timed phase: 50 episodes of at most 300 steps, all within 900 seconds.
+  - If any run crashes, exceeds a time limit, or the policy returns a non-finite action, the submission is invalid; valid submissions are ranked by mean max reward. Actions are clipped to [0, 512].
+  - The final ABench score is driven mainly by mean max reward, and also considers how different the method is from existing policies and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 6
+  dev_budget: 6 GPU-hours
+  software: Python 3, PyTorch (CUDA, Triton), NumPy, gymnasium and gym-pusht (versions frozen at activation)
+  notes: |
+    - The simulator runs on the CPU; keep `act()` fast (the 15,000 calls of an evaluation share the 900-second rollout budget with physics and your model).
+    - You may use the simulator in the sandbox to test your policy; it may not be used to generate training data or rewards for `train.py`.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── policy.py           # required: load() and make_policy()
+    ├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+    ├── checkpoint/         # required: trained parameters, any file types, at most 500 MB
+    ├── src/                # optional: other .py modules imported by policy.py or train.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights, no external data and no hand-set parameters copied from elsewhere.
+  - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
+  - Learn only from the provided demonstrations; no simulator interaction in `train.py`, no reward shaping from the simulator, no hand-written controller for the task.
+  - `act()` may use only the observation it receives and the policy's own memory within the episode.
+interface_md: |
+  # E-ACT-001 interface
+
+  ## Entry point: `policy.py`
+
+  ```python
+  def load(checkpoint_dir: str, device: str):
+      """Load your trained policy model from checkpoint/ and return it (any Python object). device is "cuda" at evaluation;
+      seed any sampling in the policy from ABENCH_SEED (set by the evaluator, different for each run)."""
+
+  def make_policy(model):
+      """Return an object with reset() and act(obs) -> numpy (2,) target position in [0, 512].
+      obs = {"agent_pos": float32 (2,), "environment_state": float32 (16,)}"""
+  ```
+
+  - `make_policy` is called once per episode, `reset()` at the start of each episode, `act()` once per environment step (10 Hz control).
+  - The episode ends when coverage exceeds 95% or after 300 steps.
+
+  ## Training program: `train.py`
+
+  Write a `train.py` that produces `checkpoint/` from the files in `$ABENCH_DATA_DIR` (`demos.npz`: `agent_pos` float32 (N, 2), `environment_state` float32 (N, 16), `action` float32 (N, 2), `episode` and `frame` int64 (N,)), for example
+  `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`. The evaluator does not run it;
+  it is kept with the submission so the checkpoint can be audited and reproduced. The reference implementation under
+  `interface/baseline/` (its `policy.py` and `train.py`) is a working starting point you may improve on or replace.
+
+  ## Evaluator code you can read
+
+  `stages.py` (loading and the rollout loop), `metrics.py` and `abench_metrics.py`, `abench_stage.py` (process
+  and timing protocol) and `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, gymnasium, gym-pusht. Nothing can be installed.
+oj:
+  agent_budget:
+    gpu_hours: 6.0
+    session_hours: 6.0
+  data:
+    public_dir: sandbox/data/E-ACT-001
+    public:
+    - path: sandbox/data/E-ACT-001/demos.npz
+      sha256: pending
+      rows: 25650
+    hidden:
+      path: sandbox/hidden/E-ACT-001/hidden.npz.enc
+      sha256_plain: pending
+      rows: 50
+      keys:
+      - reset_seeds
+    sources:
+    - name: PushT demonstrations with keypoint observations, Hugging Face lerobot/pusht_keypoints
+      url: https://huggingface.co/datasets/lerobot/pusht_keypoints
+      revision: ace8c161a68bc025c21a5f29f85b86a9a2c5e64b
+      license: Apache-2.0
+      verified: '2026-10-19: revision, license, file list, 206 episodes and 25,650 frames from the Hugging Face API'
+    - name: gym-pusht simulator (Hugging Face), gym_pusht/PushT-v0
+      url: https://github.com/huggingface/gym-pusht
+      license: Apache-2.0
+      verified: '2026-10-19: observation types, action space [0, 512]², reward clip(coverage / 0.95), success at 95% coverage
+        and reset sampling read from gym_pusht/envs/pusht.py'
+  submission:
+    kind: code_plus_checkpoint
+    entry: policy.py
+    checkpoint_dir: checkpoint
+    allowed_top_level:
+    - README.md
+    - policy.py
+    - train.py
+    - checkpoint
+    - src
+    - report
+    - references.yaml
+    code_suffixes:
+    - .py
+    - .yaml
+    - .yml
+    - .md
+    - .txt
+    code_max_bytes: 200000
+    max_bytes: 526288000
+    checkpoint_max_bytes: 524288000
+    required_files:
+    - train.py
+  judge:
+    device: cuda
+    reference_gpu: RTX 4090-class 24GB (model, driver, CUDA, torch, gymnasium and gym-pusht versions frozen at activation)
+    seeds:
+    - 2303
+    - 4137
+    - 206
+mode: checkpoint

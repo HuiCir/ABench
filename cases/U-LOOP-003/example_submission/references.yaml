@@ -1,0 +1,26 @@
+schema: abench.references/v2
+references:
+- id: fan2024looped
+  title: Looped Transformers for Length Generalization
+  authors: Ying Fan, Yilun Du, Kannan Ramchandran and Kangwook Lee
+  year: 2024
+  arxiv: '2409.15647'
+  used_for: 'Anchor: tasks and the looped-architecture approach'
+  code_location: null
+- id: dehghani2019universal
+  title: Universal Transformers
+  authors: Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit and Łukasz Kaiser
+  year: 2019
+  venue: ICLR
+  arxiv: '1807.03819'
+  used_for: Weight-shared iteration as the alternative to fixed depth
+  code_location: null
+- id: deletang2023chomsky
+  title: Neural Networks and the Chomsky Hierarchy
+  authors: Grégoire Delétang, Anian Ruoss, Jordi Grau-Moya, Tim Genewein, Li Kevin Wenliang, Elliot Catt, Chris
+    Cundy, Marcus Hutter, Shane Legg, Joel Veness and Pedro A. Ortega
+  year: 2023
+  venue: ICLR
+  arxiv: '2207.02098'
+  used_for: Failure of fixed-context models to extrapolate in length
+  code_location: null

@@ -1,0 +1,34 @@
+schema: abench.references/v2
+references:
+- id: song2021ddim
+  title: Denoising Diffusion Implicit Models
+  authors: Jiaming Song, Chenlin Meng and Stefano Ermon
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.02502'
+  used_for: 'Anchor: deterministic DDIM update'
+  code_location: 'sampler.py: sample'
+- id: ho2020ddpm
+  title: Denoising Diffusion Probabilistic Models
+  authors: Jonathan Ho, Ajay Jain and Pieter Abbeel
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11239'
+  used_for: The frozen model and its noise schedule
+  code_location: null
+- id: lu2022dpmsolver
+  title: 'DPM-Solver: A Fast ODE Solver for Diffusion Probabilistic Model Sampling in Around 10 Steps'
+  authors: Cheng Lu, Yuhao Zhou, Fan Bao, Jianfei Chen, Chongxuan Li and Jun Zhu
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2206.00927'
+  used_for: ODE view of DDIM and higher-order solvers
+  code_location: null
+- id: karras2022edm
+  title: Elucidating the Design Space of Diffusion-Based Generative Models
+  authors: Tero Karras, Miika Aittala, Timo Aila and Samuli Laine
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2206.00364'
+  used_for: Role of the time-step schedule
+  code_location: null

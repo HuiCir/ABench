@@ -1,0 +1,60 @@
+schema_version: '1.0'
+case_id: B-OPT-004
+status: scaffold
+simulation_policy: forbidden
+frozen_cutoff: '2026-07-01'
+submission:
+  required_files:
+  - README.md
+  - submission_manifest.yaml
+  required_manifest: submission_manifest.yaml
+  no_self_reported_score: true
+evaluation:
+  metrics:
+  - Critical batch size
+  - Speedup relative to the reference envelope
+  - Training throughput and final loss
+  holdout:
+  - Hidden batch-size points
+  - Different gradient-accumulation configurations
+  - Long-training endpoint
+  real_artifacts_required:
+  - runs.json
+  - judge.json
+  scoring_entrypoint: scoring/run_case.py
+provenance:
+  required_fields:
+  - config_sha256
+  - code_sha256
+  - data_sha256
+  - runtime_sha256
+  - output_sha256
+  rejected_values:
+  - mock
+  - sim
+  - simulated
+  - demo
+  - synthetic
+execution:
+  isolation: benchmark_runner
+  network: deny_by_default
+  filesystem: submission_read_only_plus_output
+  timeout: benchmark_defined
+  hardware: benchmark_defined
+lifecycle:
+- contract
+- public_smoke
+- benchmark_calibration
+- hidden_holdout
+- immutable_report
+open_blockers:
+- Real μ2 training resources and batch sweep
+- Shared learning-rate/schedule tuning
+- Hardware throughput measurement
+required_provenance:
+- runner_version
+- config_hash
+- resource_hash
+- artifact_hash
+report_profile: design_report_v2
+report_focus: post_training_method

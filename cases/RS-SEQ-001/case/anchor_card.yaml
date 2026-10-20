@@ -1,0 +1,53 @@
+case_id: RS-SEQ-001
+readiness: contract_only
+title: Next-item recommendation on MovieLens-1M
+version: v2026.07
+cutoff: '2026-07-01'
+anchor:
+  title: SASRec
+  arxiv: '1808.09781'
+  type: T1
+  track: RS
+  age_band: mature
+task_family: design
+deliverable_kind: recommender_model
+neighborhood:
+  retrieval: open
+  seed_snapshot: paper_snapshot/seed_neighborhood.jsonl
+  hidden_snapshot: benchmark-held; not distributed
+  weight_rule: scoring_config.yaml
+task: Design a sequential recommendation model
+metrics:
+  raw: Full-ranking NDCG@10 and Recall@10 (split by time)
+  primary: Full-ranking NDCG@10 and Recall@10 (split by time)
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 2
+  verify: 0.5
+  ref: 5
+  risk: []
+  plan: MovieLens-1M and similar, split by time, full ranking
+subset: main
+difficulty: low
+status: scaffold
+budget:
+  agent_dev_budget: 2 CPU/GPU-h per task card
+  hardware: fixed reference hardware to be frozen
+  verify_per_submission: 0.5 CPU/GPU-h per task card
+  reference_precompute: 5 CPU/GPU-h per task card
+  scale_policy: MovieLens-1M and similar, split by time, full ranking
+  submissions: 1
+probes:
+- interface/schema and deterministic rerun
+- raw metric and resource usage audit
+- hidden holdout and anti-gaming checks
+holdout:
+- hidden datasets or post-cutoff distribution where available
+- fixed seed/temporal/split robustness check
+contamination:
+- Resources and evaluator hashes are benchmark-held until release.
+- Submitted code must not access hidden labels, test data or evaluator state.
+verify: false
+scaffold_status: contract_only_pending_resources_and_runs
+standard_case: spec/standard_cases/RS-SEQ-001.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

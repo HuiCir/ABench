@@ -1,0 +1,100 @@
+# E-ACT-001: An action-generation policy for PushT from keypoint observations
+
+Knowledge cutoff: **2026-07-01**. You may only rely on material that was public and verifiable before that date.
+
+Anchor: Cheng Chi, Zhenjia Xu, Siyuan Feng, Eric Cousineau, Yilun Du, Benjamin Burchfiel, Russ Tedrake, Shuran Song, *Diffusion Policy: Visuomotor Policy Learning via Action Diffusion* (arXiv:2303.04137). Baseline used for comparison: k-nearest-neighbour behaviour cloning with action chunks (`interface/baseline/`).
+
+## Task
+
+Design an **action-generation policy** for the PushT task — push a T-shaped block into a target pose with a circular end-effector — learned by imitation from 206 human demonstrations with keypoint observations. Develop and train it on one 24GB GPU in the sandbox; the trained policy should achieve the **highest target-area coverage** in closed-loop rollouts from held-out initial states.
+
+- Submit your policy code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and lets the policy control the simulator for 50 episodes from reset seeds you do not know, three times over (stochastic policies are averaged over the three runs); it never retrains.
+- Only the provided demonstrations may be used: no pretrained weights, no reinforcement learning in the simulator during training, no scripted controller that solves the task.
+- You may build on any public work from before the cutoff (diffusion and flow-matching action heads, action chunking with transformers, energy-based or mixture policies, temporal ensembling), but the design report must state what you borrowed and what you changed.
+
+### Workflow
+
+1. **Retrieve.** Study the anchor and find related work published before the cutoff with the offline paper search tool: `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` (titles and abstracts of arXiv papers up to the cutoff). Every call is logged automatically; the log is kept with your run.
+2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address. This is Section 2 (Related Work) of the design report.
+3. **Design.** Propose an improvement over the anchor and the baseline: at least one change you can state precisely and point to in your code. List every change, with its code location, in the report's "Changes relative to the anchor" list (`<ol id="changes">`); a report without it fails the format check.
+4. **Develop and verify.** Implement it, write a `train.py` that produces your checkpoint from the provided data, train in the sandbox, check the checkpoint on the dev split with `selfcheck.py`, and iterate as your budget allows. The reference code in `interface/baseline/` (model code and `train.py`) runs as is and is a starting point. The checkpoint you submit is exactly what the evaluator scores; it does not retrain.
+5. **Submit** the deliverables below. Submission is one-shot.
+
+## Data
+
+`$ABENCH_DATA_DIR/demos.npz` (read-only), from Hugging Face `lerobot/pusht_keypoints` (Apache-2.0; 206 episodes, 25,650 frames at 10 Hz):
+
+| Key | Shape | Type | Description |
+|---|---|---|---|
+| `agent_pos` | (25650, 2) | float32 | End-effector position, pixels in [0, 512] |
+| `environment_state` | (25650, 16) | float32 | Eight keypoints of the T block (x, y) |
+| `action` | (25650, 2) | float32 | Commanded target position of the end-effector |
+| `episode`, `frame` | (25650,) | int64 | Episode index and frame index within the episode |
+
+The simulator is `gym-pusht` (`gym_pusht/PushT-v0`, observation type `environment_state_agent_pos`). The held-out set is 50 reset seeds; it is not in the sandbox. The self-check rolls out on public seeds.
+
+## Interface
+
+Implement `load(checkpoint_dir, device)` and `make_policy(model)` in `policy.py`. The policy object has `reset()` (called at the start of each episode) and `act(obs) -> action`, where `obs` is `{"agent_pos": (2,), "environment_state": (16,)}` and the action is a target position (2,) in [0, 512]. Your `train.py` writes `checkpoint/`.
+
+The full reference is `interface/interface.md`. `abench_stage.py`, `stages.py` and `metrics.py` in `interface/` are the evaluator's own pipeline and metric code; `selfcheck.py` runs them on a dev split.
+
+## Metrics
+
+| Metric | Definition | Requirement |
+|---|---|---|
+| **Mean max reward** (primary) | Per episode, the maximum over time of the simulator's reward, clip(coverage / 0.95, 0, 1), where coverage is the fraction of the target area covered by the block; averaged over the 50 held-out episodes, then over 3 evaluation runs (each with its own seed, which you can use for any sampling in the policy); higher is better | — |
+| Success rate | Fraction of episodes in which coverage exceeded 95% (the simulator then ends the episode) | reported |
+| Load time | Seconds from the start signal to the return of `load()` (includes importing `policy.py`) | reported (killed at 120 s) |
+
+
+No threshold applies to any metric: a submission is valid if it loads, runs within the time limits and returns well-formed outputs (see below).
+**Timing and decision**
+
+- Each run is a new process with empty cache directories, timed by the evaluator's parent process (`interface/abench_stage.py`). Rollouts run after the timed phase: 50 episodes of at most 300 steps, all within 900 seconds.
+- If any run crashes, exceeds a time limit, or the policy returns a non-finite action, the submission is invalid; valid submissions are ranked by mean max reward. Actions are clipped to [0, 512].
+- The final ABench score is driven mainly by mean max reward, and also considers how different the method is from existing policies and the quality of the sources cited in the design report; the exact weights are not published.
+
+## Evaluation
+
+1. When your session ends, the sandbox collects only the allowed files from `ABENCH_SUBMISSION_DIR`; the workspace is deleted.
+2. The evaluator runs outside the sandbox: it checks the submission format, then loads your submitted checkpoint with your model code and runs inference through the stages in `interface/stages.py`, once for each of 3 seeds unknown to you, on the evaluation hardware; it never retrains your model and never runs `train.py`.
+3. Held-out inputs are copied into the run directory only after the timed phase has ended, and never with their labels or reference values; those stay in the evaluator process, which computes the metrics with `interface/metrics.py`.
+4. You receive no evaluation results during your session.
+
+## Sandbox Guide
+
+The full guide is `interface/sandbox_guide.md`. Key points:
+
+- One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model. No network and no package installation; available software: Python 3, PyTorch (CUDA, Triton), NumPy, gymnasium and gym-pusht (versions frozen at activation).
+- The session lasts at most 6 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 6 GPU-hours.
+- Data is read-only under `$ABENCH_DATA_DIR`. Write code and run experiments in `$ABENCH_WORKSPACE`; put the final files in `$ABENCH_SUBMISSION_DIR`.
+- Paper search (offline, cutoff-filtered, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
+- Self-check: `python3 "$ABENCH_VIEW_DIR/interface/selfcheck.py" --quick` (interface, small slice), then without `--quick` on the full dev split with your checkpoint.
+
+## Deliverables
+
+```
+$ABENCH_SUBMISSION_DIR/
+├── policy.py           # required: load() and make_policy()
+├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+├── checkpoint/         # required: trained parameters, any file types, at most 500 MB
+├── src/                # optional: other .py modules imported by policy.py or train.py
+├── README.md           # optional
+├── report/index.html   # required: design report
+└── references.yaml     # required: reference register
+```
+
+- Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+- Write the design report following the structure of `templates/report_template.html`: related work and the gap you address, the changes relative to the anchor (`<ol id="changes">`, each with its code location), method definition, algorithm, complexity and design rationale. The report explains the design only; it does not describe experiments or numeric results.
+- Fill in `references.yaml` following `templates/references_template.yaml`. Each entry states what was borrowed and where it is in the code; ids match the report's references one to one.
+
+## Rules
+
+- The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights, no external data and no hand-set parameters copied from elsewhere.
+- The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
+- Learn only from the provided demonstrations; no simulator interaction in `train.py`, no reward shaping from the simulator, no hand-written controller for the task.
+- `act()` may use only the observation it receives and the policy's own memory within the episode.
+- Do not read or write files outside the submission directory, the run directory and the paths the stage gives you; do not access the network; do not touch the timing pipe or the protocol bytes.
+- Do not use extra processes or background threads to move work outside the timed phase, and do not leave processes running after a stage returns.
+- Submission is one-shot. A submission that breaks the rules is invalid.

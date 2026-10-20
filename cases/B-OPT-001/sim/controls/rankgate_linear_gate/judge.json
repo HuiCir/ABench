@@ -1,0 +1,48 @@
+{
+  "_note": "SIMULATED: simulated judge output. In the formal benchmark it is produced by 3 LLM judges + nearest-neighbor retrieval over the hidden snapshot; the judge prompt is in scoring/judge_rubric.md",
+  "source_usage": {
+    "arXiv:2502.16982": "core",
+    "muon_blog": "core",
+    "arXiv:1804.04235": "core",
+    "arXiv:1412.6980": "partial",
+    "arXiv:2509.02046": "partial",
+    "arXiv:2407.07972": "partial",
+    "arXiv:1904.00962": "decorative",
+    "arXiv:2605.99999": "core",
+    "arXiv:math/0503442": "core",
+    "vonmises1929": "core"
+  },
+  "nearest_prior_art": "Muon (2502.16982); the hidden snapshot also contains work that switches optimizers per layer, but all of it is static assignment, with no dynamic gating by the spectral structure of the momentum",
+  "judges": [
+    {
+      "novelty_level": 2,
+      "note": "Continuous interpolation between Muon and Adafactor by stable rank; mechanistically a new combination, not simple stacking"
+    },
+    {
+      "novelty_level": 1,
+      "note": "A mixture of two known branches; the gating signal is new, but the update itself is still a convex combination of known updates"
+    },
+    {
+      "novelty_level": 2,
+      "note": "Whitening strength driven by stable rank was not found in the literature before the cutoff"
+    }
+  ],
+  "discoveries": {
+    "stable_rank_gate": {
+      "novelty": "new",
+      "source_correct": true,
+      "field_distance": "other_discipline",
+      "fallback_ok": true,
+      "ml_precedent": "In the hidden snapshot, stable rank is used for generalization-bound analysis and low-rank compression, but not to adjust the whitening strength of an optimizer",
+      "note": "Uses the stable rank from high-dimensional probability as the gating signal for orthogonalization strength; no precedent before the cutoff"
+    },
+    "power_iteration_sigma": {
+      "novelty": "none",
+      "source_correct": true,
+      "field_distance": "other_discipline",
+      "fallback_ok": true,
+      "ml_precedent": "Spectral Normalization (1802.05957) and others already estimate the spectral norm with persistent power iteration",
+      "note": "Estimating the spectral norm by power iteration is standard practice in ML; this is retrieval reuse"
+    }
+  }
+}

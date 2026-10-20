@@ -1,0 +1,80 @@
+case: C-QNT-003
+title: 'Round-to-Nearest Group Quantization: The Calibration-Free Reference for 4-bit Weights'
+abstract: This submission gives the calibration-free reference for weight-only quantization. Every weight matrix of Qwen2.5-0.5B,
+  including the tied embedding, is split into groups of 128 input channels; each group is mapped affinely onto 16 levels with
+  an fp16 scale and an 8-bit zero point and rounded to the nearest level. Two 4-bit codes are packed per byte, vectors stay
+  in fp16, and loading dequantizes into a standard bf16 model. Round-to-nearest is the baseline that error-compensating methods
+  such as GPTQ [@frantar2023gptq] and activation-aware scaling [@lin2024awq] improve on.
+sections:
+- title: Introduction
+  paras:
+  - 'At around four bits per weight, how each weight is rounded matters: rounding errors in different weights of a row add
+    up in the layer''s output. GPTQ chooses the rounding of each column to compensate the error of earlier columns using second-order
+    information from calibration activations [@frantar2023gptq]; AWQ protects salient channels by rescaling [@lin2024awq].
+    Round-to-nearest ignores both and therefore isolates the effect of the format itself.'
+- title: Related Work
+  paras:
+  - Group-wise affine quantization stores, for each group of g weights, a scale s and zero point z, and represents a weight
+    w by round(w/s + z) clipped to [0, 2^b − 1] [@dettmers2023case]. Smaller groups reduce error at the cost of more metadata;
+    at b = 4 and g = 128 with fp16 scales and 8-bit zero points the overhead is 3/16 of a bit.
+  - GPTQ and AWQ use calibration activations to compensate or avoid rounding error; round-to-nearest uses none, which is the
+    gap entries are expected to close.
+- title: Method
+  subsections:
+  - title: Format
+    paras:
+    - For a matrix W (out × in), the input dimension is padded to a multiple of 128 and split into groups. Per group, s =
+      (max − min)/15 and z = round(−min/s); codes q = clip(round(w/s + z), 0, 15) are packed two per byte. The artifact holds
+      the packed codes, scales, zero points, all vectors in fp16 and the model's configuration files. load() reconstructs
+      w = (q − z)·s in bf16 and ties the output head to the embedding.
+    algorithm_caption: Quantizing one matrix
+    algorithm:
+    - pad W to a multiple of 128 columns; view as (out, in/128, 128)
+    - s ← (max − min) / 15 per group;  z ← round(−min / s)
+    - q ← clip(round(W / s + z), 0, 15);  pack q[2i] | q[2i+1] << 4
+    - store (packed, fp16 s, uint8 z, shape)
+  - title: Complexity
+    paras:
+    - Quantization is a single pass over the weights, O(P) for P parameters, with no calibration. The artifact uses about
+      4.19 bits per parameter. Inference runs at bf16 speed after dequantization at load time.
+- title: Design Rationale
+  paras:
+  - 'Quantizing the embedding is necessary: in a 0.5B model it holds more than a quarter of the parameters, and a bf16 embedding
+    alone would exceed the size budget. Asymmetric groups follow the skewed ranges of individual rows better than symmetric
+    ones at four bits.'
+- title: Scope and Limitations
+  paras:
+  - No calibration data is used, so outlier input channels and correlated rounding errors are not compensated; the remaining
+    0.06 bits of budget are unused. Error compensation, rescaling and mixed precision are the levers for entries.
+references:
+- id: frantar2023gptq
+  title: 'GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers'
+  authors: Elias Frantar, Saleh Ashkboos, Torsten Hoefler and Dan Alistarh
+  year: 2023
+  venue: ICLR
+  arxiv: '2210.17323'
+  used_for: 'Anchor: perplexity protocol (WikiText-2, 2,048-token windows) and the method entries improve on'
+  code_location: null
+- id: lin2024awq
+  title: 'AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration'
+  authors: Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang, Guangxuan Xiao, Xingyu Dang, Chuang
+    Gan and Song Han
+  year: 2024
+  venue: MLSys
+  arxiv: '2306.00978'
+  used_for: 'Context: activation-aware scaling'
+  code_location: null
+- id: dettmers2023case
+  title: 'The case for 4-bit precision: k-bit Inference Scaling Laws'
+  authors: Tim Dettmers and Luke Zettlemoyer
+  year: 2023
+  venue: ICML
+  arxiv: '2212.09720'
+  used_for: Group-wise affine quantization and the group-size trade-off
+  code_location: 'quantize.py: _q, _dq'
+changes:
+- text: Asymmetric 4-bit round-to-nearest per group of 128 input channels with fp16 scales and zero points; no calibration
+    and no error compensation, unlike the anchor.
+  code: 'quantize.py: _q, _dq'
+- text: The tied embedding is quantized as well, so the whole model fits the 4.25-bit budget.
+  code: 'quantize.py: quantize'

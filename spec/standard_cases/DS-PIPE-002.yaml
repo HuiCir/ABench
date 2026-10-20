@@ -1,0 +1,168 @@
+id: DS-PIPE-002
+title: A tabular learning pipeline across six OpenML datasets on CPU
+anchor:
+  authors: Nick Erickson, Jonas Mueller, Alexander Shirkov, Hang Zhang, Pedro Larroy, Mu Li, Alexander Smola
+  title: 'AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data'
+  arxiv: '2003.06505'
+baseline: histogram gradient-boosted trees with early stopping (`example_submission/`)
+reference_verification: The reference submission and the whole pipeline (dev split, stage runner, metrics) run end to end
+  on synthetic data in tests/test_standard_cases.py. Nothing has been run on the real frozen data yet.
+n_seeds: 1
+task: |
+  Design one tabular learning pipeline (preprocessing, features, models, ensembling, model selection) and apply it to each of six binary classification datasets to reach the **highest mean test accuracy** across them. Develop and train it on 8 CPU cores in the sandbox, then submit the trained models.
+
+  - Submit your model code, the trained checkpoint (one fitted model per dataset) and the training program that produced it. The evaluator loads the checkpoint and predicts each dataset's held-out rows; it never retrains.
+  - Only the provided training rows may be used: no pretrained models and no external data. `train.py` must apply the same procedure to every dataset; choices made automatically from the data (for example by validation) are fine, hand-picked per-dataset settings are not.
+  - You may build on any public work from before the cutoff (gradient-boosted trees, neural tabular models, stacking, AutoML search), but the design report must state what you borrowed and what you changed. The task tests robust design under the sandbox's compute budget.
+data: |
+  `$ABENCH_DATA_DIR/d<id>.npz` (read-only), one file per dataset of OpenML suite 337 ("Tabular benchmark numerical classification", Grinsztajn et al. 2022). All features are numeric (float32, NaN allowed); labels are 0/1.
+
+  | File | Dataset | Instances in OpenML | Features |
+  |---|---|---|---|
+  | `d44120.npz` | electricity | 38,474 | 7 |
+  | `d44122.npz` | pol | 10,082 | 26 |
+  | `d44123.npz` | house_16H | 13,488 | 16 |
+  | `d44125.npz` | MagicTelescope | 13,376 | 10 |
+  | `d44126.npz` | bank-marketing | 10,578 | 7 |
+  | `d44128.npz` | MiniBooNE | 72,998 | 50 |
+
+  Each file has `x` (N, F) float32, `y` (N,) int64 and `dev_idx` (10% per class, used only by `selfcheck.py`). Per dataset, the held-out split is a stratified min(30%, 5,000) rows and the public training split is min(rest, 10,000) rows, drawn with a fixed seed. The held-out rows are not in the sandbox.
+interface: Implement `load(checkpoint_dir)` and `predict_proba(model, dataset, X)` in `model.py`. `dataset` is the OpenML
+  id (an int from the table above), `X` a float32 array; `predict_proba` returns an (M, 2) array of class probabilities. Your
+  `train.py` writes `checkpoint/`; the evaluator calls `load` inside the timed phase.
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean accuracy** (primary) | Accuracy of argmax(`predict_proba`) on each dataset's held-out rows, averaged over the 6 datasets; higher is better | — |
+  | Mean ROC AUC | ROC AUC of p(1) − p(0) per dataset, averaged over datasets | reported |
+  | Load time | Seconds from the start signal to the return of `load()` (includes importing `model.py`) | reported (killed at 120 s) |
+  | Prediction time | Seconds `predict_proba()` takes for all six datasets | reported (limit 120 s) |
+
+
+  No threshold applies to any metric: a submission is valid if it loads, runs within the time limits and returns well-formed outputs (see below).
+  **Timing rules**
+
+  - Loading and prediction run in a new process with 8 CPU threads (`OMP_NUM_THREADS=8`) and empty cache directories, timed by the evaluator's parent process (`interface/abench_stage.py`).
+
+  **Decision**
+
+  - If loading or prediction crashes, exceeds a time limit, or returns probabilities of the wrong shape, negative or non-finite, the submission is invalid; valid submissions are ranked by mean accuracy.
+  - The final ABench score is driven mainly by mean accuracy, and also considers how different the method is from existing methods and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: cpu
+  session_hours: 4
+  dev_budget: 16 CPU-core-hours (two hours of the 8-core allotment)
+  software: Python 3, NumPy, SciPy, scikit-learn
+  notes: |
+    - No GPU; the submission may depend only on NumPy, SciPy, scikit-learn and the Python standard library (the evaluation uses the sandbox's versions, so pickled scikit-learn models load).
+    - The self-check scores your checkpoint on the dev rows (`dev_idx`) of each dataset. Leave them out of training if you want an unbiased estimate; you may include them in the final checkpoint.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and predict_proba()
+    ├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+    ├── checkpoint/         # required: trained parameters, any file types, at most 200 MB
+    ├── src/                # optional: other .py modules imported by model.py or train.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights, no external data and no hand-set parameters copied from elsewhere.
+  - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
+  - No per-dataset hand-tuned settings: the dataset id may select which fitted model to use, but `train.py` must run the same procedure on every dataset.
+  - `predict_proba()` must not fit to the held-out rows.
+interface_md: |
+  # DS-PIPE-002 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str):
+      """Load your six fitted models from checkpoint/ and return them (any Python object)."""
+
+  def predict_proba(model, dataset: int, X: numpy.ndarray) -> numpy.ndarray:
+      """Return (M, 2) non-negative class probabilities for the rows of X of dataset `dataset` (OpenML id).
+
+      X  float32 (M, F); NaN marks a missing value
+      """
+  ```
+
+  - The evaluator calls `load` once inside the timed phase, then `predict_proba` once per dataset on its held-out rows.
+  - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Training program: `train.py`
+
+  Write a `train.py` that produces `checkpoint/` from the files in `$ABENCH_DATA_DIR` (`d<id>.npz`, one fitted model per dataset), for example
+  `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`. The evaluator does not run it;
+  it is kept with the submission so the checkpoint can be audited and reproduced. The reference implementation under
+  `interface/baseline/` (its `model.py` and `train.py`) is a working starting point you may improve on or replace.
+
+  ## Evaluator code you can read
+
+  - `stages.py`: the pipeline (one stage, `predict`), the dev split used by the self-check and the time limits.
+  - `metrics.py`, `abench_metrics.py`: how the metrics are computed.
+  - `abench_stage.py`: the process and timing protocol shared by all ABench standard cases; `selfcheck.py` runs the dev split with your checkpoint.
+
+  ## Available software
+
+  Python 3, NumPy, SciPy and scikit-learn, CPU only. Nothing can be installed.
+oj:
+  agent_budget:
+    cpu_core_hours: 16
+    session_hours: 4
+  data:
+    public_dir: sandbox/data/DS-PIPE-002
+    public:
+    - path: sandbox/data/DS-PIPE-002/d44120.npz
+      sha256: pending
+    - path: sandbox/data/DS-PIPE-002/d44122.npz
+      sha256: pending
+    - path: sandbox/data/DS-PIPE-002/d44123.npz
+      sha256: pending
+    - path: sandbox/data/DS-PIPE-002/d44125.npz
+      sha256: pending
+    - path: sandbox/data/DS-PIPE-002/d44126.npz
+      sha256: pending
+    - path: sandbox/data/DS-PIPE-002/d44128.npz
+      sha256: pending
+    hidden:
+      path: sandbox/hidden/DS-PIPE-002/hidden.npz.enc
+      sha256_plain: pending
+    sources:
+    - name: OpenML suite 337, Tabular benchmark numerical classification (Grinsztajn et al. 2022, arXiv:2207.08815)
+      url: https://www.openml.org/api/v1/json/study/337
+      files: https://data.openml.org/datasets/0004/<id>/dataset_<id>.pq for ids 44120, 44122, 44123, 44125, 44126, 44128
+      license: OpenML lists 'Public' for 44120, 44122, 44123, 44125, 44126 and 'CC0' for 44128
+      verified: '2026-10-19: suite membership, names, sizes, target columns, licences and parquet URLs read from the OpenML
+        API'
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    checkpoint_dir: checkpoint
+    allowed_top_level:
+    - README.md
+    - model.py
+    - train.py
+    - checkpoint
+    - src
+    - report
+    - references.yaml
+    code_suffixes:
+    - .py
+    - .yaml
+    - .yml
+    - .md
+    - .txt
+    code_max_bytes: 200000
+    max_bytes: 211715200
+    checkpoint_max_bytes: 209715200
+    required_files:
+    - train.py
+  judge:
+    device: cpu
+    reference_hardware: 8 CPU cores (model frozen at activation)
+    seeds:
+    - 3370
+mode: checkpoint

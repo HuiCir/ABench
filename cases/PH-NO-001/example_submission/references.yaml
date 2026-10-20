@@ -1,0 +1,28 @@
+schema: abench.references/v2
+references:
+- id: li2021fno
+  title: Fourier Neural Operator for Parametric Partial Differential Equations
+  authors: Zongyi Li, Nikola Kovachki, Kamyar Azizzadenesheli, Burigede Liu, Kaushik Bhattacharya, Andrew Stuart
+    and Anima Anandkumar
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.08895'
+  used_for: 'Anchor: truncated Fourier multipliers acting on physical wavenumbers'
+  code_location: 'train.py: main; model.py: predict'
+- id: takamoto2022pdebench
+  title: 'PDEBench: An Extensive Benchmark for Scientific Machine Learning'
+  authors: Makoto Takamoto, Timothy Praditia, Raphael Leiteritz, Dan MacKinlay, Francesco Alesiani, Dirk Pflüger
+    and Mathias Niepert
+  year: 2022
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2210.07182'
+  used_for: Dataset and nRMSE metric
+  code_location: null
+- id: schmid2010dmd
+  title: Dynamic mode decomposition of numerical and experimental data
+  authors: Peter J. Schmid
+  year: 2010
+  venue: Journal of Fluid Mechanics
+  doi: 10.1017/S0022112010001217
+  used_for: Linear dynamics fitted by least squares from snapshots
+  code_location: 'train.py: main'

@@ -1,0 +1,82 @@
+case_id: TC-ENC-002
+readiness: contract_only
+title: "ABench Case TC-ENC-002: Fine-tuning recipe for a fixed small encoder (calibration)"
+version: v2026.07
+cutoff: '2026-07-01'
+anchor:
+  title: BERT
+  arxiv: '1810.04805'
+  type: T2
+  track: TC
+  age_band: mature
+task_family: design
+deliverable_kind: text_classifier
+neighborhood:
+  retrieval: open
+  seed_snapshot: paper_snapshot/seed_neighborhood.jsonl
+  hidden_snapshot: benchmark-held; not distributed
+  weight_rule: scoring_config.yaml
+task: Fine-tuning recipe for a fixed small encoder (calibration)
+metrics:
+  raw: GLUE subtask accuracy
+  primary: GLUE subtask accuracy
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 1
+  verify: 0.3
+  ref: 3
+  risk: []
+  plan: ≤ 110M encoder, 4 GLUE subtasks
+subset: calibration
+difficulty: low
+status: scaffold
+budget:
+  agent_dev_budget: 1 CPU/GPU-h per task card
+  hardware: fixed reference hardware to be frozen
+  verify_per_submission: 0.3 CPU/GPU-h per task card
+  reference_precompute: 3 CPU/GPU-h per task card
+  scale_policy: ≤ 110M encoder, 4 GLUE subtasks
+  submissions: 1
+probes:
+- interface/schema and deterministic rerun
+- raw metric and resource usage audit
+- hidden holdout and anti-gaming checks
+holdout:
+- hidden datasets or post-cutoff distribution where available
+- fixed seed/temporal/split robustness check
+contamination:
+- Resources and evaluator hashes are benchmark-held until release.
+- Submitted code must not access hidden labels, test data or evaluator state.
+verify: false
+scaffold_status: contract_only_pending_resources_and_runs
+
+# Canonical ratings copied from index.yaml
+budget_tier: low
+track: TC
+priority: P1
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 1
+      unit: CPU-h
+    per_submission_verify:
+      value: 0.3
+      unit: CPU-h
+    reference_precompute:
+      value: 3
+      unit: CPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: low

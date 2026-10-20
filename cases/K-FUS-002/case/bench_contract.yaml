@@ -1,0 +1,18 @@
+contract_version: abench-scaffold-v1
+case_id: K-FUS-002
+status: scaffold
+simulated_outputs: false
+real_inputs_required: true
+blocked_inputs:
+- CUDA_toolchain_and_reference_gpu
+- sandboxed_kernel_compilation
+- hidden_input_distributions_and_strong_library_baseline
+- signed_workload_and_wall_clock_measurement
+required_provenance:
+- runner_version
+- config_hash
+- resource_hash
+- artifact_hash
+formal_scoring: deferred_until_real_calibration
+report_profile: design_report_v2
+report_focus: system_efficiency

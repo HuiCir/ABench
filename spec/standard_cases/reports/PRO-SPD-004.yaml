@@ -1,0 +1,99 @@
+case: PRO-SPD-004
+title: A Plain Data-Parallel AdamW Recipe for a GPT-2 Medium-Scale Speedrun
+abstract: 'This submission gives the reference recipe for the four-GPU pretraining speedrun: a dense GPT-2 Medium-shaped decoder
+  (24 layers, width 1,024, about 354M parameters with tied embeddings) with rotary position embeddings [@su2021roformer],
+  RMSNorm, QK normalisation and a ReLU² MLP [@so2021primer], trained with AdamW [@loshchilov2019adamw] at 0.5M tokens per
+  step under data parallelism, bf16 autocast and torch.compile. The token budget of about 4.7B follows a compute-optimal reading
+  of the anchor [@hoffmann2022chinchilla] rather than the aggressive over-training of speedrun records. The recipe is intentionally
+  conventional: the optimizer, schedule and kernel choices of the speedrun''s record history [@jordan2024moddednanogpt] are
+  the space that entries are expected to explore.'
+sections:
+- title: Introduction
+  paras:
+  - 'Time to a fixed loss rewards both statistical efficiency (fewer tokens to the target) and hardware efficiency (more tokens
+    per second). The anchor quantifies the first through compute-optimal scaling: for a given compute budget, parameters and
+    tokens should grow together [@hoffmann2022chinchilla]. The modded-nanogpt speedrun shows how far the second, together
+    with optimizer changes, can be pushed on fixed data.'
+- title: Related Work
+  paras:
+  - Rotary embeddings encode relative positions in attention [@su2021roformer]; normalising queries and keys bounds attention
+    logits and stabilises large learning rates; the squared ReLU activation improves language-model quality at equal compute
+    [@so2021primer]. Data-parallel training with gradient accumulation scales the batch across GPUs with one all-reduce per
+    step.
+  - Compute-optimal scaling fixes the token budget, and speedrun records improve tokens per second and optimizers; combining
+    both under a fixed four-GPU setup is the gap this conventional recipe leaves.
+- title: Method
+  subsections:
+  - title: Model and training
+    paras:
+    - Each block applies RMSNorm, attention with rotary embeddings and RMS-normalised queries and keys (scaled-dot-product
+      attention, causal), then RMSNorm and an MLP of width 4,096 with ReLU². Output projections are initialised with standard
+      deviation 0.02/sqrt(48). Each of 4 GPUs processes 8 micro-batches of 16 × 1,024 tokens per step (gradient synchronisation
+      on the last), gradients are clipped at 1.0, and AdamW uses β = (0.9, 0.95), weight decay 0.1 on matrices and a peak
+      learning rate of 1.5e-3 with 250 warm-up steps and linear decay to zero over 9,000 steps. Each rank reads disjoint contiguous
+      token slices.
+    algorithm_caption: One optimisation step
+    algorithm:
+    - 'for micro = 1 … 8: x, y ← next 16 × 1,024 tokens of this rank'
+    - '  loss ← CE(model(x), y) / 8; backward (all-reduce on the last micro-batch)'
+    - clip ‖g‖ ≤ 1;  lr ← 1.5e-3 · min(1, (s + 1)/250) · (1 − s/9,000);  AdamW step
+  - title: Complexity
+    paras:
+    - About 6 · N · D floating-point operations for N ≈ 354M parameters and D ≈ 4.7B tokens, i.e. about 1e19, plus attention
+      at sequence length 1,024. Memory per GPU holds the model, AdamW state and activations of one micro-batch.
+- title: Design Rationale
+  paras:
+  - A conventional, well-understood recipe gives a reproducible reference whose timing the operator can calibrate on the evaluation
+    node. Rotary embeddings, QK-norm and ReLU² are low-risk improvements over the original GPT-2 that are standard in current
+    small-model training.
+- title: Scope and Limitations
+  paras:
+  - The number of steps has not been calibrated against the 2.92 target on the reference node, and AdamW at a fixed sequence
+    length is far from the speedrun's state of the art; orthogonalised optimizers, longer and variable sequence lengths, FP8
+    matrix multiplications and better data ordering are the obvious levers.
+references:
+- id: hoffmann2022chinchilla
+  title: Training Compute-Optimal Large Language Models
+  authors: Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford and others
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2203.15556'
+  used_for: 'Anchor: choosing the token budget for the model size'
+  code_location: 'train.py: STEPS'
+- id: jordan2024moddednanogpt
+  title: 'modded-nanogpt: speedrunning GPT-2 training'
+  authors: Keller Jordan and contributors
+  year: 2024
+  url: https://github.com/KellerJordan/modded-nanogpt
+  used_for: Task setting (data, validation tokens, GPT-2 Medium track target)
+  code_location: 'train.py: Loader'
+- id: su2021roformer
+  title: 'RoFormer: Enhanced Transformer with Rotary Position Embedding'
+  authors: Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen and Yunfeng Liu
+  year: 2021
+  arxiv: '2104.09864'
+  used_for: Rotary position embeddings
+  code_location: 'model.py: Rotary'
+- id: so2021primer
+  title: 'Primer: Searching for Efficient Transformers for Language Modeling'
+  authors: David R. So, Wojciech Mańke, Hanxiao Liu, Zihang Dai, Noam Shazeer and Quoc V. Le
+  year: 2021
+  venue: NeurIPS
+  arxiv: '2109.08668'
+  used_for: Squared ReLU MLP
+  code_location: 'model.py: Block.forward'
+- id: loshchilov2019adamw
+  title: Decoupled Weight Decay Regularization
+  authors: Ilya Loshchilov and Frank Hutter
+  year: 2019
+  venue: ICLR
+  arxiv: '1711.05101'
+  used_for: AdamW
+  code_location: 'train.py: main'
+changes:
+- text: A compute-optimal token budget (about 4.7B tokens for 354M parameters) instead of over-training.
+  code: 'train.py: STEPS'
+- text: Conventional AdamW with data parallelism, bf16 autocast and torch.compile; none of the speedrun's optimizer changes.
+  code: 'train.py: main'
+- text: Rotary embeddings, RMSNorm, QK normalisation and a ReLU² MLP in a GPT-2 Medium-shaped decoder.
+  code: 'model.py: Block.forward, Rotary'

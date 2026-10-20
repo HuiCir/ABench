@@ -1,0 +1,65 @@
+# ABench anchor card: C-QNT-003
+case_id: C-QNT-003
+scope: active_v1
+readiness: deferred
+title: Weight-only quantization of Qwen2.5-0.5B at 4.25 bits per parameter
+version: v2026.07
+cutoff: '2026-07-01'
+anchor:
+  title: "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration"
+  arxiv: '2210.17323'
+  type: T6
+  track: C
+  age_band: mature
+task_family: inference
+deliverable_kind: submission_artifacts
+budget:
+  tier: medium
+  dev_plan: Compare AWQ/GPTQ/SmoothQuant with FP16 on a fixed 0.5B–1.5B decoder, with a public calibration set and hidden model/shape/task tests; report quality, compression ratio, throughput, memory and calibration cost.
+  verification: Run only after the benchmark operator's real resources and hidden configurations are frozen
+  submissions: 1
+metrics:
+  - Perplexity/task quality after quantization
+  - Weight and model-size compression ratio
+  - End-to-end throughput and p95 latency
+  - Peak memory
+  - Calibration GPU-h
+holdout:
+  - Hidden models and tasks outside the calibration set
+  - 2/3/4-bit, per-channel/group-size combinations
+  - Different batch/sequence shapes and low-batch decode
+  - Activation outliers and prompt-length perturbations
+deferred:
+  - Frozen model and tokenizer
+  - Quantization kernels, hardware and runtime baseline
+  - Hidden quality test set and server timer
+
+difficulty: medium
+budget_tier: medium
+status: scaffold
+track: C
+priority: P1
+resource_profile:
+  sandbox_profile: frozen_inference_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev: {value: 3, unit: GPU-h}
+    per_submission_verify: {value: 1, unit: GPU-h}
+    reference_precompute: {value: 5, unit: GPU-h}
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: medium
+objective_mode: pareto
+pareto_objective:
+  enabled: true
+  policy: pareto_frontier
+  note: The quality floor and numerical equivalence are gated first; the full front over quality, throughput, latency, memory, model size and calibration cost is reported
+standard_case: spec/standard_cases/C-QNT-003.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

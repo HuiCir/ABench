@@ -1,0 +1,133 @@
+case_id: X-ROBUST-009
+version: v2026.07
+cutoff: '2026-07-01'
+hardware:
+  reference: single 24GB GPU (RTX 4090 class)
+  software: benchmark manifest required; fixed container/CUDA/PyTorch
+  timing: server-side wall clock, latency and peak memory; median over fixed seeds
+proxy:
+  types:
+  - FROZEN
+  - SURG
+  - SUBSET
+  plan: Fixed 125M encoder and offline intent_safety_bundle_v1; train calibration/abstention heads or a lightweight adapter, choose thresholds on the public split, review under hidden shifts
+  fidelity_gate: track-level calibration must reproduce at least 5 known pairwise orderings with >=80% agreement
+budget:
+  agent_dev_gpu_h: 3
+  per_submission_verify_gpu_h: 1.5
+  reference_precompute_gpu_h: 15
+  budget_tier: medium
+  submissions: 1
+ladder:
+  L0_smoke:
+    visibility: agent
+    checks:
+    - interface
+    - finite outputs
+    - determinism
+    - resource limits
+    - no input mutation
+    - threshold declared before hidden evaluation
+  L1_proxy:
+    visibility: agent
+    settings: smallest documented proxy with public calibration split
+  L2_main:
+    visibility: benchmark
+    settings: public validation split, fixed seeds and held-out ID classes
+  L3_holdout:
+    visibility: hidden
+    settings: unseen topics, compositional near-OOD, covariate shifts and safety policy families
+inputs:
+  public: resources.yaml
+  private: benchmark-side hidden shift manifest and labels
+  required_hashes: true
+outputs:
+  required:
+  - manifest.json
+  - run.jsonl
+  - artifacts.sha256
+  - metrics.json
+  forbidden:
+  - simulated_scores
+  - fabricated_reference_runs
+  - undeclared_network_access
+  - hidden_label_or_evaluator_access
+metrics:
+  objective: pareto_frontier
+  dimensions:
+  - name: id_macro_f1
+    direction: higher
+    unit: fraction
+    role: quality_constraint
+  - name: ece_15
+    direction: lower
+    unit: fraction
+    role: reliability
+  - name: risk_at_80pct_coverage
+    direction: lower
+    unit: fraction
+    role: reliability
+  - name: coverage_at_1pct_risk
+    direction: higher
+    unit: fraction
+    role: reliability
+  - name: ood_auroc
+    direction: higher
+    unit: fraction
+    role: reliability
+  - name: safety_refusal_tpr
+    direction: higher
+    unit: fraction
+    role: safety_constraint
+  - name: safety_overrefusal_rate
+    direction: lower
+    unit: fraction
+    role: safety
+  - name: worst_shift_risk
+    direction: lower
+    unit: fraction
+    role: stability
+  - name: inference_latency_ms
+    direction: lower
+    unit: ms_per_example
+    role: cost
+  - name: peak_memory_gb
+    direction: lower
+    unit: GB
+    role: cost
+  - name: train_gpu_hours
+    direction: lower
+    unit: GPU-h
+    role: cost
+  - name: seed_std
+    direction: lower
+    unit: fraction
+    role: stability
+  dominance: quality and safety dimensions maximize; reliability and cost dimensions minimize; constraints must pass before dominance
+  aggregation: report per-shift/per-seed values, full non-dominated set and hypervolume against server reference envelope
+special_blockers:
+- frozen_base_checkpoint_tokenizer_and_label_taxonomy
+- offline_public_calibration_and_hidden_shift_bundle
+- server_hidden_safety_labels_and_latency_probe
+activation: scaffold_only_until_real_reference_runs_and_hidden_eval_exist
+resource_profile:
+  sandbox_profile: posttrain_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev: {value: 3, unit: GPU-h}
+    per_submission_verify: {value: 1.5, unit: GPU-h}
+    reference_precompute: {value: 15, unit: GPU-h}
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+objective_mode: pareto
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md

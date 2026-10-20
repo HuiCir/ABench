@@ -1,0 +1,16 @@
+contract_version: abench-scaffold-v1
+case_id: A-LIN-002
+status: scaffold
+simulated_outputs: false
+real_inputs_required: true
+blocked_inputs:
+- frozen_tokenizer_model_data_and_long_context_probe
+- reference_runs_and_fixed_hardware_throughput
+required_provenance:
+- runner_version
+- config_hash
+- resource_hash
+- artifact_hash
+formal_scoring: deferred_until_real_calibration
+report_profile: design_report_v2
+report_focus: architecture_design

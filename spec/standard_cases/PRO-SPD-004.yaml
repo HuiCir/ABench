@@ -1,0 +1,120 @@
+id: PRO-SPD-004
+title: "Pretraining speedrun: GPT-2 Medium scale to a FineWeb loss target on 4 × H100"
+anchor: {authors: "Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford and others", title: "Training Compute-Optimal Large Language Models", arxiv: "2203.15556"}
+baseline: "a data-parallel AdamW recipe for a GPT-2 Medium-shaped model (`example_submission/`)"
+reference_verification: "Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation."
+mode: judge_trains
+n_seeds: 2
+task: |
+  Design a complete pretraining recipe — architecture, optimizer, schedule, batch and sequence strategy, precision, kernels, distributed execution — that trains a **dense language model of at most 450M parameters** on one node with **4 × H100** to a **held-out FineWeb loss of at most 2.92** in the **shortest wall-clock time**. This is the setting of the GPT-2 Medium track of the modded-nanogpt speedrun, on half its hardware.
+
+  - Submit code only: `train.py` (launched with torchrun on all four GPUs) and `model.py` (rebuilds the trained model for evaluation). At evaluation the run is executed from scratch twice, with seeds unknown to you; time is measured from launch until every training process has exited.
+  - Only the provided training shards may be used: no pretrained weights, distillation from other models, external data, or reading of the validation tokens.
+  - Dense means every token passes through all parameters (no mixture-of-experts routing); the size cap counts every tensor in the saved state.
+  - You may build on any public work from before the cutoff (the speedrun's record history, Muon, value embeddings, FP8 kernels, sequence-length warm-up, compute-optimal scaling), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only) holds the 103 training shards of FineWeb-10B pre-tokenized with the GPT-2 BPE (Hugging Face `kjj0/fineweb10B-gpt2`, MIT; the data of the modded-nanogpt speedrun):
+
+  | Files | Contents |
+  |---|---|
+  | `fineweb_train_000001.bin` … `fineweb_train_000103.bin` | 256 int32 header (magic 20240520, version 1, token count), then about 100M uint16 tokens each |
+
+  `interface/token_data.py` reads the format. The held-out set is the first 10,485,760 predicted tokens of the official validation shard `fineweb_val_000000.bin` (the speedrun's validation set); it is not in the sandbox.
+interface: |
+  `train.py` is run as `torchrun --standalone --nproc_per_node=4 train.py --data DIR --out DIR --seed S` and must write the trained weights to `OUT/model.pt` (a state dict). `model.py` defines `build_model()` returning the module whose `load_state_dict` accepts that file and whose call `model(idx)` returns logits (B, T, vocab), and may set `EVAL_SEQ_LEN` (default 1,024).
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Training time** (primary) | Wall-clock seconds from the launch of torchrun until all training processes have exited, mean (= median) of the 2 runs; lower is better | — |
+  | Held-out loss | Mean next-token cross-entropy (nats) of the saved model on the 10,485,760 validation tokens, evaluated in consecutive windows of `EVAL_SEQ_LEN`, mean of the 2 runs | Threshold: ≤ 2.92 |
+  | Model size | Elements of all tensors in `model.pt` | Threshold: ≤ 450,000,000 |
+  | Time cap | Each run must finish within 3 hours | Threshold: ≤ 10,800 s |
+
+  **Timing and decision**
+
+  - Each run starts in new processes with empty compiler caches (`interface/abench_stage.py`); everything from Python start-up to the last process exit counts, including compilation, data loading and saving `model.pt`.
+  - The evaluation stage runs in another process on one GPU with only the `out/` directory; it must finish within 20 minutes.
+  - A submission is valid only if every threshold holds; valid submissions are ranked by training time.
+  - If any run crashes or exceeds a time limit, the whole submission is invalid.
+  - The final ABench score is driven mainly by training time, and also considers how different the recipe is from existing speedrun records and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: pro
+  session_hours: 24
+  dev_budget: "96 H100-hours (24 hours of the 4-GPU node)"
+  software: "Python 3, PyTorch (CUDA, Triton, torch.distributed / torchrun, torch.compile), NumPy"
+  notes: |
+    - `selfcheck.py --quick` passes `--quick` to `train.py` (your script decides what a short run is) and evaluates on 1,048,576 tokens of the last training shard; `--seeds 1` runs your full recipe once and evaluates on the last 10,485,760 tokens of that shard, which are also training data, so the dev loss is optimistic.
+    - Budget your development: a full run of the example recipe takes hours, and the evaluation runs your recipe twice.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── train.py            # required: training entry point (torchrun)
+    ├── model.py            # required: build_model(), optional EVAL_SEQ_LEN
+    ├── src/                # optional: helper modules
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 400,000 bytes in total; no trained parameters are submitted.
+rules: |
+  - No pretrained weights, distillation, external data or use of the validation shard; the model must be trained by `train.py` within the timed run.
+  - `model.py` must compute an honest probability model: logits from the trained weights for the given tokens only, with no access to later tokens of a window and no special handling of the evaluation.
+  - No processes may outlive `train.py`, and no work may be moved before the launch (for example compiled artifacts cached outside the run directory).
+interface_md: |
+  # PRO-SPD-004 interface
+
+  ## `train.py`
+
+  ```
+  torchrun --standalone --nproc_per_node=4 train.py --data DATA_DIR --out OUT_DIR --seed SEED [--quick]
+  ```
+
+  - `DATA_DIR` contains `fineweb_train_000001.bin` … `fineweb_train_000103.bin` (format in `token_data.py`).
+  - Before exiting, rank 0 must write `OUT_DIR/model.pt`: a state dict (tensors only) loadable by `model.build_model()`.
+  - `--quick` is passed only by `selfcheck.py --quick`; use it for a short smoke run.
+  - The clock covers the whole torchrun invocation; there is no separate warm-up allowance.
+
+  ## `model.py`
+
+  ```python
+  EVAL_SEQ_LEN = 1024          # optional: window length for evaluation (consecutive, non-overlapping windows)
+
+  def build_model() -> torch.nn.Module:
+      """Return the architecture with freshly initialised weights; the evaluator then loads OUT_DIR/model.pt
+      with load_state_dict and calls model(idx: LongTensor (1, T)) -> logits (1, T, vocab) under bf16 autocast."""
+  ```
+
+  ## Evaluator code you can read
+
+  `stages.py` (the torchrun invocation, the timing and the held-out loss computation), `token_data.py`, `metrics.py`,
+  `abench_metrics.py`, `abench_stage.py` and `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton, torch.distributed, torch.compile), NumPy. Nothing can be installed.
+oj:
+  agent_budget: {h100_hours: 96.0, session_hours: 24.0}
+  data:
+    public_dir: sandbox/data/PRO-SPD-004
+    public: []
+    public_files: "fineweb_train_000001.bin … fineweb_train_000103.bin (hashes recorded in data_lock.yaml by tools/prepare/run.py)"
+    hidden: {path: sandbox/hidden/PRO-SPD-004/hidden.npz.enc, sha256_plain: pending, keys: [tokens], tokens: 10485761}
+    sources:
+      - name: "FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (data of the modded-nanogpt speedrun)"
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        license: "MIT on the token repository; the underlying FineWeb text is ODC-BY"
+        verified: "2026-10-19: revision, license and file list from the Hugging Face API; target 2.92 for the GPT-2 Medium track and the 10,485,760-token validation definition from the modded-nanogpt README"
+  submission:
+    kind: code_only
+    entry: train.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, train.py, model.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 400000
+    max_bytes: 4000000
+  judge:
+    device: cuda
+    reference_hardware: "one node with 4 × H100 80GB SXM (NVLink); driver, CUDA, NCCL and torch versions frozen at activation"
+    seeds: [2203, 15556]          # kept secret by the operator
+    code_audit: "the operator inspects model.py and train.py for violations of the evaluation rules before scoring"

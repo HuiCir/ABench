@@ -1,0 +1,82 @@
+case: PH-NO-001
+title: 'A Linear Spectral Autoregressive Operator: A Resolution-Independent Baseline for 1D Burgers'
+abstract: This submission gives a minimal operator-learning baseline. Each frame is transformed to Fourier space and the next
+  frame is predicted per wavenumber as a complex linear combination of the two previous frames, with coefficients fitted by
+  least squares over all training transitions. This is a single linear spectral layer of the kind the Fourier neural operator
+  stacks with nonlinearities [@li2021fno]; because it acts on physical wavenumbers it transfers unchanged to a finer grid.
+  The model cannot represent the nonlinear steepening of Burgers' shocks, which is where entries are expected to improve.
+sections:
+- title: Introduction
+  paras:
+  - PDEBench provides standardised simulations and the normalised RMSE metric for scientific surrogates [@takamoto2022pdebench].
+    A surrogate must be accurate over a rollout and should not depend on the grid it was trained on. A linear spectral model
+    fixes a reference point for both properties at almost no cost.
+- title: Related Work
+  paras:
+  - Burgers' equation u_t + u u_x = ν u_xx combines nonlinear advection with diffusion. Its linear part acts diagonally in
+    Fourier space, which motivates spectral parameterisations of the solution operator; the FNO learns a truncated set of
+    Fourier multipliers interleaved with pointwise nonlinearities [@li2021fno]. Learned linear dynamics in a fixed basis are
+    also the setting of dynamic mode decomposition [@schmid2010dmd].
+  - The FNO stacks nonlinear spectral layers and is trained by gradient descent; a single linear spectral layer keeps resolution
+    independence but cannot model nonlinear steepening; that is the gap entries can address.
+- title: Method
+  subsections:
+  - title: Model
+    paras:
+    - With û_t(k) the real FFT of frame t, the model predicts û_{t+1}(k) = a_k û_t(k) + b_k û_{t−1}(k) for the first 64 wavenumbers
+      and sets higher wavenumbers to zero. For each k, (a_k, b_k) solves a complex least-squares problem over all consecutive
+      triples of frames in the training trajectories. Prediction rolls the recursion forward 31 steps from the last two input
+      frames.
+    algorithm_caption: Training and rollout
+    algorithm:
+    - '**train**: Û ← rfft(u) truncated to 64 modes'
+    - '  for each k: (a_k, b_k) ← argmin Σ |Û_{t+1}(k) − a Û_t(k) − b Û_{t−1}(k)|²'
+    - '**predict**(u_in): rescale rfft amplitudes to the training grid size'
+    - '  repeat 31 times: Û_next ← a ⊙ Û_cur + b ⊙ Û_prev; emit irfft(Û_next) on the input grid'
+  - title: Complexity
+    paras:
+    - Training costs O(N T X log X) for the transforms and O(N T K) for the K = 64 two-parameter regressions. A rollout costs
+      O(T X log X) per trajectory, independent of the training set size.
+- title: Design Rationale
+  paras:
+  - 'Working per wavenumber keeps the parameter count tiny and makes the model exactly resolution independent: amplitudes
+    are rescaled by the number of grid points so that a 512-point input is mapped to the same physical modes. Two lags let
+    each mode represent damped oscillation rather than pure decay.'
+- title: Scope and Limitations
+  paras:
+  - The model is linear and diagonal, so it cannot transfer energy between modes; shock formation in Burgers' equation is
+    exactly such a transfer. Nonlinear operator layers, multi-step training and stability-aware rollouts are the obvious next
+    steps.
+references:
+- id: li2021fno
+  title: Fourier Neural Operator for Parametric Partial Differential Equations
+  authors: Zongyi Li, Nikola Kovachki, Kamyar Azizzadenesheli, Burigede Liu, Kaushik Bhattacharya, Andrew Stuart and Anima
+    Anandkumar
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.08895'
+  used_for: 'Anchor: truncated Fourier multipliers acting on physical wavenumbers'
+  code_location: 'train.py: main; model.py: predict'
+- id: takamoto2022pdebench
+  title: 'PDEBench: An Extensive Benchmark for Scientific Machine Learning'
+  authors: Makoto Takamoto, Timothy Praditia, Raphael Leiteritz, Dan MacKinlay, Francesco Alesiani, Dirk Pflüger and Mathias
+    Niepert
+  year: 2022
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2210.07182'
+  used_for: Dataset and nRMSE metric
+  code_location: null
+- id: schmid2010dmd
+  title: Dynamic mode decomposition of numerical and experimental data
+  authors: Peter J. Schmid
+  year: 2010
+  venue: Journal of Fluid Mechanics
+  doi: 10.1017/S0022112010001217
+  used_for: Linear dynamics fitted by least squares from snapshots
+  code_location: 'train.py: main'
+changes:
+- text: One linear per-wavenumber second-order autoregression in Fourier space replaces the anchor's stack of nonlinear Fourier
+    layers.
+  code: 'model.py: predict'
+- text: Coefficients are fitted by least squares over all training transitions instead of gradient training.
+  code: 'train.py: main'

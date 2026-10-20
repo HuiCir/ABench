@@ -1,0 +1,44 @@
+schema: abench.references/v2
+references:
+- id: hu2022lora
+  title: 'LoRA: Low-Rank Adaptation of Large Language Models'
+  authors: Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang and Weizhu
+    Chen
+  year: 2022
+  venue: ICLR
+  arxiv: '2106.09685'
+  used_for: 'Anchor: low-rank update of query and value, rank 8, zero-initialised B, α/r scaling'
+  code_location: 'peft.py: LoRALinear, build'
+- id: liu2019roberta
+  title: 'RoBERTa: A Robustly Optimized BERT Pretraining Approach'
+  authors: Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke
+    Zettlemoyer and Veselin Stoyanov
+  year: 2019
+  arxiv: '1907.11692'
+  used_for: Frozen base and the classification-head design
+  code_location: 'peft.py: Head'
+- id: aghajanyan2021intrinsic
+  title: Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning
+  authors: Armen Aghajanyan, Sonal Gupta and Luke Zettlemoyer
+  year: 2021
+  venue: ACL
+  arxiv: '2012.13255'
+  used_for: Motivation for low-dimensional adaptation
+  code_location: null
+- id: houlsby2019adapters
+  title: Parameter-Efficient Transfer Learning for NLP
+  authors: Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin de Laroussilhe, Andrea Gesmundo,
+    Mona Attariyan and Sylvain Gelly
+  year: 2019
+  venue: ICML
+  arxiv: '1902.00751'
+  used_for: 'Context: adapter layers'
+  code_location: null
+- id: zaken2022bitfit
+  title: 'BitFit: Simple Parameter-efficient Fine-tuning for Transformer-based Masked Language-models'
+  authors: Elad Ben Zaken, Shauli Ravfogel and Yoav Goldberg
+  year: 2022
+  venue: ACL
+  arxiv: '2106.10199'
+  used_for: 'Context: bias-only tuning'
+  code_location: null

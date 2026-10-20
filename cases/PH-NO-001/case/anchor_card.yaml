@@ -1,0 +1,38 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: PH-NO-001
+readiness: deferred
+title: A neural surrogate for 1D Burgers' equation (PDEBench)
+version: v2026.07
+cutoff: '2026-07-01'
+track: PH
+track_name: Physics
+group: domain
+priority: P1
+type: T1
+subset: main
+difficulty: medium
+budget_tier: medium
+status: deferred
+anchor:
+  name: Fourier Neural Operator
+  arxiv: '2010.08895'
+  verify_before_freeze: false
+task: Design a PDE surrogate model (PDEBench subset)
+metrics: nRMSE of a 31-frame rollout (1D Burgers); nRMSE at 512 points
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 4
+  verify: 1.5
+  ref: 15
+  risk: []
+  plan: 2 PDEBench equations each in 1D and 2D, 64² resolution
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- PDEBench_or_simulator_snapshot
+- numerical_solver_baselines
+- resolution_and_parameter_holdouts
+- specific_anchor_or_citation_verification
+standard_case: spec/standard_cases/PH-NO-001.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

@@ -1,0 +1,66 @@
+case_id: A-LCTX-006
+readiness: deferred
+scope: deferred_out_of_scope_v1
+title: Under fixed training and inference budgets, design a position encoding, state cache or context-compression scheme so that long-context recall, short-context loss, memory and throughput form a better Pareto front
+version: v2026.07
+cutoff: '2026-07-01'
+track: A
+track_name: LLM architecture
+group: method
+priority: P1
+type: T2
+subset: main
+difficulty: high
+budget_tier: medium
+status: scaffold
+anchor:
+  name: "YaRN: Efficient Context Window Extension of Large Language Models"
+  arxiv: '2309.00071'
+  verify_before_freeze: true
+task: Under fixed training and inference budgets, design a position encoding, state cache, context compression or offline RAG context-packing scheme so that long-context recall, RAG retrieval, short-context loss, memory and throughput form a better Pareto front
+metrics: MQAR/needle retrieval accuracy; offline RAG Recall@5; short-context validation cross-entropy; peak memory; tokens/s; length–quality–cost Pareto
+resource_rating: medium
+verify_plan:
+  proxy:
+  - SYN
+  - MICRO
+  - INFER
+  dev: 4
+  verify: 2
+  ref: 20
+  risk:
+  - scale_mismatch
+  - Length extrapolation
+  plan: Fixed 125M–350M model, training context ≤ 4k; MQAR and fixed offline document probes extended to 8k/16k/32k; only auditable position encodings, KV/state caches or compression modules are measured
+pareto_objective:
+  enabled: true
+  policy: pareto_frontier
+  note: No single-point SOTA threshold; quality, cost and constraint metrics are evaluated by non-dominance
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_tokenizer_and_base_model_hash
+- offline_long_context_probe_and_hidden_lengths
+- fixed_gpu_memory_and_throughput_timer
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev: {value: 4, unit: GPU-h}
+    per_submission_verify: {value: 2, unit: GPU-h}
+    reference_precompute: {value: 20, unit: GPU-h}
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+objective_mode: pareto
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md

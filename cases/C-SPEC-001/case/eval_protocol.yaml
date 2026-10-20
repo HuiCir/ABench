@@ -1,0 +1,62 @@
+# C-SPEC-001 evaluation protocol (scaffold; no simulated runs)
+case_id: C-SPEC-001
+status: scaffold
+hardware:
+  reference_card: "Budget reference card: single 24GB GPU; exact driver/runtime hash is frozen server-side"
+  timing: "Wall-clock median and p95 collected server-side; submitters must not self-report"
+  isolation: "Network allowlist, file-system isolation, process/memory/timeout limits"
+
+budget:
+  tier: medium
+  verify_plan: "Fixed ≤ 1.5B target model and ≤ 0.5B draft model; measure end-to-end latency, acceptance rate and distribution invariance on 5 workload types, including a low-acceptance OOD workload."
+
+visibility:
+  public: [case_contract, public_resources, submission_schema]
+  benchmark: [reference_runs, calibration_seeds]
+  hidden: [holdout_inputs, final_configs, judge_prompts]
+
+ladder:
+  L0_smoke: {visibility: agent, checks: [schema, deterministic_replay, finite_outputs, no_undeclared_io]}
+  L1_public: {visibility: benchmark, checks: [public_proxy, resource_limits]}
+  L2_main: {visibility: benchmark, checks: [real_metrics, multi_seed]}
+  L3_holdout: {visibility: hidden, checks: [holdout_metrics, anti_gaming, reproducibility]}
+
+metrics:
+  - "End-to-end speedup"
+  - "Draft-token acceptance rate"
+  - "Output-distribution consistency"
+  - "Speedup on OOD workloads"
+
+holdout:
+  - "Low-acceptance workload"
+  - "Long-context workload"
+  - "Large-batch serving workload"
+
+real_artifacts:
+  runs: "outputs/reference_runs/ or benchmark-side immutable artifact store"
+  judge: "benchmark-side blind judge output"
+  hashes: "config, code, data, checkpoint and runtime hashes required"
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: frozen_inference_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 3
+      unit: GPU-h
+    per_submission_verify:
+      value: 1
+      unit: GPU-h
+    reference_precompute:
+      value: 5
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side

@@ -1,0 +1,38 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: FN-LOB-002
+readiness: deferred
+title: Mid-price direction from limit-order-book windows (FI-2010)
+version: v2026.07
+cutoff: '2026-07-01'
+track: FN
+track_name: Finance
+group: domain
+priority: P1
+type: T1
+subset: main
+difficulty: medium
+budget_tier: low
+status: deferred
+anchor:
+  name: DeepLOB
+  arxiv: '1808.03668'
+  verify_before_freeze: true
+task: Mid-price direction prediction from the limit order book
+metrics: Macro-F1 at horizon k = 10 (FI-2010, days 8–10)
+verify_plan:
+  proxy:
+  - SUBSET
+  dev: 2
+  verify: 0.5
+  ref: 5
+  risk:
+  - variance
+  plan: Public LOB data such as FI-2010, 3 walk-forward windows
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- licensed_order_book_snapshot
+- time_split_and_matching_latency_oracle
+- event_time_alignment_and_market_metadata
+standard_case: spec/standard_cases/FN-LOB-002.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

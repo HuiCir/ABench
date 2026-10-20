@@ -1,0 +1,42 @@
+case_id: T-AUDIO-005
+status: scaffold
+resource_rating: medium
+offline_bundle: librispeech_clean_ctc_v1 (≤ 4 hours, 16 kHz mono, 2–8 second clips, sample hashes fixed by the server) + speaker_holdout_v1
+datasets:
+- Offline speech and transcript bundle; training/public validation split speaker-disjoint
+- Hidden speaker, accent and noise-condition holdout; external audio or transcripts must not be used
+- Fixed 16 kHz resampling, loudness normalization, CTC blank/token vocabulary and text normalization
+models:
+- Frozen wav2vec 2.0/HuBERT encoder of ≤ 100M + processor; fixed checkpoint and vocabulary hash provided
+- Training a CTC linear head, low-rank/bottleneck adapters and lightweight pooling is allowed; updating encoder weights is forbidden
+software:
+- PyTorch 2.6, torchaudio and transformers versions locked; allowlisted audio decoders; external downloads disabled
+hardware: One 24GB GPU; CPU only for server-side pre-caching and audio decoding
+private_resources:
+- Hidden speaker-held-out and noise/accent splits, contamination checks, reference head runs
+- Server-side WER/CER, real-time factor, peak memory and audio-preprocessing timers
+sandbox_constraints:
+- No network; the frozen encoder, processor or vocabulary must not be replaced, and no external speech may be read
+- Only the declared head/adapter parameters may be trained; the input bundle must not be written
+- Output is written only to an isolated working directory, and all resources and artifacts must carry hashes
+blocked_inputs:
+- frozen_audio_encoder_processor_and_vocab_hash
+- offline_16khz_speech_bundle_and_speaker_holdout
+- fixed_audio_preprocess_and_server_asr_evaluator
+- fixed_gpu_timer_and_peak_memory_probe
+no_download_or_training_in_scaffold: true
+resource_profile: single_gpu_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: single_gpu_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 3
+  per_submission_verify: 1.5
+  reference_precompute: 15
+limits_unit: GPU-h

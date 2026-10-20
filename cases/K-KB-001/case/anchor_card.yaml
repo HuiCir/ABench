@@ -1,0 +1,62 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: K-KB-001
+readiness: deferred
+title: Write correct and faster kernels for single operators
+version: v2026.07
+cutoff: '2026-07-01'
+track: K
+track_name: Systems and kernels
+group: method
+priority: P0
+type: T6
+subset: main
+difficulty: high
+budget_tier: medium
+status: deferred
+anchor:
+  name: KernelBench (Level 1 subset)
+  arxiv: '2502.10517'
+  verify_before_freeze: true
+task: Write correct and faster kernels for single operators
+metrics: fast_p; geometric-mean speedup (strong baseline)
+verify_plan:
+  proxy:
+  - STREAM
+  dev: 3
+  verify: 0.5
+  ref: 5
+  risk: []
+  plan: 30-problem subset of KernelBench Level 1, timed on the reference card, four hidden input distributions
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- CUDA_toolchain_and_reference_gpu
+- sandboxed_kernel_compilation
+- hidden_input_distributions_and_strong_library_baseline
+- signed_workload_and_wall_clock_measurement
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 3
+      unit: GPU-h
+    per_submission_verify:
+      value: 0.5
+      unit: GPU-h
+    reference_precompute:
+      value: 5
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+resource_rating: medium

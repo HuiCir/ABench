@@ -1,0 +1,72 @@
+case_id: X-ROBUST-009
+scope: active_v1
+readiness: contract_only
+title: On a fixed small encoder and offline intent/safety data, jointly optimize calibration, OOD detection, selective abstention and inference cost
+version: v2026.07
+cutoff: '2026-07-01'
+track: X
+track_name: Training recipes / RL / PEFT
+group: method
+priority: P1
+type: T3
+subset: main
+difficulty: high
+budget_tier: medium
+status: scaffold
+anchor:
+  name: On Calibration of Modern Neural Networks
+  arxiv: '1706.04599'
+  verify_before_freeze: true
+related_anchors:
+- name: A Baseline for Detecting Misclassified and Out-of-Distribution Examples in Neural Networks
+  arxiv: '1610.02136'
+- name: 'SelectiveNet: A Deep Neural Network with an Integrated Reject Option'
+  arxiv: '1901.04684'
+task: On a fixed small encoder and offline intent/safety data, design calibration, OOD-detection and selective-abstention training schemes that are Pareto-optimal over reliability, coverage, safety constraints and inference cost
+metrics: ID macro-F1; ECE-15; risk at 80% coverage; coverage at 1% risk; OOD AUROC; safety-abstention TPR; over-refusal rate; worst-shift risk; latency; memory; GPU-h; Pareto
+resource_rating: medium
+verify_plan:
+  proxy:
+  - FROZEN
+  - SURG
+  - SUBSET
+  dev: 3
+  verify: 1.5
+  ref: 15
+  risk:
+  - threshold_overfitting_on_calibration_set
+  - ranking flips between shift types
+  - safety_labels_confused_with_generic_ood
+  plan: Fixed 125M encoder and offline intent_safety_bundle_v1; compare CE/label smoothing/focal, temperature or vector scaling, OOD exposure, energy/ensemble/abstention head; thresholds chosen on the public calibration split, reviewed under hidden topic/composition/safety-policy shift
+pareto_objective:
+  enabled: true
+  policy: pareto_frontier
+  note: No single-point SOTA threshold; once minimum ID-quality and safety constraints pass, reliability, coverage and cost are evaluated by non-dominance
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_base_checkpoint_tokenizer_and_label_taxonomy
+- offline_public_calibration_and_hidden_shift_bundle
+- server_hidden_safety_labels_and_latency_probe
+resource_profile:
+  sandbox_profile: posttrain_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev: {value: 3, unit: GPU-h}
+    per_submission_verify: {value: 1.5, unit: GPU-h}
+    reference_precompute: {value: 15, unit: GPU-h}
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+objective_mode: pareto
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md

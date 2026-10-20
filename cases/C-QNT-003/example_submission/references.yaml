@@ -1,0 +1,27 @@
+schema: abench.references/v2
+references:
+- id: frantar2023gptq
+  title: 'GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers'
+  authors: Elias Frantar, Saleh Ashkboos, Torsten Hoefler and Dan Alistarh
+  year: 2023
+  venue: ICLR
+  arxiv: '2210.17323'
+  used_for: 'Anchor: perplexity protocol (WikiText-2, 2,048-token windows) and the method entries improve on'
+  code_location: null
+- id: lin2024awq
+  title: 'AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration'
+  authors: Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang, Guangxuan Xiao, Xingyu
+    Dang, Chuang Gan and Song Han
+  year: 2024
+  venue: MLSys
+  arxiv: '2306.00978'
+  used_for: 'Context: activation-aware scaling'
+  code_location: null
+- id: dettmers2023case
+  title: 'The case for 4-bit precision: k-bit Inference Scaling Laws'
+  authors: Tim Dettmers and Luke Zettlemoyer
+  year: 2023
+  venue: ICML
+  arxiv: '2212.09720'
+  used_for: Group-wise affine quantization and the group-size trade-off
+  code_location: 'quantize.py: _q, _dq'

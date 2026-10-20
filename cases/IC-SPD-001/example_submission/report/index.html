@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>ResNet-9 Speedrun Baseline: A GPU-Resident Data Pipeline with One-Cycle Training</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="ABench design-report template v2 (LaTeXML-compatible markup, modelled on arxiv.org/html)">
+<meta name="abench-schema" content="abench.design_report/v2">
+<meta name="abench-case-id" content="IC-SPD-001">
+<style>
+  :root {
+    --ink: #000; --muted: #7d7568; --link: #1b7cac; --rule: #d6d2cb; --code-bg: #f5f3ef;
+    --header: #1c1a17; --header-ink: #f0ede8; --paper: #fff;
+    --sans: rival-sans, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+    --serif: "Latin Modern Roman", "Times New Roman", "Songti SC", "Noto Serif CJK SC", serif;
+    --mono: "Latin Modern Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #e6e2dc; --muted: #a39b8f; --link: #6cb8e0; --rule: #3a3631; --code-bg: #24211d; --paper: #141210; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 56px; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 16px; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* top bar: corresponds to arxiv-html-header */
+  .abench-html-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 24px;
+    height: 44.8px; padding: 0 48px; background: var(--header); color: var(--header-ink); font-size: 14px; }
+  .abench-html-header .brand { font-weight: 700; letter-spacing: .02em; }
+  .abench-html-header .crumb { color: #b9b2a7; }
+
+  /* table of contents: corresponds to ltx_page_navbar / ltx_TOC */
+  .ltx_page_navbar { position: fixed; top: 44.8px; left: 0; width: 320px; bottom: 0; overflow-y: auto;
+    padding: 24px 16px 24px 32px; border-right: 1px solid var(--rule); }
+  .ltx_TOC .ltx_toclist { list-style: none; margin: 0; padding: 0; }
+  .ltx_TOC .ltx_toclist .ltx_toclist { padding-left: 14px; }
+  .ltx_tocentry > a { display: inline-block; margin: 0 0 6.8px; font-size: 13.6px; font-weight: 700; color: var(--muted); }
+  .ltx_tocentry_subsection > a { font-weight: 400; }
+  .ltx_tag_ref { margin-right: 4px; }
+
+  /* body */
+  .ltx_page_main { margin-left: 320px; }
+  .infobox { padding: 12px 16px 0; text-align: center; color: var(--muted); font-size: 14px; }
+  .ltx_page_content { margin: 16px; display: flow-root; font-weight: 300; }
+  .ltx_document { max-width: 832px; margin: 0 auto; }
+  .ltx_title_document { margin: 0 0 24px; font-size: 1.7rem; font-weight: 400; line-height: 1.3; text-align: center; }
+  .ltx_authors { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 28px; margin: 12px 0; text-align: center; }
+  .ltx_personname { display: block; }
+  .ltx_contact { display: block; color: var(--muted); font-size: 14px; }
+  .ltx_abstract { margin: 64px 0 32px; }
+  .ltx_title_abstract { margin: 0 0 24px; font-size: 1.4rem; font-weight: 700; line-height: 1.15; }
+  .ltx_p { margin: 0 0 16px; line-height: 24px; text-align: justify; }
+  .ltx_section > .ltx_title_section { margin: 18.6px 0 24px; font-size: 1.4rem; font-weight: 700; }
+  .ltx_subsection > .ltx_title_subsection { margin: 19.2px 0 16px; font-size: 1.2rem; font-weight: 700; }
+  .ltx_paragraph > .ltx_title_paragraph { margin: 26.7px 16px 8px 0; font-size: 1rem; font-weight: 700; }
+  .ltx_title .ltx_tag { display: inline-block; padding-right: 16px; }
+  .ltx_cite { font-style: normal; }
+  .ltx_ref_tag { white-space: nowrap; }
+  .ltx_font_bold { font-weight: 700; }
+  .ltx_font_italic { font-style: italic; }
+  .ltx_text.ltx_font_typewriter, code { font-family: var(--mono); font-size: .92em; }
+  .ltx_itemize, .ltx_enumerate { margin: 0 0 16px; padding-left: 1.5em; line-height: 24px; }
+
+  /* equations: correspond to ltx_equation ltx_eqn_table */
+  .ltx_equation.ltx_eqn_table { width: 100%; margin: 10.4px 0; border-collapse: collapse; }
+  .ltx_eqn_cell { padding: 0; vertical-align: middle; }
+  .ltx_eqn_center_padleft, .ltx_eqn_center_padright { width: 50%; }
+  .ltx_eqn_eqno { width: 0; white-space: nowrap; text-align: right; padding-left: 12px; }
+  math[display="block"] { font-size: 1.08em; }
+  .ltx_Math { font-family: var(--serif); }
+
+  /* figures and algorithms */
+  .ltx_figure, .ltx_table { margin: 32px 0; text-align: center; }
+  .ltx_figure svg { max-width: 100%; height: auto; }
+  .ltx_caption { margin: 16px auto 0; max-width: 720px; line-height: 24px; text-align: center; }
+  .ltx_float_algorithm { display: block; margin: 40px 0; text-align: left; }
+  .ltx_framed_top { border-top: 1.5px solid var(--ink); }
+  .ltx_float_algorithm > .ltx_caption { margin: 0; padding: 3.2px; text-align: left; }
+  .ltx_listing.ltx_framed_topbottom { border-top: 1px solid var(--ink); border-bottom: 1.5px solid var(--ink); padding: 6px 0; }
+  .ltx_listingline { display: block; font-size: .875rem; line-height: 1.6; white-space: pre-wrap; padding-left: 2.6em; text-indent: -2.6em; }
+  .ltx_tag_listingline { display: inline-block; width: 2.2em; text-align: right; margin-right: .4em; color: var(--muted); text-indent: 0; }
+  .ltx_indent { display: inline-block; width: 1.6em; }
+  .ltx_tabular { margin: 0 auto; border-collapse: collapse; font-size: .95rem; }
+  .ltx_tabular td, .ltx_tabular th { padding: 4px 10px; text-align: left; }
+  .ltx_border_t { border-top: 1px solid var(--ink); } .ltx_border_b { border-bottom: 1px solid var(--ink); }
+  .ltx_border_tt { border-top: 1.5px solid var(--ink); } .ltx_border_bb { border-bottom: 1.5px solid var(--ink); }
+
+  /* theorem-like environments: correspond to ltx_theorem */
+  .ltx_theorem { margin: 32px 0 16px; }
+  .ltx_theorem .ltx_title_theorem { display: inline; margin: 0; padding-right: 4px; font-size: 1rem; font-weight: 700; }
+  .ltx_theorem > .ltx_para, .ltx_proof > .ltx_para { display: inline; }
+  .ltx_theorem .ltx_p { font-style: italic; }
+  .ltx_proof { margin: 0 0 16px; }
+  .ltx_proof .ltx_title_proof { display: inline; margin: 0; padding-right: 4px; font-size: 1rem; font-style: italic; font-weight: 400; }
+
+  /* bibliography: corresponds to ltx_bibliography */
+  .ltx_bibliography .ltx_biblist { list-style: none; margin: 0; padding: 0; }
+  .ltx_bibitem { padding: 0 0 12px 10px; line-height: 24px; }
+  .ltx_tag_bibitem { margin-right: 8px; }
+  .ltx_bibblock { display: inline; }
+
+  .abench-html-footer { margin: 48px 0 0 320px; padding: 16px 32px 32px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; text-align: center; }
+
+  @media (max-width: 1100px) {
+    .ltx_page_navbar { display: none; }
+    .ltx_page_main, .abench-html-footer { margin-left: 0; }
+    .abench-html-header { padding: 0 16px; }
+  }
+  @media print {
+    .abench-html-header, .ltx_page_navbar { display: none; }
+    .ltx_page_main, .abench-html-footer { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header class="abench-html-header"><span class="brand">ABench</span><span class="crumb">Design report · IC-SPD-001</span></header>
+<nav class="ltx_page_navbar"><nav class="ltx_TOC"><ol class="ltx_toclist">
+<li class="ltx_tocentry ltx_tocentry_abstract"><a href="#abstract1" class="ltx_ref"><span class="ltx_text ltx_ref_title">Abstract</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_section"><a href="#S1" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">1 </span>Introduction</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_section"><a href="#S2" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">2 </span>Related Work</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_section"><a href="#S3" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">3 </span>Method</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_subsection"><a href="#S3.SS1" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">3.1 </span>Network architecture</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_subsection"><a href="#S3.SS2" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">3.2 </span>Data pipeline and training objective</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_subsection"><a href="#S3.SS3" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">3.3 </span>Algorithm</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_subsection"><a href="#S3.SS4" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">3.4 </span>Complexity</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_section"><a href="#S4" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">4 </span>Design Rationale</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_section"><a href="#S5" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">5 </span>Scope and Limitations</span></a></li>
+<li class="ltx_tocentry ltx_tocentry_section"><a href="#bib" class="ltx_ref"><span class="ltx_text ltx_ref_title">References</span></a></li>
+</ol></nav></nav>
+<div class="ltx_page_main"><div id="infobox" class="infobox"><div id="watermark-tr">ABench:IC-SPD-001 [image-classification speedrun] reference submission · literature cutoff 2026-07-01</div></div>
+<div class="ltx_page_content"><article class="ltx_document ltx_authors_1line">
+<h1 class="ltx_title ltx_title_document">ResNet-9 Speedrun Baseline: A GPU-Resident Data Pipeline with One-Cycle Training</h1>
+<div class="ltx_authors"><span class="ltx_creator ltx_role_author"><span class="ltx_personname">ABench reference submission</span><span class="ltx_contact ltx_role_affiliation">Standard reference for task statement standard v2.1 (a baseline that does not aim to be fastest)</span></span></div>
+
+<div id="abstract1" class="ltx_abstract"><h6 class="ltx_title ltx_title_abstract">Abstract</h6>
+<p class="ltx_p">This submission gives a baseline for the CIFAR-10 speedrun task: a 9-layer residual convolutional network<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.page2018resnet" class="ltx_ref">Page, 2018</a>; <a href="#bib.he2016resnet" class="ltx_ref">He et al., 2016</a>)</cite> with a one-cycle learning rate<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.smith2017superconvergence" class="ltx_ref">Smith &amp; Topin, 2017</a>)</cite>, label smoothing<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.szegedy2016inception" class="ltx_ref">Szegedy et al., 2016</a>)</cite> and cutout<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.devries2017cutout" class="ltx_ref">DeVries &amp; Taylor, 2017</a>)</cite>. The design focus is to keep every step inside the timed window on the GPU: training images are moved to GPU memory once, normalization and augmentation are done per batch in GPU memory, and forward and backward passes use bfloat16 and the channels_last layout. At inference, the logits of the original and horizontally flipped images are averaged.</p></div>
+
+<section id="S1" class="ltx_section"><h2 class="ltx_title ltx_title_section"><span class="ltx_tag ltx_tag_section">1</span>Introduction</h2>
+<div class="ltx_para"><p class="ltx_p">This task is judged by the wall-clock time needed to train to a given accuracy, and the timing covers module import, data transfer, compilation and training. Two things therefore matter at once: how many parameter updates are needed to reach the accuracy threshold, and how long each update takes on the reference card. The former depends on the network, optimizer and regularization; the latter on operator shapes, numerical precision, memory layout and synchronization between host and device. The anchor work<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.jordan2024airbench" class="ltx_ref">Jordan, 2024</a>)</cite> shows that improvements on both sides compound.</p></div>
+<div class="ltx_para"><p class="ltx_p">As a reference version, this submission uses only mature, easily reproduced components; the aim is a starting point that is complete in interface, timing and report format. The room for improvement is left to the entries.</p></div><div class="ltx_para"><p class="ltx_p"><span class="ltx_text ltx_font_bold">Changes relative to the anchor.</span> Each item states what this submission does differently and where it is in the code.</p>
+<ol id="changes" class="ltx_enumerate">
+<li class="ltx_item">Page's 9-layer residual network and procedure replace the anchor's network and training tricks. — <code class="ltx_verbatim">method.py: ResNet9, train</code></li>
+<li class="ltx_item">The whole data pipeline, including augmentation, runs on the GPU in bfloat16. — <code class="ltx_verbatim">method.py: _augment, train</code></li>
+<li class="ltx_item">Prediction averages the logits of the original and horizontally flipped images. — <code class="ltx_verbatim">method.py: predict</code></li>
+</ol></div>
+</section>
+
+<section id="S2" class="ltx_section"><h2 class="ltx_title ltx_title_section"><span class="ltx_tag ltx_tag_section">2</span>Related Work</h2>
+<section class="ltx_paragraph"><h5 class="ltx_title ltx_title_paragraph">Residual networks and batch normalization</h5>
+<div class="ltx_para"><p class="ltx_p">Residual connections make deeper convolutional networks easy to optimize<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.he2016resnet" class="ltx_ref">He et al., 2016</a>)</cite>; batch normalization allows larger learning rates<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.ioffe2015bn" class="ltx_ref">Ioffe &amp; Szegedy, 2015</a>)</cite>. Page's series of posts improved the training procedure step by step on the DAWNBench CIFAR-10 task, arriving at a 9-layer residual network and bringing single-GPU training to 94% down to tens of seconds<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.page2018resnet" class="ltx_ref">Page, 2018</a>)</cite>.</p></div></section>
+<section class="ltx_paragraph"><h5 class="ltx_title ltx_title_paragraph">Optimization and regularization for short training</h5>
+<div class="ltx_para"><p class="ltx_p">A one-cycle learning rate rises and then falls, using large learning rates within a small number of epochs<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.smith2017superconvergence" class="ltx_ref">Smith &amp; Topin, 2017</a>)</cite>; Nesterov momentum is stable and reliable in this setting<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.sutskever2013momentum" class="ltx_ref">Sutskever et al., 2013</a>)</cite>. Label smoothing and cutout provide regularization matched to the model capacity.</p></div></section><div class="ltx_para"><p class="ltx_p">These components were tuned for older hardware and do not use the anchor's later changes to the network, optimizer and data order; closing that difference on the reference card is the gap left to entries.</p></div>
+</section>
+
+<section id="S3" class="ltx_section"><h2 class="ltx_title ltx_title_section"><span class="ltx_tag ltx_tag_section">3</span>Method</h2>
+<section id="S3.SS1" class="ltx_subsection"><h3 class="ltx_title ltx_title_subsection"><span class="ltx_tag ltx_tag_subsection">3.1</span>Network architecture</h3>
+<div class="ltx_para"><p class="ltx_p">Let <math class="ltx_Math" alttext="\mathrm{CB}(c)" display="inline"><mrow><mi>CB</mi><mo>(</mo><mi>c</mi><mo>)</mo></mrow></math> denote "3×3 convolution → batch normalization → ReLU" with <math class="ltx_Math" alttext="c" display="inline"><mi>c</mi></math> output channels; <math class="ltx_Math" alttext="\mathrm{CBP}(c)" display="inline"><mrow><mi>CBP</mi><mo>(</mo><mi>c</mi><mo>)</mo></mrow></math> inserts a 2×2 max pooling after the convolution; <math class="ltx_Math" alttext="\mathrm{R}(c)" display="inline"><mrow><mi>R</mi><mo>(</mo><mi>c</mi><mo>)</mo></mrow></math> is two <math class="ltx_Math" alttext="\mathrm{CB}(c)" display="inline"><mrow><mi>CB</mi><mo>(</mo><mi>c</mi><mo>)</mo></mrow></math> blocks plus an identity skip. The network is</p>
+<table id="S3.E1" class="ltx_equation ltx_eqn_table"><tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td><td class="ltx_eqn_cell ltx_align_center"><math id="S3.E1.m1" class="ltx_Math" alttext="f(x)=\tfrac18 W\,\mathrm{maxpool}\big(R(512)\,CBP(512)\,CBP(256)\,R(128)\,CBP(128)\,CB(64)\,x\big)" display="block"><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><mfrac><mn>1</mn><mn>8</mn></mfrac><mi>W</mi><mspace width='0.17em'/><mi>maxpool</mi><mo>(</mo><mi>R</mi><mo>(</mo><mn>512</mn><mo>)</mo><mi>CBP</mi><mo>(</mo><mn>512</mn><mo>)</mo><mi>CBP</mi><mo>(</mo><mn>256</mn><mo>)</mo><mi>R</mi><mo>(</mo><mn>128</mn><mo>)</mo><mi>CBP</mi><mo>(</mo><mn>128</mn><mo>)</mo><mi>CB</mi><mo>(</mo><mn>64</mn><mo>)</mo><mi>x</mi><mo>)</mo></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td><td class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right" rowspan="1"><span class="ltx_tag ltx_tag_equation ltx_align_right">(1)</span></td></tr></tbody></table>
+<p class="ltx_p">where <math class="ltx_Math" alttext="W\in\mathbb{{R}}^{{10\times512}}" display="inline"><mrow><mi>W</mi><mo>∈</mo><msup><mi>ℝ</mi><mrow><mn>10</mn><mo>×</mo><mn>512</mn></mrow></msup></mrow></math> is a bias-free linear classifier whose output is multiplied by 1/8 to reduce the scale of the initial logits<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.page2018resnet" class="ltx_ref">Page, 2018</a>)</cite>. The final global pooling takes the maximum rather than the mean.</p></div></section>
+
+<section id="S3.SS2" class="ltx_subsection"><h3 class="ltx_title ltx_title_subsection"><span class="ltx_tag ltx_tag_subsection">3.2</span>Data pipeline and training objective</h3>
+<div class="ltx_para"><p class="ltx_p">At the start of <math class="ltx_Math" alttext="\texttt{{train}}" display="inline"><mi mathvariant='monospace'>train</mi></math> the training images are moved to GPU memory once, normalized by per-channel mean and standard deviation, and converted to the channels_last layout. Each epoch generates one augmentation of the whole set in GPU memory: 4-pixel reflect padding followed by a random crop back to 32×32, a horizontal flip with probability 1/2, and an 8×8 square zeroed at a random position<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.devries2017cutout" class="ltx_ref">DeVries &amp; Taylor, 2017</a>)</cite>. The random crop is done in 81 shift groups, avoiding a per-sample loop. The loss is cross-entropy with label smoothing <math class="ltx_Math" alttext="\epsilon=0.2" display="inline"><mrow><mi>ϵ</mi><mo>=</mo><mn>0.2</mn></mrow></math><cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.szegedy2016inception" class="ltx_ref">Szegedy et al., 2016</a>)</cite>:</p>
+<table id="S3.E2" class="ltx_equation ltx_eqn_table"><tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td><td class="ltx_eqn_cell ltx_align_center"><math id="S3.E2.m1" class="ltx_Math" alttext="\mathcal L=-\sum_k \big((1-\epsilon)\,\mathbb 1[k=y]+\epsilon/10\big)\log \mathrm{softmax}(f(x))_k" display="block"><mrow><mi>ℒ</mi><mo>=</mo><mo>−</mo><munder><mo>∑</mo><mi>k</mi></munder><mo>(</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ϵ</mi><mo>)</mo><mn>𝟙</mn><mo>[</mo><mi>k</mi><mo>=</mo><mi>y</mi><mo>]</mo><mo>+</mo><mi>ϵ</mi><mo>/</mo><mn>10</mn><mo>)</mo><mi>log</mi><mi>softmax</mi><msub><mrow><mo>(</mo><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>)</mo></mrow><mi>k</mi></msub></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td><td class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right" rowspan="1"><span class="ltx_tag ltx_tag_equation ltx_align_right">(2)</span></td></tr></tbody></table>
+<p class="ltx_p">The learning rate rises linearly from 0 to 0.4 over the first 20% of steps and then falls linearly to 0:</p>
+<table id="S3.E3" class="ltx_equation ltx_eqn_table"><tbody><tr class="ltx_equation ltx_eqn_row ltx_align_baseline">
+<td class="ltx_eqn_cell ltx_eqn_center_padleft"></td><td class="ltx_eqn_cell ltx_align_center"><math id="S3.E3.m1" class="ltx_Math" alttext="\eta_t=0.4\cdot\min\big(t/t_w,\;(T-t)/(T-t_w)\big),\quad t_w=0.2T" display="block"><mrow><msub><mi>η</mi><mi>t</mi></msub><mo>=</mo><mn>0.4</mn><mo>·</mo><mi>min</mi><mo>(</mo><mi>t</mi><mo>/</mo><msub><mi>t</mi><mi>w</mi></msub><mo>,</mo><mspace width='0.28em'/><mo>(</mo><mi>T</mi><mo>−</mo><mi>t</mi><mo>)</mo><mo>/</mo><mo>(</mo><mi>T</mi><mo>−</mo><msub><mi>t</mi><mi>w</mi></msub><mo>)</mo><mo>)</mo><mo>,</mo><mspace width='1em'/><msub><mi>t</mi><mi>w</mi></msub><mo>=</mo><mn>0.2</mn><mi>T</mi></mrow></math></td>
+<td class="ltx_eqn_cell ltx_eqn_center_padright"></td><td class="ltx_eqn_cell ltx_eqn_eqno ltx_align_middle ltx_align_right" rowspan="1"><span class="ltx_tag ltx_tag_equation ltx_align_right">(3)</span></td></tr></tbody></table>
+<p class="ltx_p">The optimizer is SGD with Nesterov momentum 0.9<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.sutskever2013momentum" class="ltx_ref">Sutskever et al., 2013</a>)</cite>, batch size 512, 24 epochs; weight decay <math class="ltx_Math" alttext="5\times10^{{-4}}" display="inline"><mrow><mn>5</mn><mo>×</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>4</mn></mrow></msup></mrow></math> applies only to the weights of convolutional and linear layers, not to batch-normalization parameters.</p></div></section>
+
+<section id="S3.SS3" class="ltx_subsection"><h3 class="ltx_title ltx_title_subsection"><span class="ltx_tag ltx_tag_subsection">3.3</span>Algorithm</h3>
+<figure id="alg1" class="ltx_float ltx_float_algorithm ltx_framed ltx_framed_top">
+<figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span class="ltx_text ltx_font_bold">Algorithm 1</span> </span>train(data, seed, device)</figcaption>
+<div class="ltx_listing ltx_framed ltx_framed_topbottom">
+<div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">1:</span>seed the global and GPU random number generators; enable cudnn.benchmark</div>
+<div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">2:</span>X ← training images moved to GPU memory, normalized, channels_last; build the network and SGD</div>
+<div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">3:</span><span class="ltx_text ltx_font_bold">for</span> epoch = 1 … 24 <span class="ltx_text ltx_font_bold">do</span></div>
+<div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">4:</span>  X̃ ← random crop, horizontal flip and cutout applied to the whole of X (in GPU memory)</div>
+<div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">5:</span>  <span class="ltx_text ltx_font_bold">for</span> each random minibatch B of size 512 <span class="ltx_text ltx_font_bold">do</span>  compute Eq. (2) under bfloat16 autocast, backward, one SGD step, update the learning rate by Eq. (3)</div>
+<div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">6:</span><span class="ltx_text ltx_font_bold">return</span> the network and normalization statistics</div>
+</div></figure>
+<div class="ltx_para"><p class="ltx_p">This corresponds to <code class="ltx_text ltx_font_typewriter">train</code>, <code class="ltx_text ltx_font_typewriter">_augment</code> and <code class="ltx_text ltx_font_typewriter">ResNet9</code> in <code class="ltx_text ltx_font_typewriter">method.py</code>. <code class="ltx_text ltx_font_typewriter">predict</code> runs inference in batches of 2,000 images and averages the logits of the original and horizontally flipped images. The training loop contains no operation that forces a host synchronization.</p></div></section>
+
+<section id="S3.SS4" class="ltx_subsection"><h3 class="ltx_title ltx_title_subsection"><span class="ltx_tag ltx_tag_subsection">3.4</span>Complexity</h3>
+<div class="ltx_para"><p class="ltx_p">The network has about 6.57 million parameters. The forward pass of one 32×32 image takes about 3.8×10<sup>8</sup> multiply-adds, most of them in the two 512-channel residual convolutions and the 256→512 convolution. Estimating the backward pass at about twice the forward, one epoch of 50,000 images costs about 1.1×10<sup>14</sup> floating-point operations, and 24 epochs about 2.7×10<sup>15</sup>. Memory use comes mainly from the training images held in GPU memory (about 0.6 GB in float32) and the activations of a 512 batch, far below 24 GB.</p></div></section></section>
+
+<section id="S4" class="ltx_section"><h2 class="ltx_title ltx_title_section"><span class="ltx_tag ltx_tag_section">4</span>Design Rationale</h2>
+<div class="ltx_para"><p class="ltx_p">The timed window is measured in seconds, so host-side data loading and per-step synchronization easily become bottlenecks. With data and augmentation both in GPU memory, the training loop is a continuous stream of GPU kernels and the GPU never waits for the host. channels_last and bfloat16 let convolutions take the fast tensor-core path; bfloat16 has the same exponent range as float32, so no loss scaling is needed.</p></div>
+<div class="ltx_para"><p class="ltx_p">The network uses only 64 and 128 channels at 32×32 resolution, and its computation is concentrated in high-channel layers at the low resolutions of 8×8 and 4×4. This keeps memory traffic per multiply-add low and makes it easier for operators to reach high utilization. The 1/8 scaling before the classifier and label smoothing both reduce the risk of oversized logits early in training, which permits a larger peak learning rate.</p></div>
+<section class="ltx_paragraph"><h5 class="ltx_title ltx_title_paragraph">Differences from existing methods</h5>
+<div class="ltx_para"><p class="ltx_p">This reference version largely follows Page's network and training procedure<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.page2018resnet" class="ltx_ref">Page, 2018</a>)</cite>, only moving the whole data pipeline to the GPU and using bfloat16. It does not adopt the more aggressive techniques of the anchor work<cite class="ltx_cite ltx_citemacro_citep">(<a href="#bib.jordan2024airbench" class="ltx_ref">Jordan, 2024</a>)</cite>, so it is not a new method and serves only as the standard reference for format and process.</p></div></section></section>
+
+<section id="S5" class="ltx_section"><h2 class="ltx_title ltx_title_section"><span class="ltx_tag ltx_tag_section">5</span>Scope and Limitations</h2>
+<div class="ltx_para"><p class="ltx_p">The 24 epochs and the one-cycle learning rate are set for 50,000 training images; with a smaller training set (such as the 45,000 images of the self-check), each epoch has fewer steps and the total number of updates at the same epoch count drops accordingly. The shift-grouped crop performs 81 masked copies per epoch, and this cost grows with more images. The max pooling and global max pooling in the network suit 32×32 inputs; at higher resolution the number of downsampling stages must be reset.</p></div></section>
+
+<section id="bib" class="ltx_bibliography"><h2 class="ltx_title ltx_title_bibliography">References</h2><ul class="ltx_biblist">
+<li id="bib.jordan2024airbench" class="ltx_bibitem"><span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Jordan (2024)</span>
+<span class="ltx_bibblock">Keller Jordan.
+</span><span class="ltx_bibblock">“94% on CIFAR-10 in 3.29 Seconds on a Single GPU”.
+</span><span class="ltx_bibblock">2024. arXiv: <a href="https://arxiv.org/abs/2404.00498" class="ltx_ref ltx_href">2404.00498</a>
+</span></li>
+<li id="bib.page2018resnet" class="ltx_bibitem"><span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Page (2018)</span>
+<span class="ltx_bibblock">David Page.
+</span><span class="ltx_bibblock">“How to Train Your ResNet” (blog series).
+</span><span class="ltx_bibblock">Myrtle.ai, 2018. <a href="https://myrtle.ai/learn/how-to-train-your-resnet/" class="ltx_ref ltx_href">myrtle.ai/learn/how-to-train-your-resnet</a>
+</span></li>
+<li id="bib.he2016resnet" class="ltx_bibitem"><span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">He et al. (2016)</span>
+<span class="ltx_bibblock">Kaiming He, Xiangyu Zhang, Shaoqing Ren and Jian Sun.
+</span><span class="ltx_bibblock">“Deep Residual Learning for Image Recognition”.
+</span><span class="ltx_bibblock">In <em class="ltx_emph ltx_font_italic">CVPR</em>, 2016. arXiv: <a href="https://arxiv.org/abs/1512.03385" class="ltx_ref ltx_href">1512.03385</a>
+</span></li>
+<li id="bib.ioffe2015bn" class="ltx_bibitem"><span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Ioffe &amp; Szegedy (2015)</span>
+<span class="ltx_bibblock">Sergey Ioffe and Christian Szegedy.
+</span><span class="ltx_bibblock">“Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift”.
+</span><span class="ltx_bibblock">In <em class="ltx_emph ltx_font_italic">ICML</em>, 2015. arXiv: <a href="https://arxiv.org/abs/1502.03167" class="ltx_ref ltx_href">1502.03167</a>
+</span></li>
+<li id="bib.devries2017cutout" class="ltx_bibitem"><span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">DeVries &amp; Taylor (2017)</span>
+<span class="ltx_bibblock">Terrance DeVries and Graham W. Taylor.
+</span><span class="ltx_bibblock">“Improved Regularization of Convolutional Neural Networks with Cutout”.
+</span><span class="ltx_bibblock">2017. arXiv: <a href="https://arxiv.org/abs/1708.04552" class="ltx_ref ltx_href">1708.04552</a>
+</span></li>
+<li id="bib.szegedy2016inception" class="ltx_bibitem"><span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Szegedy et al. (2016)</span>
+<span class="ltx_bibblock">Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe, Jonathon Shlens and Zbigniew Wojna.
+</span><span class="ltx_bibblock">“Rethinking the Inception Architecture for Computer Vision”.
+</span><span class="ltx_bibblock">In <em class="ltx_emph ltx_font_italic">CVPR</em>, 2016. arXiv: <a href="https://arxiv.org/abs/1512.00567" class="ltx_ref ltx_href">1512.00567</a>
+</span></li>
+<li id="bib.smith2017superconvergence" class="ltx_bibitem"><span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Smith &amp; Topin (2017)</span>
+<span class="ltx_bibblock">Leslie N. Smith and Nicholay Topin.
+</span><span class="ltx_bibblock">“Super-Convergence: Very Fast Training of Neural Networks Using Large Learning Rates”.
+</span><span class="ltx_bibblock">2017. arXiv: <a href="https://arxiv.org/abs/1708.07120" class="ltx_ref ltx_href">1708.07120</a>
+</span></li>
+<li id="bib.sutskever2013momentum" class="ltx_bibitem"><span class="ltx_tag ltx_role_refnum ltx_tag_bibitem">Sutskever et al. (2013)</span>
+<span class="ltx_bibblock">Ilya Sutskever, James Martens, George Dahl and Geoffrey Hinton.
+</span><span class="ltx_bibblock">“On the importance of initialization and momentum in deep learning”.
+</span><span class="ltx_bibblock">In <em class="ltx_emph ltx_font_italic">ICML</em>, 2013. <a href="https://proceedings.mlr.press/v28/sutskever13.html" class="ltx_ref ltx_href">proceedings.mlr.press/v28/sutskever13</a>
+</span></li>
+</ul></section>
+</article></div></div>
+<footer class="abench-html-footer">ABench design report · layout follows arXiv HTML (LaTeXML markup), offline and self-contained</footer>
+</body>
+</html>

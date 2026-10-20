@@ -1,0 +1,7 @@
+# At most 4 tunable hyperparameters; lr is scheduled uniformly by the training framework.
+tunable:
+  beta_fast: {default: 0.95, values: [0.80, 0.90, 0.95]}
+  beta_slow: {default: 0.999, values: [0.98, 0.995, 0.999]}
+  alpha: {default: 0.70, values: [0.35, 0.70, 1.10]}
+  tau: {default: 0.05, values: [0.02, 0.05, 0.10]}
+fixed: {wd: 0.1}

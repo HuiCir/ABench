@@ -1,0 +1,36 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: V-BB-006
+readiness: contract_only
+title: Backbone on a small ImageNet subset (calibration)
+version: v2026.07
+cutoff: '2026-07-01'
+track: V
+track_name: Vision
+group: method
+priority: P1
+type: T1
+subset: calibration
+difficulty: low
+budget_tier: medium
+status: scaffold
+anchor:
+  name: ViT
+  arxiv: '2010.11929'
+  verify_before_freeze: true
+task: Backbone on a small ImageNet subset (calibration)
+metrics: Accuracy–FLOPs Pareto
+verify_plan:
+  proxy:
+  - MICRO
+  dev: 3
+  verify: 1.5
+  ref: 15
+  risk: []
+  plan: Imagenette 160px, 30 epochs
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- frozen_weights_or_dataset_snapshot
+- classification_metric_and_calibration_oracle
+- reference_runs_and_fixed_hardware

@@ -1,0 +1,38 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: FN-QA-004
+readiness: deferred
+title: With a fixed base model, design a retrieval and program-execution pipeline for numerical reasoning over financial reports
+version: v2026.07
+cutoff: '2026-07-01'
+track: FN
+track_name: Finance
+group: domain
+priority: P1
+type: T2
+subset: main
+difficulty: medium
+budget_tier: medium
+status: deferred
+anchor:
+  name: FinQA
+  arxiv: '2109.00122'
+  verify_before_freeze: false
+task: With a fixed base model, design a retrieval and program-execution pipeline for numerical reasoning over financial reports
+metrics: Execution accuracy; accuracy on new post-cutoff reports
+verify_plan:
+  proxy:
+  - INFER
+  dev: 3
+  verify: 1
+  ref: 5
+  risk: []
+  plan: ≤ 1.5B base model; design only the retrieval and program-execution pipeline
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- licensed_financial_reports_and_table_snapshot
+- document_time_split_and_citation_oracle
+- table_program_execution_sandbox
+- fixed_checkpoint_and_runtime_stack
+- specific_anchor_or_citation_verification

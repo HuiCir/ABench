@@ -1,0 +1,109 @@
+# Evaluation protocol: micro-scale ladder + robustness matrix (following abench/spec/compute_budget.md).
+# No training at the original paper's scale: at most about 42M effective parameters. Token budgets are 20 tokens per effective parameter (including the output head).
+# Mapping from the old tiers: L1_proxy = μ1, L2_main = μ2, L3a_scale = μ3, L3b_long = μ1 × 8× data, L3c_bigbatch = μ2 × 4× batch size.
+
+hardware:
+  gpu: "Reference card: one 24GB GPU (RTX 4090 class), fixed driver and CUDA version"
+  software: {cuda: "12.4", torch: "2.6", precision: "bf16 autocast, optimizer state in fp32"}
+  timing: "Step wall time is the median over steps 200–400, measured against reference AdamW on the same card in the same session"
+
+budget:                       # reference-card GPU-h
+  agent_dev: 8                # about 190 μ1 runs or about 30 μ2 runs
+  per_submission_verify: "about 6 (tuning 1.6 + public 0.75 + hidden 2.6 + local-discovery ablation ≤ 1)"
+  reference_precompute: "about 74 (10 reference methods × about 7.4)"
+
+ladder:
+  L0_smoke:                   # available to the agent; automatic thresholds, unscored
+    visibility: agent
+    checks:
+      - "Interface consistency: init_state / update signatures, no side effects"
+      - "Memory: state ≤ 3 × parameter count"
+      - "Numerics: no NaN/Inf over 1000 steps of a toy quadratic + small MLP"
+      - "Determinism: two runs with the same seed give element-wise identical updates (tolerance 1e-6)"
+  L1_proxy:                   # μ1, available to the agent, consumes its 8 GPU-h development budget
+    visibility: agent
+    model: mu1
+    tokens: 0.14e9
+    batch_tokens: 65536
+    seeds: 1
+    est_gpu_h: 0.04
+    purpose: "Agent self-tests and the benchmark operator's hyperparameter search; scores do not enter the final evaluation"
+  L2_main:                    # μ2, available to the agent for self-tests; the benchmark operator's formal results are published in the score report
+    visibility: benchmark
+    model: mu2
+    tokens: 0.35e9
+    batch_tokens: 131072
+    seeds: 3
+    est_gpu_h: 0.25
+  L3_holdout:                 # run by the benchmark operator only; settings hidden from the agent
+    visibility: hidden
+    settings:
+      L3a_scale:      {model: mu3, tokens: 0.84e9, batch_tokens: 131072, seeds: 1, est_gpu_h: 1.5}
+      L3b_long:       {model: mu1, tokens: 1.12e9, batch_tokens: 65536,  seeds: 2, est_gpu_h: 0.3}
+      L3c_bigbatch:   {model: mu2, tokens: 0.35e9, batch_tokens: 524288, seeds: 2, est_gpu_h: 0.25}
+    ood_eval: "Loss of the final L2_main checkpoint on val_ood (constraint)"
+  outer_validation:           # unscored: each version reviews only the top 3 submissions once at 10× scale (about 135M), for fidelity statistics
+    visibility: benchmark
+    model: "Isomorphic to SmolLM2-135M"
+    tokens: 2.7e9
+
+hparam_tuning:
+  who: benchmark              # hyperparameters are tuned by the benchmark operator, not reported by the agent, so reference methods are treated equally
+  agent_provides: "hparam_space.yaml: at most 4 tunable hyperparameters with their search ranges and defaults"
+  L1_trials: 16               # μ1, the same as for each reference method
+  L2_local_trials: 4          # μ2
+  transfer_rule: "Learning rate transfers by width following μP rules; other hyperparameters transfer unchanged"
+
+settings_weights:             # cross-setting aggregation weights for the SOTA margin (weighted geometric mean)
+  L2_main: 0.30
+  L3a_scale: 0.30
+  L3b_long: 0.20
+  L3c_bigbatch: 0.20
+
+reference_budget_curve:
+  schedule: "WSD (warmup 1% → constant → linear decay to 0 over the last 20%)"
+  decay_branches: [0.5, 0.7, 1.0, 1.4, 2.0]   # multiples of each setting's token budget; μ3 only goes to 1.4×, so the measurable speedup cap is 1.4
+  note: "Submissions train only at 1.0× budget; the branch curves of the reference methods convert a submission's final loss into an equivalent cost"
+
+evaluation_point: "Only validation loss at the end of training (after learning-rate decay) is used; intermediate checkpoints are not compared (see 2509.02046 on ranking flips)"
+
+probe:                        # behavioral divergence probe, see scoring/divergence.py
+  gradient_stream:
+    source: "Checkpoints at 10%, 50% and 90% progress of the AdamW reference run at μ2 (no extra training needed)"
+    tensors: [layers.1.self_attn.q_proj, layers.1.mlp.up_proj, layers.6.self_attn.o_proj, layers.6.mlp.down_proj]
+    steps_per_point: 64
+    warmup_steps: 48          # the first 48 steps only update state; updates are compared over the last 16 steps
+  note: "The gradient stream is fixed open-loop: every optimizer sees exactly the same gradient sequence, so differences come only from the update rule itself"
+
+proxy_fidelity:               # fidelity check before launch (spec/compute_budget.md section 4)
+  known_pairs:
+    - "Muon vs AdamW (large-scale conclusion: Muon is faster, with the advantage shrinking as scale grows)"
+    - "SOAP vs AdamW"
+    - "AdamW vs Adam + L2 regularization"
+    - "Lion vs AdamW (Lion is relatively better at large batch sizes)"
+    - "Schedule-Free vs AdamW with cosine schedule"
+  gate: "Goes live only if pairwise agreement on the μ1–μ3 ladder is ≥ 80%; the trend that 'the advantage shrinks with scale' must also be reproduced from μ1 to μ3"
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 8
+      unit: GPU-h
+    per_submission_verify:
+      value: 6
+      unit: GPU-h
+    reference_precompute:
+      value: 74
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side

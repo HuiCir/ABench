@@ -1,0 +1,35 @@
+# Resource registry scaffold; URLs/checkpoints are intentionally not fabricated.
+case_id: X-GRPO-002
+status: deferred
+required:
+  datasets: freeze source, version, split, license and sha256 before activation
+  models: freeze config/checkpoint/revision and sha256
+  software: freeze container, compiler/CUDA/PyTorch versions
+  hardware: record device model, driver, clocks and thermal state
+public_resources:
+  anchor: DeepSeekMath (GRPO)
+  arxiv: '2402.03300'
+  track_proxy:
+  - SUBSET
+  notes:
+  - Subset, fewer-fold or low-resolution proxy; fidelity calibration before launch
+private_resources:
+- hidden test split or task instances
+- reference runs and tuned baselines
+- server signing key / run manifest
+blocked_inputs:
+- frozen_base_model_and_task_split
+- rollout_or_reward_environment_for_rl_cases
+- hidden_reward_hacking_checks
+no_download_or_training_in_scaffold: true
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: posttrain_24gb
+budget_tier: high
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 8
+  per_submission_verify: 6
+  reference_precompute: 60
+limits_unit: GPU-h
+

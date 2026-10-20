@@ -1,0 +1,37 @@
+case_id: K-COMP-005
+status: scaffold
+resource_rating: medium
+offline_bundle: kernel_graphs_v1 (fixed PyTorch modules and shape manifest)
+datasets:
+- No training data; fixed synthetic tensor seed and input distributions
+models:
+- Small Transformer/MLP module source and eager reference frozen by the server
+software:
+- PyTorch 2.6, CUDA 12.4, Triton/Inductor lockfile; allowlisted compiler interfaces only
+hardware: One 24GB GPU; fixed driver, clock policy, TF32/precision; CPU only assists compilation
+private_resources:
+- Hidden shapes/layouts, reference eager/compile runs, numerical-error checker
+sandbox_constraints:
+- No network; calling external kernel binaries outside the precompiled libraries directly is forbidden
+- GPU clocks, driver or container must not be changed; compile caches are isolated
+- Timeouts/OOM/graph breaks must be recorded in structured form
+blocked_inputs:
+- fixed_torch_cuda_container_and_gpu_model
+- operator_graphs_and_hidden_shapes
+- server_timer_numeric_equivalence_checker
+no_download_or_training_in_scaffold: true
+resource_profile: single_gpu_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: single_gpu_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits:
+  agent_dev: 2
+  per_submission_verify: 1
+  reference_precompute: 10
+limits_unit: GPU-h
+

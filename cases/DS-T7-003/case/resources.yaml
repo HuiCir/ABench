@@ -1,0 +1,33 @@
+status: resource_contract_only_no_downloads_or_runs
+datasets:
+- name: hidden OpenML collection (20 datasets, each <=50k rows)
+  source: to_be_frozen_by_benchmark
+  visibility: hidden
+- name: public calibration datasets
+  source: to_be_frozen_by_benchmark
+  visibility: public
+baselines:
+- name: tuned XGBoost/LightGBM
+  implementation: to_be_frozen_by_benchmark
+- name: linear baseline
+  implementation: to_be_frozen_by_benchmark
+special_notes:
+- Dataset IDs, licenses, target columns, preprocessing and CPU image must be frozen
+  server-side.
+integrity:
+  content_hashes: required before release
+  licenses: required before release
+  network: disabled unless allowlisted
+runtime:
+  cpu_only: true
+# Shared sandbox/resource declaration (v2026.07)
+sandbox_profile: low_cpu
+budget_tier: low
+hardware_class: cpu_only
+cost_unit: CPU-h
+resource_limits:
+  agent_dev: 0
+  per_submission_verify: 0
+  reference_precompute: 0
+limits_unit: CPU-h
+

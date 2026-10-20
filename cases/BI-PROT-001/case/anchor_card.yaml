@@ -1,0 +1,36 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: BI-PROT-001
+readiness: deferred
+title: Design a protein mutation-fitness prediction model (zero-shot or few-shot)
+version: v2026.07
+cutoff: '2026-07-01'
+track: BI
+track_name: Biology
+group: domain
+priority: P1
+type: T1
+subset: main
+difficulty: medium
+budget_tier: medium
+status: deferred
+anchor:
+  name: ProteinGym
+  arxiv: null
+  verify_before_freeze: true
+task: Design a protein mutation-fitness prediction model (zero-shot or few-shot)
+metrics: Spearman (averaged per assay); performance on hidden assays
+verify_plan:
+  proxy:
+  - FROZEN
+  dev: 3
+  verify: 1
+  ref: 10
+  risk: []
+  plan: Frozen ESM-2 150M / 650M representations + lightweight head, no re-pretraining; 30 hidden DMS assays
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- licensed_biological_dataset_snapshot
+- family_or_experiment_split
+- domain_expert_review

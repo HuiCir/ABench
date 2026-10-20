@@ -1,0 +1,88 @@
+case: V-SMP-002
+title: 'Deterministic DDIM with Uniform Timesteps: The Reference Sampler for Few-Step Generation'
+abstract: 'This submission is the anchor sampler applied to the frozen CIFAR-10 DDPM [@ho2020ddpm]. DDIM with η = 0 follows
+  a deterministic, non-Markovian reverse process that shares the trained marginals: at each of the nfe steps the network''s
+  noise prediction gives an estimate of the clean image, which is clipped to the data range and re-noised to the next, lower
+  noise level [@song2021ddim]. Timesteps are spaced uniformly from 999 to 0 and the last step jumps to the clean image, so
+  exactly nfe evaluations are used. Higher-order solvers of the probability-flow ODE [@lu2022dpmsolver;@karras2022edm] are
+  the natural improvements and are left to the entries.'
+sections:
+- title: Introduction
+  paras:
+  - A diffusion model trained with 1,000 noise levels can be sampled with far fewer steps if the sampler treats generation
+    as the integration of an ODE rather than as the ancestral chain. DDIM was the first such sampler and remains the reference
+    point for few-step generation [@song2021ddim]. With only 5 to 20 evaluations, both the integrator and the placement of
+    the timesteps matter [@karras2022edm].
+- title: Related Work
+  paras:
+  - For ε-prediction with x_t = sqrt(ᾱ_t) x₀ + sqrt(1 − ᾱ_t) ε, the DDIM update with η = 0 is a first-order (Euler) step of
+    the probability-flow ODE in the variables x/sqrt(ᾱ) and sqrt(1 − ᾱ)/sqrt(ᾱ) [@song2021ddim;@lu2022dpmsolver]. Multistep
+    and higher-order solvers reuse earlier evaluations to cancel the leading error term [@lu2022dpmsolver].
+  - DDIM is first order; higher-order probability-flow solvers and better timestep placement reduce error at few evaluations;
+    those are the gap.
+- title: Method
+  subsections:
+  - title: Update
+    paras:
+    - Let t_0 > … > t_{n−1} be round(linspace(999, 0, n)) for n = nfe, and ᾱ_{t_n} = 1. Starting from x ~ N(0, I), each step
+      computes ε̂ = ε_θ(x, t_i), x̂₀ = clip((x − sqrt(1 − ᾱ_{t_i}) ε̂)/sqrt(ᾱ_{t_i}), −1, 1) and x ← sqrt(ᾱ_{t_{i+1}}) x̂₀
+      + sqrt(1 − ᾱ_{t_{i+1}}) ε̂. Arithmetic is in float64 apart from the network.
+    algorithm_caption: DDIM sampling with nfe evaluations
+    algorithm:
+    - x ← N(0, I) from the generator;  t_i ← round(linspace(999, 0, nfe))
+    - 'for i = 0 … nfe − 1:'
+    - '  ε̂ ← denoiser(x, t_i);  x̂₀ ← clip((x − sqrt(1 − ᾱ_{t_i}) ε̂) / sqrt(ᾱ_{t_i}), −1, 1)'
+    - '  x ← sqrt(ᾱ_{t_{i+1}}) x̂₀ + sqrt(1 − ᾱ_{t_{i+1}}) ε̂   (ᾱ after the last step = 1)'
+    - return clip(x, −1, 1)
+  - title: Complexity
+    paras:
+    - nfe network evaluations per batch and O(nfe · n · 3072) extra arithmetic; memory for one batch of images and one noise
+      prediction.
+- title: Design Rationale
+  paras:
+  - Clipping the estimate x̂₀ prevents the large extrapolations that a coarse first step would otherwise produce at high noise.
+    Ending at the clean estimate rather than at t = 0 uses the last evaluation fully. Uniform spacing is the simplest schedule
+    and leaves room for schedules that concentrate steps where the trajectory curves most.
+- title: Scope and Limitations
+  paras:
+  - A first-order integrator with uniform steps has large discretisation error at 5 to 10 evaluations; this is the gap the
+    task asks entries to close.
+references:
+- id: song2021ddim
+  title: Denoising Diffusion Implicit Models
+  authors: Jiaming Song, Chenlin Meng and Stefano Ermon
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.02502'
+  used_for: 'Anchor: deterministic DDIM update'
+  code_location: 'sampler.py: sample'
+- id: ho2020ddpm
+  title: Denoising Diffusion Probabilistic Models
+  authors: Jonathan Ho, Ajay Jain and Pieter Abbeel
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11239'
+  used_for: The frozen model and its noise schedule
+  code_location: null
+- id: lu2022dpmsolver
+  title: 'DPM-Solver: A Fast ODE Solver for Diffusion Probabilistic Model Sampling in Around 10 Steps'
+  authors: Cheng Lu, Yuhao Zhou, Fan Bao, Jianfei Chen, Chongxuan Li and Jun Zhu
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2206.00927'
+  used_for: ODE view of DDIM and higher-order solvers
+  code_location: null
+- id: karras2022edm
+  title: Elucidating the Design Space of Diffusion-Based Generative Models
+  authors: Tero Karras, Miika Aittala, Timo Aila and Samuli Laine
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2206.00364'
+  used_for: Role of the time-step schedule
+  code_location: null
+changes:
+- text: The anchor's deterministic DDIM update (η = 0) is kept, with the clean-image estimate clipped to the data range.
+  code: 'sampler.py: sample'
+- text: Uniform timestep spacing from 999 to 0, with the last step jumping to the clean image, so exactly nfe evaluations
+    are used.
+  code: 'sampler.py: sample'

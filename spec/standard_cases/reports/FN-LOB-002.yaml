@@ -1,0 +1,80 @@
+case: FN-LOB-002
+title: 'Order-Book Features with a Class-Balanced Linear Classifier: A Baseline for FI-2010'
+abstract: 'This submission gives a transparent baseline for mid-price direction prediction. Instead of learning features with
+  a convolutional-recurrent encoder as in the anchor [@zhang2019deeplob], each 100-event window is summarised by hand-crafted
+  features: the current book, short- and long-window changes, and volume imbalance at the best levels, a quantity known to
+  predict short-term price moves [@cont2014ofi]. A one-vs-rest ridge classifier with class-balanced weights is fitted in closed
+  form. The model is linear, deterministic given its sample of windows, and trains in seconds.'
+sections:
+- title: Introduction
+  paras:
+  - FI-2010 provides normalised ten-level order books for five stocks over ten days, with direction labels at several horizons
+    [@ntakaris2018fi2010]. Deep models trained on the raw book are the reference point [@zhang2019deeplob]; a feature-based
+    linear model makes clear how much of the signal is available from simple microstructure quantities, which entries can
+    then exceed.
+- title: Related Work
+  paras:
+  - Order-flow and volume imbalance at the top of the book are among the most robust short-horizon predictors of price changes
+    [@cont2014ofi]. The label at horizon k compares the mean mid-price over the next k events with the current mid-price,
+    so it depends on persistence of pressure over several events rather than on the next tick.
+  - DeepLOB learns features from the raw book with a deep CNN–LSTM; hand-crafted microstructure features are cheap but fixed;
+    this reference uses the latter and leaves learned temporal encoders as the gap.
+- title: Method
+  subsections:
+  - title: Features and classifier
+    paras:
+    - For a window w with last snapshot s, the features are s, the mean of the last 10 snapshots, s minus the snapshot 10
+      events earlier, s minus the first snapshot, and the imbalance (V_bid − V_ask)/(|V_bid| + |V_ask|) at levels 1–3, both
+      at the last event and averaged over the last 10. Features are standardised. Weights minimise a ridge loss to one-hot
+      labels with row weights inversely proportional to class frequency, solved in closed form with λ = 10, on 60,000 training
+      windows sampled with the seed.
+    algorithm_caption: Training
+    algorithm:
+    - sample 60,000 window end times t; labels y_t at horizon 10
+    - F ← standardise(features(window_t)); ω_t ← 1 / frequency(y_t)
+    - W ← (Fᵀ diag(ω) F + λI)^{-1} Fᵀ diag(ω) Y
+    - predict(w) = softmax(features(w) W)
+  - title: Complexity
+    paras:
+    - Feature extraction is O(W · 40) per window for W = 100; training is O(n d² + d³) for n sampled windows and d ≈ 170 features;
+      prediction is O(W · 40 + d · 3) per window.
+- title: Design Rationale
+  paras:
+  - The stationary class dominates FI-2010 at short horizons, and macro-F1 rewards the rare up and down classes as much as
+    the frequent one; inverse-frequency weights move the decision boundaries accordingly. Features that compare the current
+    book with earlier snapshots encode the persistence of buying or selling pressure that the horizon-10 label measures.
+- title: Scope and Limitations
+  paras:
+  - A linear model cannot capture interactions between levels or nonlinear temporal patterns; the anchor's convolution over
+    price-volume pairs followed by an inception module and an LSTM is one way to learn them.
+references:
+- id: zhang2019deeplob
+  title: 'DeepLOB: Deep Convolutional Neural Networks for Limit Order Books'
+  authors: Zihao Zhang, Stefan Zohren and Stephen Roberts
+  year: 2019
+  venue: IEEE Transactions on Signal Processing
+  arxiv: '1808.03668'
+  used_for: 'Anchor: task setup (window 100, horizon 10, days 1-7 / 8-10)'
+  code_location: null
+- id: ntakaris2018fi2010
+  title: Benchmark Dataset for Mid-Price Forecasting of Limit Order Book Data with Machine Learning Methods
+  authors: Adamantios Ntakaris, Martin Magris, Juho Kanniainen, Moncef Gabbouj and Alexandros Iosifidis
+  year: 2018
+  venue: Journal of Forecasting
+  arxiv: '1705.03233'
+  used_for: Dataset and label definition
+  code_location: null
+- id: cont2014ofi
+  title: The Price Impact of Order Book Events
+  authors: Rama Cont, Arseniy Kukanov and Sasha Stoikov
+  year: 2014
+  venue: Journal of Financial Econometrics
+  arxiv: '1011.6402'
+  used_for: Order-flow / volume imbalance as a short-horizon predictor
+  code_location: 'model.py: feats (imb)'
+changes:
+- text: Hand-crafted window features (last snapshot, recent means and changes, top-3 volume imbalance) replace the anchor's
+    convolutional and inception encoder.
+  code: 'model.py: feats'
+- text: A class-balanced closed-form ridge readout replaces the LSTM and softmax head.
+  code: 'train.py: main'

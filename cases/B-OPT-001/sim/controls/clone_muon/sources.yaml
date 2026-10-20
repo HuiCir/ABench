@@ -1,0 +1,10 @@
+sources:
+  - id: "arXiv:2502.16982"
+    borrowed: "Orthogonalized momentum and RMS matching"
+    code: "update() 2D branch"
+  - id: "arXiv:1412.6980"
+    borrowed: "Adam for 1D parameters"
+    code: "update() 1D branch"
+  - id: "arXiv:2302.06675"
+    borrowed: "The idea of program search"
+    code: "unused"

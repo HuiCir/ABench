@@ -1,0 +1,76 @@
+# B-OPT-002 evaluation protocol: fixed primitive search + B-OPT-001 final evaluation
+hardware:
+  gpu: "Reference card: one 24GB GPU (RTX 4090 class)"
+  software: {cuda: "12.4", torch: "2.6", precision: "bf16 autocast, state in fp32"}
+  timing: "Both the STREAM proxy and final evaluation use fixed hardware and take medians"
+
+budget:
+  agent_dev: 8
+  per_submission_verify: "about 5.5 (search audit 0.5 + μ1/public 1.5 + hidden final evaluation 2.5 + ablation ≤ 1)"
+  reference_precompute: 0
+
+search:
+  grammar_version: "lion-primitive-v1"
+  seed: 17
+  candidate_limit: 256
+  stream_source: "Frozen p10/p50/p90 gradient streams; an independent validation stream is held by the benchmark operator"
+  score: "0.45·direction consistency + 0.35·spectral-distribution stability + 0.20·update-magnitude stability"
+  target: "1.02 × the Lion proxy score, or the best found when the candidate budget runs out"
+  replay: "With the same grammar, seed and input stream, program_id, scores and ranking must be reproduced candidate by candidate"
+
+ladder:
+  L0_smoke:
+    visibility: agent
+    checks: ["Interface and no side effects", "State ≤ 3×", "1000-step ill-conditioned quadratic", "Finite values", "Determinism"]
+  L1_proxy:
+    visibility: agent
+    model: mu1
+    tokens: 0.14e9
+    seeds: 1
+    est_gpu_h: 0.04
+  L2_main:
+    visibility: benchmark
+    model: mu2
+    tokens: 0.35e9
+    seeds: 3
+    est_gpu_h: 0.25
+  L3_holdout:
+    visibility: hidden
+    settings:
+      L3a_scale: {model: mu3, tokens: 0.84e9, seeds: 1}
+      L3b_long: {model: mu1, tokens: 1.12e9, seeds: 2}
+      L3c_bigbatch: {model: mu2, tokens: 0.35e9, seeds: 2}
+    ood_eval: "wikitext-103 and a code corpus"
+
+settings_weights: {L2_main: 0.30, L3a_scale: 0.30, L3b_long: 0.20, L3c_bigbatch: 0.20}
+
+reference_reuse:
+  case: B-OPT-001
+  files: ["case/reference_pool.yaml", "outputs/reference_runs/"]
+  note: "The formal benchmark feeds candidates into the same ladder; this case does not recompute reference methods, but real reference_runs must exist before launch"
+
+evaluation_point: "Only loss at the end of training counts; the search stage must not read final-evaluation losses"
+# Shared resource and sandbox profile (v2026.07)
+resource_profile:
+  sandbox_profile: single_gpu_24gb
+  hardware_class: single_gpu_24gb
+  accelerator: RTX_4090_class
+  accelerator_count: 1
+  memory_gib: 24
+  cost_unit: GPU-h
+  leaderboard: budget
+  limits:
+    agent_dev:
+      value: 8
+      unit: GPU-h
+    per_submission_verify:
+      value: 5.5
+      unit: GPU-h
+    reference_precompute:
+      value: 0
+      unit: GPU-h
+  sandbox:
+    network: disabled
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side

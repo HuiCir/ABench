@@ -1,0 +1,100 @@
+version: v0-scaffold
+case_id: T-AUDIO-005
+objective: pareto_frontier
+primary_metrics:
+- name: wer
+  direction: lower
+  unit: fraction
+  role: quality
+- name: cer
+  direction: lower
+  unit: fraction
+  role: quality
+- name: speaker_heldout_wer
+  direction: lower
+  unit: fraction
+  role: robustness
+- name: trainable_params_m
+  direction: lower
+  unit: million
+  role: cost
+- name: peak_memory_gb
+  direction: lower
+  unit: GB
+  role: cost
+- name: realtime_factor
+  direction: lower
+  unit: ratio
+  role: latency
+- name: compute_cost_gpu_h
+  direction: lower
+  unit: GPU-h
+  role: cost
+normalization:
+  direction: per metric declaration
+  baseline: server reference envelope
+  aggregation: non-dominated set + normalized hypervolume; publish per-dimension values
+gates:
+- valid_run_manifest
+- resource_and_time_budget
+- finite_metrics
+- deterministic_replay
+- no_hidden_input_or_network_access
+- frozen_encoder_weights_unchanged
+- fixed_16khz_preprocess_and_vocab
+- quality_floor_and_audio_safety_constraints
+pareto_policy:
+  no_single_sota_gate: true
+  constraint_fail: dominated_and_ineligible
+  tie_break: lower measured cost then lower speaker-heldout variance
+simulation_policy: 'none: this scaffold does not generate scores'
+missing_real_artifacts: report pending rather than zeroing a fabricated score
+deferred_due_to:
+- frozen_audio_encoder_processor_and_vocab_hash
+- offline_16khz_speech_bundle_and_speaker_holdout
+- fixed_audio_preprocess_and_server_asr_evaluator
+- fixed_gpu_timer_and_peak_memory_probe
+objective_mode: pareto
+resource_profile: single_gpu_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+pareto:
+  axes:
+  - id: wer
+    direction: minimize
+    unit: fraction
+    primary: true
+  - id: speaker_heldout_wer
+    direction: minimize
+    unit: fraction
+    primary: false
+  - id: trainable_params_m
+    direction: minimize
+    unit: million
+    primary: false
+  - id: peak_memory_gb
+    direction: minimize
+    unit: GB
+    primary: false
+  - id: realtime_factor
+    direction: minimize
+    unit: ratio
+    primary: false
+  - id: compute_cost_gpu_h
+    direction: minimize
+    unit: GPU-h
+    primary: false
+  feasibility:
+  - metric: wer
+    op: <=
+    threshold: reference_quality_ceiling
+  - metric: speaker_heldout_wer
+    op: <=
+    threshold: reference_robustness_ceiling
+  aggregation: empirical_frontier
+  report:
+  - frontier_points
+  - hypervolume
+  - knee_point
+  - dominated_by_reference

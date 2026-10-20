@@ -1,0 +1,15 @@
+contract_version: abench-scaffold-v1
+case_id: C-QNT-003
+status: scaffold
+simulated_outputs: false
+real_inputs_required: true
+blocked_inputs: [frozen_model_tokenizer_and_runtime_hash, quantization_kernel_and_hardware_baseline, hidden_quality_suite_and_server_timer]
+metrics: [quantized_quality, model_size_mb, throughput_tokens_per_s, p95_decode_latency_ms, peak_memory_gb, calibration_gpu_hours]
+objective: pareto_frontier
+required_provenance: [runner_version, config_hash, resource_hash, artifact_hash]
+formal_scoring: deferred_until_real_calibration
+objective_mode: pareto
+resource_profile: frozen_inference_24gb
+spec_refs: [spec/pareto_protocol.md, spec/sandbox_profiles.md]
+report_profile: design_report_v2
+report_focus: system_efficiency

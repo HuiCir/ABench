@@ -1,0 +1,37 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: T-SPEC-003
+readiness: deferred
+title: Apply the draft-and-verify idea to few-step diffusion sampling
+version: v2026.07
+cutoff: '2026-07-01'
+track: T
+track_name: Cross-domain transfer
+group: method
+priority: P2
+type: TX
+subset: primitive
+difficulty: high
+budget_tier: medium
+status: deferred
+anchor:
+  name: Speculative decoding → diffusion sampling
+  arxiv: '2211.17192'
+  verify_before_freeze: true
+task: Apply the draft-and-verify idea to few-step diffusion sampling
+metrics: FID at NFE + source claims
+verify_plan:
+  proxy:
+  - INFER
+  dev: 3
+  verify: 1
+  ref: 5
+  risk: []
+  plan: Fixed pretrained diffusion weights (same as V-SMP-002)
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- source_case_contracts_and_cross_domain_holdouts
+- domain_metric_calibration
+- reference_runs
+- fixed_checkpoint_and_runtime_stack

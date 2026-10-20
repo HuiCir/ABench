@@ -1,0 +1,76 @@
+case: U-LOOP-003
+title: 'A Learned Local Lookup Model: A Fixed-Context Baseline for Length Generalisation'
+abstract: This submission gives a deliberately limited baseline for learning algorithms that must extrapolate in length. Each
+  output token is predicted from a fixed window of aligned input tokens by the most frequent output observed for that window
+  in the training samples, and the output length is a learned linear function of the input length. The model has a fixed receptive
+  field and no iteration, so it extrapolates only rules that are local. It is the counterpoint to the anchor's looped transformers,
+  whose number of iterations grows with the problem size [@fan2024looped].
+sections:
+- title: Introduction
+  paras:
+  - Length generalisation asks whether a model trained on short instances computes the same function on longer ones. Fixed-depth
+    models typically fail when the computation needs a number of sequential steps that grows with the length [@deletang2023chomsky],
+    while models that iterate a shared block can adapt their depth to the input [@dehghani2019universal;@fan2024looped].
+- title: Related Work
+  paras:
+  - Copy needs only a position-wise rule; binary addition needs a carry that can propagate across all positions; parity needs
+    a running XOR over the whole input. The anchor shows that a looped transformer trained with an iteration count tied to
+    the length generalises on these tasks [@fan2024looped].
+  - Looped transformers iterate a shared block a number of times that grows with the input; fixed-window models cannot; this
+    reference has a fixed window, which isolates the gap the anchor's looping addresses.
+- title: Method
+  subsections:
+  - title: Model
+    paras:
+    - For output position i the key is the tuple of the last four input tokens up to position i (for addition, of both operands,
+      which the public task definition places one after the other). On 200 samples per length and task, the model counts the
+      output token at each position under each key and keeps the most frequent one; unseen keys fall back to the most frequent
+      output overall. The output length is fitted as α·len(x) + β by least squares.
+    algorithm_caption: Training and prediction for one task
+    algorithm:
+    - 'for n = 1 … 20: draw 200 samples; for each output position i: count[key_i(x)][y_i] += 1'
+    - fit (α, β) ← least squares of len(y) on len(x)
+    - '**predict**(x): L ← round(α·len(x) + β); return (argmax count[key_i(x)] or the prior, for i < L)'
+  - title: Complexity
+    paras:
+    - Training is linear in the number of sampled tokens; the table holds at most V^{2w} keys for vocabulary V and window
+      w = 4. Prediction is O(L · w) per problem.
+- title: Design Rationale
+  paras:
+  - The baseline isolates one factor, the receptive field. Copy is solved at every length because its rule is local; addition
+    is right whenever no carry crosses more than the window; parity is at chance beyond the window. Any entry that iterates
+    a learned step should beat it on exactly the last two tasks.
+- title: Scope and Limitations
+  paras:
+  - There is no state carried between positions and no iteration, so the model cannot represent carries or running sums of
+    unbounded length; these are the capabilities the task is designed to measure.
+references:
+- id: fan2024looped
+  title: Looped Transformers for Length Generalization
+  authors: Ying Fan, Yilun Du, Kannan Ramchandran and Kangwook Lee
+  year: 2024
+  arxiv: '2409.15647'
+  used_for: 'Anchor: tasks and the looped-architecture approach'
+  code_location: null
+- id: dehghani2019universal
+  title: Universal Transformers
+  authors: Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit and Łukasz Kaiser
+  year: 2019
+  venue: ICLR
+  arxiv: '1807.03819'
+  used_for: Weight-shared iteration as the alternative to fixed depth
+  code_location: null
+- id: deletang2023chomsky
+  title: Neural Networks and the Chomsky Hierarchy
+  authors: Grégoire Delétang, Anian Ruoss, Jordi Grau-Moya, Tim Genewein, Li Kevin Wenliang, Elliot Catt, Chris Cundy, Marcus
+    Hutter, Shane Legg, Joel Veness and Pedro A. Ortega
+  year: 2023
+  venue: ICLR
+  arxiv: '2207.02098'
+  used_for: Failure of fixed-context models to extrapolate in length
+  code_location: null
+changes:
+- text: A most-frequent-output lookup over fixed windows of aligned input tokens replaces the anchor's looped transformer.
+  code: 'model.py: keys, predict; train.py: main'
+- text: The output length is a least-squares linear function of the input length.
+  code: 'train.py: main (lstsq)'

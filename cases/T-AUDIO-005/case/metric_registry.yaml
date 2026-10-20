@@ -1,0 +1,65 @@
+schema_version: '1.0'
+case_id: T-AUDIO-005
+status: calibration_required
+generated_by: abench-audio-scaffold
+metrics:
+- id: wer
+  name: Word Error Rate
+  direction: lower_is_better
+  unit: fraction
+  aggregation: macro_mean
+  required: true
+  pareto_role: objective
+  inference: benchmark_defined
+  notes: Normalize transcript/tokenization before scoring; lower is better.
+- id: cer
+  name: Character Error Rate
+  direction: lower_is_better
+  unit: fraction
+  aggregation: macro_mean
+  required: true
+  pareto_role: quality
+  inference: benchmark_defined
+  notes: Secondary transcript metric; used to detect tokenization artifacts.
+- id: speaker_heldout_wer
+  name: Speaker-held-out WER
+  direction: lower_is_better
+  unit: fraction
+  aggregation: macro_mean
+  required: true
+  pareto_role: robustness
+  inference: benchmark_defined
+  notes: Hidden speakers and accent/noise conditions; lower is better.
+- id: trainable_params_m
+  name: Trainable parameters
+  direction: lower_is_better
+  unit: million
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: cost
+  inference: benchmark_defined
+- id: peak_memory_gb
+  name: Peak GPU memory
+  direction: lower_is_better
+  unit: GB
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: cost
+  inference: benchmark_defined
+- id: realtime_factor
+  name: Realtime factor
+  direction: lower_is_better
+  unit: ratio
+  aggregation: median
+  required: true
+  pareto_role: latency
+  inference: benchmark_defined
+  notes: Wall-clock audio processing time divided by audio duration.
+- id: compute_cost_gpu_h
+  name: Compute cost
+  direction: lower_is_better
+  unit: GPU-h
+  aggregation: benchmark_defined
+  required: true
+  pareto_role: cost
+  inference: benchmark_defined

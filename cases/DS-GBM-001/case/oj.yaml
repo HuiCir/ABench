@@ -1,0 +1,46 @@
+schema: abench.oj/v2
+handcrafted: true
+case_id: DS-GBM-001
+agent_visible:
+  task: case/agent/task.md
+  interface:
+  - harness/interface.md
+data:
+  public:
+  - id: ds_gbm_micro_train
+    path: sandbox/data/DS-GBM-001/train.npz
+    sha256: 064d1c37a84705e3b3ca7426149c04cf286cc66e31586c12505290bea38611a9
+    format: npz (x float32 [n,12], y int64 [n])
+    rows: 256
+  hidden:
+    id: ds_gbm_micro_test
+    path: sandbox/hidden/DS-GBM-001/test.npz.enc
+    sha256_plain: e0a40ceddd9fade158777c92e8da1693e125d0712797266b697d40f196c62497
+    format: npz (x, y), stored encrypted
+    rows: 128
+  note: Currently synthetic micro data for pipeline validation; the formal version replaces it with frozen OpenML datasets
+submission:
+  kind: code_plus_checkpoint
+  entry: model.py
+  checkpoint_dir: checkpoint
+  allowed_top_level:
+  - README.md
+  - model.py
+  - src
+  - checkpoint
+  - report
+  - references.yaml
+  - manifest.yaml
+  max_bytes: 52428800
+  report_profile: design_report_v2
+judge:
+  kind: tabular_classification
+  n_classes: 2
+  metrics:
+  - accuracy
+  - roc_auc
+  - log_loss
+  timeout_sec: 300
+  cpu_seconds: 300
+  memory_mb: 4096
+  threads: 1

@@ -1,0 +1,29 @@
+contract_version: abench-scaffold-v1
+case_id: X-SFT-005
+status: scaffold
+simulated_outputs: false
+real_inputs_required: true
+blocked_inputs:
+- frozen_base_checkpoint_tokenizer_and_quantization_config
+- offline_instruction_mix_and_hidden_task_split
+- server_gpu_memory_and_wall_clock_measurement
+metrics:
+- instruction_quality
+- pretrain_ce_regression
+- trainable_params_m
+- peak_memory_gb
+- train_gpu_hours
+objective: pareto_frontier
+required_provenance:
+- runner_version
+- config_hash
+- resource_hash
+- artifact_hash
+formal_scoring: deferred_until_real_calibration
+objective_mode: pareto
+resource_profile: posttrain_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+report_profile: design_report_v2
+report_focus: post_training_method

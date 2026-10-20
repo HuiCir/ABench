@@ -1,0 +1,29 @@
+contract_version: abench-scaffold-v1
+case_id: K-COMP-005
+status: scaffold
+simulated_outputs: false
+real_inputs_required: true
+blocked_inputs:
+- fixed_torch_cuda_container_and_gpu_model
+- operator_graphs_and_hidden_shapes
+- server_timer_numeric_equivalence_checker
+metrics:
+- steady_tokens_per_second
+- compile_seconds
+- peak_memory_gb
+- first_run_latency_ms
+- max_abs_error
+objective: pareto_frontier
+required_provenance:
+- runner_version
+- config_hash
+- resource_hash
+- artifact_hash
+formal_scoring: deferred_until_real_calibration
+objective_mode: pareto
+resource_profile: single_gpu_24gb
+spec_refs:
+- spec/pareto_protocol.md
+- spec/sandbox_profiles.md
+report_profile: design_report_v2
+report_focus: system_efficiency

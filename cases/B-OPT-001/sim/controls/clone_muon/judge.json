@@ -1,0 +1,10 @@
+{
+  "_note": "SIMULATED: simulated judge output for a control group",
+  "source_usage": {"arXiv:2502.16982": "core", "arXiv:1412.6980": "core", "arXiv:2302.06675": "decorative"},
+  "nearest_prior_art": "Muon (2502.16982): equivalent method, only renamed and retuned",
+  "judges": [
+    {"novelty_level": 0, "note": "Equivalent to Muon"},
+    {"novelty_level": 0, "note": "Variables renamed; update rule unchanged"},
+    {"novelty_level": 0, "note": "Equivalent to Muon + AdamW fallback"}
+  ]
+}

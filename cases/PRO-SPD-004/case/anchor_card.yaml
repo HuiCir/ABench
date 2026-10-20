@@ -1,0 +1,56 @@
+# Auto-generated bench scaffold; freeze inputs before activation.
+case_id: PRO-SPD-004
+readiness: deferred
+title: 'Pretraining speedrun: GPT-2 Medium scale to a FineWeb loss target on 4 × H100'
+version: v2026.07
+cutoff: '2026-07-01'
+track: PRO
+track_name: Industrial-scale essentials
+group: pro
+priority: P1
+type: T1
+subset: main
+difficulty: high
+budget_tier: pro
+status: deferred
+anchor:
+  name: Chinchilla (compute-optimal training)
+  arxiv: '2203.15556'
+  verify_before_freeze: true
+task: 'Pretraining speedrun: on 4 × H100, train a dense model of at most 450M parameters to FineWeb validation loss 2.92 (GPT-2 Medium track) in the shortest wall-clock time'
+metrics: Wall-clock time to the target loss (mean of 2 reruns by the benchmark)
+verify_plan:
+  proxy:
+  - RERUN
+  dev: 96
+  verify: 16
+  ref: 32
+  unit: H100-h
+  risk: []
+  plan: The benchmark reruns the final recipe in full twice (each ≤ 2 hours × 4 GPUs); the reference recipe takes about 4 hours
+deliverable:
+  format: submission directory + manifest + signed run records
+  simulated_outputs: false
+blocked_inputs:
+- 4xH100_scheduler_and_network_sandbox
+- hidden_tasks_and_post_cutoff_eval
+- hash_chain_and_1h_resume_audit
+- pro_hardware_quota_and_resume_audit
+resource_profile:
+  sandbox_profile: pro_4xh100
+  hardware_class: 4xh100_80gb
+  accelerator: H100_SXM
+  accelerator_count: 4
+  memory_gib: 80
+  cost_unit: H100-h
+  leaderboard: pro
+  limits:
+    agent_dev: {value: 96, unit: H100-h}
+    per_submission_verify: {value: 12, unit: H100-h}
+    reference_precompute: {value: 192, unit: H100-h}
+  sandbox:
+    network: allowlisted_hf_pip_only
+    filesystem: output_only
+    hidden_inputs: server_only
+    measurement: server_side
+standard_case: spec/standard_cases/PRO-SPD-004.yaml   # the agent-facing contract (task statement v2.1) is generated from this spec

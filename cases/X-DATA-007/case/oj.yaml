@@ -1,0 +1,28 @@
+schema: abench.oj/v2
+case_id: X-DATA-007
+agent_visible:
+  task: case/agent/task.md
+  interface: []
+data:
+  public: []
+  hidden: null
+  note: to be frozen
+submission:
+  kind: code_plus_checkpoint
+  entry: model.py
+  checkpoint_dir: checkpoint
+  allowed_top_level:
+  - README.md
+  - model.py
+  - src
+  - checkpoint
+  - report
+  - references.yaml
+  - manifest.yaml
+  - submission_manifest.yaml
+  max_bytes: 52428800
+  report_profile: design_report_v2
+judge:
+  kind: pending
+  note: 'Judge to be frozen: implemented at activation, reading only the submitted
+    code and checkpoint'

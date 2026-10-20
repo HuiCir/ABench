@@ -1,0 +1,72 @@
+# Reference pool: the only comparison basis for the SOTA margin.
+# Because each agent retrieves different papers, the SOTA margin is not judged against "opponents the agent found itself",
+# but against the performance, in the given settings, of the classic methods listed here, reproduced and tuned uniformly by the benchmark operator.
+#
+# Shared rules
+#   - same training framework, same data order, same learning-rate schedule family (warmup + cosine or WSD, chosen as a hyperparameter)
+#   - each method gets the same hyperparameter-search budget at μ1 (16 trials, see eval_protocol.yaml);
+#     the best configuration transfers to μ2/μ3 by μP-style rules, with 4 more local refinement trials at μ2
+#   - 3 seeds per setting; reference methods train with a WSD schedule to 2× the token budget, with a learning-rate decay branch
+#     at each of {0.5, 0.7, 1.0, 1.4, 2.0}× budget, giving a "budget–final loss" curve (each point is the loss after decay); speedups up to 2× are measurable
+#   - for parameters other than 2D matrices (embedding, norm, bias), matrix optimizers fall back to AdamW as in the original papers
+#
+# arXiv IDs and publication details were compiled from memory and must be checked one by one before freezing (verify: true).
+
+references:
+  - id: adamw
+    name: AdamW
+    arxiv: "1711.05101"
+    venue: "ICLR 2019"
+    impl: "torch.optim.AdamW (fused=True)"
+    role: baseline              # common denominator of speedup, also part of the envelope
+  - id: adafactor
+    name: Adafactor
+    arxiv: "1804.04235"
+    venue: "ICML 2018"
+    impl: "transformers.optimization.Adafactor (relative_step=False)"
+  - id: lion
+    name: Lion
+    arxiv: "2302.06675"
+    venue: "NeurIPS 2023"
+    impl: "https://github.com/lucidrains/lion-pytorch"
+  - id: sophia
+    name: Sophia-G
+    arxiv: "2305.14342"
+    venue: "ICLR 2024"
+    impl: "https://github.com/Liuhong99/Sophia"
+  - id: schedulefree_adamw
+    name: Schedule-Free AdamW
+    arxiv: "2405.15682"
+    venue: "NeurIPS 2024"
+    impl: "https://github.com/facebookresearch/schedule_free"
+    note: "Has its own schedule; optimizer.eval() is called at evaluation to take the averaged parameters"
+  - id: ademamix
+    name: AdEMAMix
+    arxiv: "2409.03137"
+    venue: "ICLR 2025"
+    impl: "https://github.com/apple/ml-ademamix"
+  - id: soap
+    name: SOAP
+    arxiv: "2409.11321"
+    venue: "ICLR 2025"
+    impl: "https://github.com/nikhilvyas/SOAP"
+  - id: mars
+    name: MARS-AdamW
+    arxiv: "2411.10438"
+    venue: "ICML 2025"
+    impl: "https://github.com/AGI-Arena/MARS"
+  - id: cautious_adamw
+    name: Cautious AdamW (C-AdamW)
+    arxiv: "2411.16085"
+    venue: "arXiv"
+    impl: "https://github.com/kyleliang919/C-Optim"
+  - id: muon
+    name: Muon (with RMS matching and weight decay)
+    arxiv: "2502.16982"
+    venue: "Moonshot AI technical report (original method in K. Jordan's 2024 blog post)"
+    impl: "https://github.com/KellerJordan/Muon ; RMS matching follows the 0.2·sqrt(max(m,n)) rule of 2502.16982"
+
+verify: true
+
+# Precomputed results: real run artifacts filled in by the benchmark operator; this repository provides no simulated substitute
+precomputed_results: outputs/reference_runs/   # one real loss curve per (method, setting, seed)

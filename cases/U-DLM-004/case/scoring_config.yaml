@@ -1,0 +1,76 @@
+# Scoring contract scaffold; calibrate coefficients before leaderboard use.
+version: v0-scaffold
+primary_metrics:
+- Perplexity upper bound at equal compute
+- Gap to the AR baseline
+- Generative perplexity vs NFE
+normalization:
+  direction: higher_is_better per metric declaration
+  baseline: server reference envelope
+  aggregation: geometric mean for ratios; arithmetic mean for bounded scores; publish
+    both
+gates:
+- valid_run_manifest
+- resource_and_time_budget
+- finite_metrics
+- deterministic_replay
+- no_hidden_input_or_network_access
+- quality floor versus reference baseline
+discovery: optional when submitted; score only with server-side evidence and source
+  verification
+missing_real_artifacts: report pending rather than zeroing a fabricated score
+simulation_policy: 'none: this scaffold does not generate scores'
+deferred_due_to:
+- frozen_checkpoint_or_synthetic_task_suite
+- long_context_and_compute_calibration
+- reference_runs
+- specific_anchor_or_citation_verification
+# Shared multi-objective evaluation; formal coefficients are frozen after calibration.
+objective_mode: pareto
+pareto:
+  axes:
+    - id: quality
+      metric: case_defined_quality
+      direction: maximize
+      unit: normalized_score
+      required: true
+      source: server
+    - id: throughput
+      metric: throughput_items_per_s
+      direction: maximize
+      unit: case_defined_per_s
+      required: false
+      source: server
+    - id: peak_memory
+      metric: peak_memory_mb
+      direction: minimize
+      unit: MiB
+      required: false
+      source: server
+    - id: compute_cost
+      metric: compute_cost_gpu_h
+      direction: minimize
+      unit: reference_h
+      required: false
+      source: server
+    - id: stability
+      metric: stable_success_rate
+      direction: maximize
+      unit: fraction
+      required: true
+      source: server
+  feasibility:
+    - metric: quality
+      op: ">="
+      threshold: reference_quality_floor
+    - metric: compute_cost
+      op: "<="
+      threshold: declared_budget
+  comparison:
+    scope: same_case_same_hardware_same_budget_tier
+    reference: reference_envelope
+    unavailable_axis: null_and_exclude_from_frontier
+    uncertainty: confidence_interval_then_noise_floor
+  aggregation: empirical_frontier
+  report: [frontier_points, normalized_hypervolume, knee_point, dominated_by_reference, confidence_intervals]
+  tie_break: lower_compute_cost_then_lower_peak_memory_then_lower_variance

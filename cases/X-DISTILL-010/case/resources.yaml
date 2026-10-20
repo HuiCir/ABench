@@ -1,0 +1,30 @@
+case_id: X-DISTILL-010
+status: scaffold
+resource_rating: medium
+offline_bundle: distill_text_mix_v1 + capability_holdout_v1 + pretrain_probe_v1 (server-signed manifest)
+datasets:
+- Offline text/instruction corpus under a fixed license, deduplicated and split by capability family, length and template
+- Teacher logits/cache may be precomputed and signed by the server; the submission must not read hidden labels
+- Small pretraining probe corpus for measuring forgetting
+models:
+- Frozen teacher checkpoint of ≤ 350M; student checkpoint of ≤ 125M and tokenizer fixed
+- Student initialization, vocabulary, layer mapping and trainable scope are declared in the manifest
+software:
+- PyTorch 2.6 and transformers/accelerate versions locked; external downloads disabled
+hardware: One 24GB GPU; the teacher may use the server cache, and student training runs in the same sandbox
+private_resources:
+- Hidden capability tasks/templates, teacher-cache checksum, reference distillation recipes and contamination checker
+sandbox_constraints:
+- No network; the teacher/student/tokenizer must not be replaced and hidden labels must not be accessed
+- Only the declared distillation loss, temperature, layer mapping and student-parameter training are allowed
+- Caches, checkpoints and results are written to an isolated working directory; training/inference resources are measured server-side
+blocked_inputs: [frozen_teacher_student_tokenizer_and_initialization_hash, offline_distillation_corpus_and_capability_holdout, server_training_and_inference_timer]
+no_download_or_training_in_scaffold: true
+resource_profile: posttrain_24gb
+spec_refs: [spec/pareto_protocol.md, spec/sandbox_profiles.md]
+sandbox_profile: posttrain_24gb
+budget_tier: medium
+hardware_class: single_gpu_24gb
+cost_unit: GPU-h
+resource_limits: {agent_dev: 3, per_submission_verify: 1.5, reference_precompute: 15}
+limits_unit: GPU-h

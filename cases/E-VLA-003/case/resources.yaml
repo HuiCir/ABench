@@ -1,0 +1,24 @@
+# Resource registry scaffold; URLs/checkpoints are intentionally not fabricated.
+case_id: E-VLA-003
+status: deferred
+required:
+  datasets: freeze source, version, split, license and sha256 before activation
+  models: freeze config/checkpoint/revision and sha256
+  software: freeze container, compiler/CUDA/PyTorch versions
+  hardware: record device model, driver, clocks and thermal state
+public_resources:
+  anchor: OpenVLA
+  arxiv: '2406.09246'
+  track_proxy:
+  - FROZEN
+  notes:
+  - Frozen backbone plus lightweight head; re-pretraining on the submission side is forbidden
+private_resources:
+- hidden test split or task instances
+- reference runs and tuned baselines
+- server signing key / run manifest
+blocked_inputs:
+- LIBERO_or_SimplerEnv_version_and_assets
+- simulator_determinism_and_30Hz_measurement
+- perturbation_holdout_tasks
+no_download_or_training_in_scaffold: true
