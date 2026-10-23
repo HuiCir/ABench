@@ -4,6 +4,7 @@ Maintained by hand and by this tool. Columns marked (derived) are recomputed fro
 checked by --check; the other columns are the operator's record and are only validated.
 
   case_id, track, group, type, budget            (derived from index.yaml)
+  area, subarea   (derived) the testing and ownership split of spec/areas.yaml
   design          (derived) none | designed       spec/cases/<ID>.yaml, spec/standard_cases/<ID>.yaml or a handcrafted oj.yaml
   mode            (derived) checkpoint | judge_trains | no_training | timed_train | judgment | - (from the spec or oj.yaml)
   device          (derived) cpu | gpu | 4xH100
@@ -35,7 +36,7 @@ checked by --check; the other columns are the operator's record and are only val
 Usage:
   python3 tools/verify_registry.py --check     # validate; exit 1 on any inconsistency
   python3 tools/verify_registry.py --sync      # add rows for new index cases, drop removed ones, refresh derived columns
-  python3 tools/verify_registry.py --summary   # counts per stage
+  python3 tools/verify_registry.py --summary   # counts per stage and per area
 """
 from __future__ import annotations
 
@@ -50,10 +51,10 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CSV = ROOT / "verify.csv"
-COLS = ["case_id", "track", "group", "type", "budget", "design", "mode", "device", "harness", "prepare", "secret_seed",
+COLS = ["case_id", "track", "group", "area", "subarea", "type", "budget", "design", "mode", "device", "harness", "prepare", "secret_seed",
         "data_source", "ref_run", "ref_result", "baseline_tuned", "data_frozen", "hidden_escrow", "activation",
         "review_tier", "review_note", "last_update", "blockers", "next_step"]
-DERIVED = ["track", "group", "type", "budget", "design", "mode", "device", "harness", "prepare", "secret_seed"]
+DERIVED = ["track", "group", "area", "subarea", "type", "budget", "design", "mode", "device", "harness", "prepare", "secret_seed"]
 ENUM = {"design": {"none", "designed"}, "harness": {"yes", "no"}, "prepare": {"yes", "no"}, "secret_seed": {"yes", "no"},
         "data_source": {"public_verified", "operator_download", "generated", "blocked", "-"},
         "ref_run": {"none", "mock", "synthetic", "real_cpu", "real_gpu"},
@@ -62,6 +63,22 @@ ENUM = {"design": {"none", "designed"}, "harness": {"yes", "no"}, "prepare": {"y
         "review_tier": {"-", "cal", "1", "2", "3"}}
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 HANDCRAFTED_PREPARE = {"IC-SPD-001": "tools/prepare_ic_spd.py"}
+
+
+def area_of() -> dict:
+    """case id -> (area id, subarea id) from spec/areas.yaml."""
+    p = ROOT / "spec" / "areas.yaml"
+    if not p.is_file():
+        return {}
+    out = {}
+    for a in yaml.safe_load(p.read_text(encoding="utf-8"))["areas"]:
+        for sa in a["subareas"]:
+            for cid in sa["cases"]:
+                out[cid] = (a["id"], sa["id"])
+    return out
+
+
+AREAS = area_of()
 
 
 def index_cases() -> list[tuple[dict, dict]]:
@@ -101,17 +118,19 @@ def derived(track: dict, c: dict) -> dict:
         mod = ROOT / HANDCRAFTED_PREPARE[cid]
     prepare = "yes" if mod.is_file() else "no"
     seed = "yes" if prepare == "yes" and "SECRET_SEED_ENV" in mod.read_text(encoding="utf-8") else "no"
-    return {"track": track["id"], "group": track.get("group", ""), "type": c.get("type", ""), "budget": c.get("budget", ""),
+    area, sub = AREAS.get(cid, ("-", "-"))
+    return {"track": track["id"], "group": track.get("group", ""), "area": area, "subarea": sub, "type": c.get("type", ""), "budget": c.get("budget", ""),
             "design": "designed" if designed else "none", "mode": mode, "device": device, "harness": harness,
             "prepare": prepare, "secret_seed": seed}
 
 
-def read() -> list[dict]:
+def read(allow_new_columns: bool = False) -> list[dict]:
     with open(CSV, newline="", encoding="utf-8") as f:
         r = csv.DictReader(f)
         if r.fieldnames != COLS:
-            raise SystemExit(f"verify.csv columns differ from {COLS}")
-        return list(r)
+            if not (allow_new_columns and set(r.fieldnames or []) <= set(COLS)):
+                raise SystemExit(f"verify.csv columns differ from {COLS} (run --sync)")
+        return [{k: row.get(k, "") or "" for k in COLS} for row in r]
 
 
 def write(rows: list[dict]) -> None:
@@ -198,7 +217,7 @@ def sync(rows: list[dict]) -> list[dict]:
 
 def summary(rows: list[dict]) -> None:
     print(f"{len(rows)} cases")
-    for k in ("design", "review_tier", "ref_run", "activation", "data_source", "device"):
+    for k in ("area", "subarea", "design", "review_tier", "ref_run", "activation", "data_source", "device"):
         print(f"  {k}: " + ", ".join(f"{v} {n}" for v, n in sorted(Counter(r[k] for r in rows).items())))
 
 
@@ -209,7 +228,7 @@ def main() -> int:
     g.add_argument("--sync", action="store_true")
     g.add_argument("--summary", action="store_true")
     a = ap.parse_args()
-    rows = read() if CSV.is_file() else []
+    rows = read(allow_new_columns=a.sync) if CSV.is_file() else []
     if a.sync:
         rows = sync(rows)
         write(rows)

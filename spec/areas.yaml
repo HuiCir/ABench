@@ -1,0 +1,71 @@
+schema: abench.areas/v1
+description: >-
+  The 73 cases in five parts for testing and ownership: four research areas of 15-19 cases, each made of a few
+  sub-areas, and the Pro Set (industrial-scale cases on 4 x H100, verified by audit) on its own. Every case is in
+  exactly one sub-area (checked by tests/test_areas.py); verify.csv carries the area of every case.
+areas:
+  - id: llm-pretrain
+    name: LLM architecture and pretraining
+    short: llm / opt
+    subareas:
+      - id: llm-arch
+        name: Sequence-model architecture
+        cases: [A-HYB-001, A-LIN-002, A-MOE-003, A-KV-004, A-NORM-005, A-LCTX-006]
+      - id: llm-paradigm
+        name: Non-mainstream LM paradigms (looped depth, diffusion LM, byte-level, test-time training, KAN)
+        cases: [U-LOOP-001, U-LOOP-002, U-LOOP-003, U-DLM-004, U-BYTE-007, U-TTT-008, U-KAN-009]
+      - id: opt
+        name: Optimizers and hyperparameter transfer
+        cases: [B-OPT-001, B-OPT-002, B-OPT-003, B-OPT-004, X-MUP-003, T-OPT-002]
+  - id: llm-post
+    name: LLM post-training and efficient inference
+    short: post-training / inference
+    subareas:
+      - id: post-training
+        name: Post-training, alignment, PEFT, distillation, data recipes
+        cases: [X-GRPO-002, X-DPO-006, X-SFT-005, X-LORA-004, X-DISTILL-010, X-DATA-007, X-ROBUST-009]
+      - id: inference
+        name: Inference acceleration (speculative decoding, KV cache, quantization, sampling)
+        cases: [C-SPEC-001, C-KV-002, C-QNT-003, U-DLM-005]
+      - id: kernels
+        name: GPU kernels
+        cases: [C-FA-004, K-KB-001, K-FUS-002, K-FA-003]
+  - id: cv
+    name: Vision, embodied AI and multimodal
+    short: cv / embodied
+    subareas:
+      - id: cv-gen
+        name: Image generation and sampling
+        cases: [V-GEN-001, V-SMP-002, V-DIT-003, V-DST-004, T-SPEC-003]
+      - id: cv-rec
+        name: Recognition, 3D and medical imaging
+        cases: [V-BB-006, V-3DG-005, IC-SPD-001, IC-RES-002, IC-AUG-003, MD-SEG-001]
+      - id: embodied
+        name: Embodied AI and control
+        cases: [E-ACT-001, E-RT-002, E-VLA-003, T-FM-001, X-PPO-001]
+      - id: multimodal
+        name: Multimodal and audio
+        cases: [T-MM-004, T-AUDIO-005]
+  - id: data-science
+    name: Data science, recommendation, graphs and scientific domains
+    short: rec / graph / tabular / science
+    subareas:
+      - id: tabular-text
+        name: Tabular data and text classification (CPU)
+        cases: [DS-GBM-001, DS-PIPE-002, TC-FT-001]
+      - id: rec-graph
+        name: Recommendation and graphs
+        cases: [RS-SEQ-001, RS-GRAPH-002, GN-OGB-002]
+      - id: finance-law
+        name: Finance and law (forecasting, documents, frozen-LLM pipelines)
+        cases: [FN-LTSF-005, FN-QA-004, LG-LONG-001, LG-RSN-003]
+      - id: science
+        name: Physics and biology
+        cases: [PH-NO-001, PH-WELL-002, PH-MLIP-003, PH-SYM-005, BI-PROT-001]
+  - id: pro
+    name: Pro Set (4 x H100, audit instead of retraining)
+    short: pro
+    subareas:
+      - id: pro
+        name: Industrial-scale pretraining, post-training and serving
+        cases: [PRO-ARL-001, PRO-OPD-002, PRO-MOE-003, PRO-SPD-004, PRO-SRV-005, PRO-SPEC-006]

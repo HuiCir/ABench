@@ -88,7 +88,8 @@
   const REFRUN_TAG = { real_gpu: "green", real_cpu: "green", synthetic: "amber", mock: "plain", none: "plain" };
   const regTags = c => {
     const r = c.registry || {};
-    return `<span class="tag ${REFRUN_TAG[r.ref_run] || "plain"}">${esc(REFRUN_ZH[r.ref_run] || r.ref_run || "state unknown")}</span>`
+    const ar = (A.areas || []).find(x => x.id === r.area);
+    return (ar ? `<span class="tag">${esc(ar.short || ar.name)}</span>` : "") + `<span class="tag ${REFRUN_TAG[r.ref_run] || "plain"}">${esc(REFRUN_ZH[r.ref_run] || r.ref_run || "state unknown")}</span>`
       + (r.review_tier === "cal" ? `<span class="tag amber">pipeline calibration</span>` : "")
       + (r.activation === "active" ? `<span class="tag green">active</span>` : `<span class="tag plain">awaiting data freeze</span>`);
   };
@@ -968,7 +969,7 @@
       });
     });
     box.innerHTML = html;
-    box.addEventListener("click", e => { const b = e.target.closest("button[data-d]"); if (!b) return; Cases.set({ diff: b.dataset.d, res: b.dataset.r, group: null, status: null, kind: null, q: "" }); document.getElementById("cases").scrollIntoView({ behavior: RM ? "auto" : "smooth" }); });
+    box.addEventListener("click", e => { const b = e.target.closest("button[data-d]"); if (!b) return; Cases.set({ diff: b.dataset.d, res: b.dataset.r, area: null, group: null, status: null, kind: null, q: "" }); document.getElementById("cases").scrollIntoView({ behavior: RM ? "auto" : "smooth" }); });
     onView(box, () => [...box.querySelectorAll("button")].forEach((b, i) => pop(b, i * 50, 320)));
   })();
 
@@ -1023,7 +1024,9 @@
 
   // ------------------------------------------------------------------ case browser
   const Cases = (() => {
-    const st = { group: null, diff: null, res: null, status: null, kind: null, q: "" };
+    const st = { area: null, group: null, diff: null, res: null, status: null, kind: null, q: "" };
+    const AREAS = A.areas || [];
+    const AREA_NAME = Object.fromEntries(AREAS.map(a => [a.id, a.short || a.name]));
     const nGroups = new Set(allCases.map(c => c.group)).size;
     $("#casesLede").textContent = `${nGroups} groups, ${IDX.tracks.length} tracks, ${allCases.length} cases. Click a row to see the task, verification plan and evaluation mode.`;
     function chips(id, key, values, names) {
@@ -1041,7 +1044,7 @@
     search.addEventListener("input", () => { st.q = search.value; renderList(); });
     function hit(c) {
       const q = st.q.trim().toLowerCase();
-      return (!st.group || c.group === st.group) && (!st.diff || c.difficulty === st.diff) && (!st.res || c.budget === st.res) && (!st.status || (c.registry || {}).ref_run === st.status) && (!st.kind || c.oj?.kind === st.kind)
+      return (!st.area || (c.registry || {}).area === st.area) && (!st.group || c.group === st.group) && (!st.diff || c.difficulty === st.diff) && (!st.res || c.budget === st.res) && (!st.status || (c.registry || {}).ref_run === st.status) && (!st.kind || c.oj?.kind === st.kind)
         && (!q || [c.id, c.anchor, c.arxiv, c.task, c.metrics, c.track.name].join(" ").toLowerCase().includes(q));
     }
     function renderList() {
@@ -1059,6 +1062,7 @@
       $("#caseCount").textContent = `Showing ${n} / ${allCases.length}`;
     }
     function render() {
+      chips("#fArea", "area", AREAS.map(a => a.id), AREA_NAME);
       chips("#fGroup", "group", GROUP_ORDER, GROUP_TITLE);
       chips("#fDiff", "diff", LEVELS, { low: "low", medium: "medium", high: "high" });
       chips("#fRes", "res", ["low", "medium", "high", "pro"], LEVEL_ZH);

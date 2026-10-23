@@ -227,6 +227,18 @@ def judge_isolation(key_file: Path | None, oj: dict[str, Any]) -> dict[str, Any]
     if bad or not dep_ok or running or (netns and iso.get("network_probe") != "offline"):
         raise SystemExit(f"judge child isolation preflight failed: reachable={bad} dependency_readable={dep_ok} "
                          f"running={len(running)} network={iso.get('network_probe')}")
+    # if the judge itself is stopped (timeout, Ctrl-C), take the child user's processes with it, so that no
+    # submission code keeps running and the next judge's preflight finds the user idle
+    import signal
+
+    def _stop(signum, frame):
+        subprocess.run(["pkill", "-KILL", "-u", str(pw.pw_uid)], capture_output=True)
+        raise SystemExit(f"judge stopped by signal {signum}")
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        try:
+            signal.signal(sig, _stop)
+        except ValueError:                     # not the main thread: the caller handles signals
+            break
     return iso
 
 

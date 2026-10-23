@@ -5,17 +5,25 @@
 # stage protocol and the metrics work on this host.
 #
 #   sudo bash sandbox/calibration/calibrate.sh DS-PIPE-002                     # synthetic data (plumbing)
-#   sudo bash sandbox/calibration/calibrate.sh TC-FT-001
 #   sudo DATA=/path/to/raw bash sandbox/calibration/calibrate.sh FN-LTSF-005    # real data
+#   sudo DEVICE=cuda DATA=/path/to/raw bash sandbox/calibration/calibrate.sh V-SMP-002   # any case except the Pro Set
+#
+# Works for every case outside the Pro Set (whose checkpoints are verified by audit, spec/pro_set.md). Checkpoint
+# cases train their reference checkpoint first; in the other modes the evaluator trains or only runs the reference
+# code, so the reference submission is judged as it is. GPU cases need PyTorch and a GPU (DEVICE, default: the
+# device of oj.yaml), and cases with frozen pretrained models need real data (their synthetic data has no models).
 #
 # Steps
 #   1. host checks; the key (KEY, default ~/.abench/hidden.key, created 0600 if missing)
 #   2. a copy of the repository in a directory only root can read ($ABENCH_CAL_HOME/work/<case>, default
 #      ~/.abench/calibration), so freezing never touches your checkout
-#   3. freeze: DATA=synthetic (default; never scorable) or DATA=<raw dir> (python3 tools/prepare/run.py --case <ID>
-#      --list-sources); ALLOW_UNVERIFIED=1 records sources that could not be checked online
-#   4. train the reference checkpoint: example_submission/train.py on the public files, with the final flag of
-#      sandbox/calibration/cases.yaml
+#   3. freeze: DATA=synthetic (default; small plumbing data, never scorable), DATA=<raw dir> (python3
+#      tools/prepare/run.py --case <ID> --list-sources; ALLOW_UNVERIFIED=1 records sources that could not be checked
+#      online) or DATA=generated (cases whose held-out set is generated with a secret seed: PH-SYM-005, U-LOOP-002, ...;
+#      the seed is escrowed next to the key)
+#   4. checkpoint cases: train the reference checkpoint with example_submission/train.py on the public files (the
+#      options it supports: --include-dev / --final for the submitted checkpoint, --models, --device; extra options
+#      per case in sandbox/calibration/cases.yaml)
 #   5. judge: tools/oj_eval.py; with root and the user abench-judge the submission's code runs as that user in a new
 #      network namespace (ABENCH_JUDGE_CHILD_USER), otherwise as the caller (recorded as host_soft)
 #   6. the record goes to runs/<case>/<run id>/evaluation.json of this checkout; a summary is printed
@@ -33,9 +41,15 @@ fail() { printf '\nFAILED: %s\n' "$*" >&2; exit 1; }
 
 say "host checks"
 "$PY" -c "import numpy, scipy, sklearn, yaml" 2>/dev/null || fail "$PY needs numpy, scipy, scikit-learn and pyyaml"
-"$PY" -c "import sys, yaml; c = yaml.safe_load(open('$ROOT/sandbox/calibration/cases.yaml')); sys.exit(0 if '$CASE' in c else 1)" \
-  || fail "$CASE is not in sandbox/calibration/cases.yaml"
-cfg() { "$PY" -c "import yaml; c = yaml.safe_load(open('$ROOT/sandbox/calibration/cases.yaml')); v = c['$CASE'].get('$1'); print('' if v is None else v)"; }
+[ -f "$ROOT/cases/$CASE/case/oj.yaml" ] || fail "no such case: $CASE"
+case "$CASE" in PRO-*) fail "Pro Set cases are verified by audit on 4 x H100 (spec/pro_set.md), not by this script";; esac
+cfg() { "$PY" -c "import yaml; c = (yaml.safe_load(open('$ROOT/sandbox/calibration/cases.yaml')) or {}).get('$CASE') or {}; v = c.get('$1'); print('' if v is None else v)"; }
+ojget() { "$PY" -c "import yaml; o = yaml.safe_load(open('$ROOT/cases/$CASE/case/oj.yaml')); print($1)"; }
+MODE="$(ojget "o.get('mode') or (o.get('judge') or {}).get('kind')")"
+OJDEV="$(ojget "(o.get('judge') or {}).get('device', 'cpu')")"
+DEVICE="${DEVICE:-$(cfg device)}"; DEVICE="${DEVICE:-$OJDEV}"
+echo "  case $CASE: mode $MODE, judge device $OJDEV, device used $DEVICE"
+if [ "$DEVICE" != cpu ]; then "$PY" -c "import torch" 2>/dev/null || fail "$CASE runs on $DEVICE: PyTorch is required"; fi
 ISO=0
 if [ "$(uname -s)" = Linux ] && [ "$(id -u)" = 0 ] && id abench-judge >/dev/null 2>&1 \
    && command -v setpriv >/dev/null && command -v unshare >/dev/null; then
@@ -58,34 +72,57 @@ echo "  $WORK"
 cd "$WORK"
 
 say "freeze data ($DATA)"
-if [ "$DATA" = synthetic ]; then
+PREP=(tools/prepare/run.py --case "$CASE"); [ "$CASE" = IC-SPD-001 ] && PREP=(tools/prepare_ic_spd.py)
+ROWS="${ROWS:-$(cfg synthetic_rows)}"; ROWS="${ROWS:-3000}"
+if [ "$DATA" = generated ]; then
+  # held-out sets generated with a secret seed (data_source "generated" in verify.csv): no download, a fresh seed
+  SEED_ENV="$("$PY" -c "import sys; sys.path[:0] = ['tools']; import importlib; m = importlib.import_module('prepare.' + '$CASE'.lower().replace('-', '_')); print(getattr(m, 'SECRET_SEED_ENV', ''))")"
+  [ -n "$SEED_ENV" ] || fail "$CASE has no generated held-out set; use DATA=synthetic or DATA=<raw dir>"
+  export "$SEED_ENV"="${!SEED_ENV:-$("$PY" -c 'import secrets; print(secrets.randbelow(2**31 - 1) + 1)')}"
+  mkdir -p "$CAL/empty_raw"
+  "$PY" "${PREP[@]}" --raw-dir "$CAL/empty_raw" --key-file "$KEY" | tail -1
+elif [ "$DATA" = synthetic ]; then
   export ABENCH_ALLOW_SYNTHETIC=1
-  "$PY" tools/prepare/run.py --case "$CASE" --synthetic "$(cfg synthetic_rows)" --key-file "$KEY" | tail -1
+  "$PY" "${PREP[@]}" --synthetic "$ROWS" --key-file "$KEY" | tail -1
 else
   [ -d "$DATA" ] || fail "DATA must be 'synthetic' or a directory with the raw files"
-  "$PY" tools/prepare/run.py --case "$CASE" --raw-dir "$DATA" --key-file "$KEY" ${ALLOW_UNVERIFIED:+--allow-unverified} | tail -1
+  [ "$CASE" = IC-SPD-001 ] && unset ALLOW_UNVERIFIED
+  "$PY" "${PREP[@]}" --raw-dir "$DATA" --key-file "$KEY" ${ALLOW_UNVERIFIED:+--allow-unverified} | tail -1
 fi
 
-say "train the reference checkpoint"
 SUB="$WORK/reference_submission"
 rm -rf "$SUB"; cp -R "cases/$CASE/example_submission" "$SUB"; rm -rf "$SUB/checkpoint" "$SUB/__pycache__"
-PUB="$("$PY" -c "import yaml; print(yaml.safe_load(open('cases/$CASE/case/oj.yaml'))['data']['public_dir'])")"
-MOD="$("$PY" -c "import yaml; print(yaml.safe_load(open('cases/$CASE/case/oj.yaml'))['data'].get('models_dir') or '')")"
+PUB="$(ojget "(o.get('data') or {}).get('public_dir') or ''")"
+MOD="$(ojget "(o.get('data') or {}).get('models_dir') or ''")"
+if [ "$MODE" = checkpoint ]; then
+say "train the reference checkpoint"
 # the environment train.py documents: the interface files (as the sandbox view lays them out) and the data directories
 VIEW="$WORK/reference_view"; rm -rf "$VIEW"; mkdir -p "$VIEW"; cp -R "cases/$CASE/harness" "$VIEW/interface"
 export ABENCH_VIEW_DIR="$VIEW" ABENCH_DATA_DIR="$WORK/$PUB"
 [ -n "$MOD" ] && export ABENCH_MODELS_DIR="$WORK/$MOD"
+ARGS=(--data "$WORK/$PUB" --out checkpoint)
+has() { grep -q "\"$1\"" "$SUB/train.py"; }
+if [ -n "$(cfg final_flag)" ]; then ARGS+=($(cfg final_flag))
+elif has --include-dev; then ARGS+=(--include-dev)
+elif has --final; then ARGS+=(--final); fi
+has --models && [ -n "$MOD" ] && ARGS+=(--models "$WORK/$MOD")
+has --device && ARGS+=(--device "$DEVICE")
+[ -n "$(cfg train_args)" ] && ARGS+=($(cfg train_args))
+echo "  train.py ${ARGS[*]}"
 t0=$(date +%s)
-(cd "$SUB" && PYTHONDONTWRITEBYTECODE=1 "$PY" train.py --data "$WORK/$PUB" --out checkpoint $(cfg final_flag)) > "$CAL/$RUN_ID.train.log" 2>&1 \
+(cd "$SUB" && PYTHONDONTWRITEBYTECODE=1 "$PY" train.py "${ARGS[@]}") > "$CAL/$RUN_ID.train.log" 2>&1 \
   || { tail -20 "$CAL/$RUN_ID.train.log"; fail "reference train.py failed"; }
 echo "  trained in $(( $(date +%s) - t0 )) s ($(du -sh "$SUB/checkpoint" | cut -f1)); log $CAL/$RUN_ID.train.log"
+else
+  echo "  mode $MODE: the evaluator trains or runs the reference code itself; nothing to train here" > "$CAL/$RUN_ID.train.log"
+fi
 
 say "judge (tools/oj_eval.py)"
 # the judge copies what its children need into its own temporary directory; the work tree stays unreadable to them
 [ "$ISO" = 1 ] && export ABENCH_JUDGE_CHILD_USER=abench-judge
 export ABENCH_JUDGE_PYTHONPATH="${ABENCH_JUDGE_PYTHONPATH:-$("$PY" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')}"
 export ABENCH_JUDGE_TOOLS_SHA256="$("$PY" -c "import sys; sys.path.insert(0, 'tools'); import oj_eval; print(oj_eval.tree_hash(oj_eval.TOOLS))")"
-DEV="$(cfg device)"; [ -n "$DEV" ] && export ABENCH_JUDGE_DEVICE="$DEV"
+[ "$DEVICE" != "$OJDEV" ] && export ABENCH_JUDGE_DEVICE="$DEVICE"   # recorded; the run is then not scorable
 OUT="$ROOT/runs/$CASE/$RUN_ID/evaluation.json"
 mkdir -p "$(dirname "$OUT")"
 set +e

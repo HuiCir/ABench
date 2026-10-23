@@ -166,7 +166,7 @@ def registry() -> dict:
     p = ROOT / "verify.csv"
     if not p.is_file():
         return {}
-    keep = ("design", "mode", "device", "data_source", "ref_run", "ref_result", "data_frozen", "activation",
+    keep = ("area", "subarea", "design", "mode", "device", "data_source", "ref_run", "ref_result", "data_frozen", "activation",
             "review_tier", "review_note", "blockers", "next_step", "last_update")
     return {r["case_id"]: {k: r.get(k, "") for k in keep} for r in csv.DictReader(open(p, newline="", encoding="utf-8"))}
 
@@ -270,6 +270,7 @@ def main():
         "_note": "Only the training losses and judge outputs in the historical demo of B-OPT-001 are simulated; no results were generated for the new cases, and formal scoring must use a real runner",
         "index": index,
         "standard": standard_cases(index),
+        "areas": yaml.safe_load((ROOT / "spec" / "areas.yaml").read_text(encoding="utf-8"))["areas"],
         "launch": {"case": "TC-FT-001", "script": "sandbox/run_local_claude_tc_ft_001.sh",
                    "steps": ["preflight", "key", "data", "mock", "agent", "judge"],
                    "verified": "all six steps run in a cloud container with synthetic data and a stub claude CLI (2026-10-20); "

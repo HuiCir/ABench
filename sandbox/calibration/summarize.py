@@ -29,6 +29,8 @@ for r in e.get("runs") or []:
     print(f"seed {r.get('seed_index')}        status={r.get('status')} stages=" +
           ", ".join(f"{s['stage']}:{s['status']}:{s.get('timed_seconds')}s" for s in r.get("stages", [])))
 if e.get("baseline"):
-    print(f"baseline      {e['baseline'].get('path')} metrics={e['baseline'].get('metrics')}")
+    bm = e["baseline"].get("metrics") or {}
+    print(f"baseline      {e['baseline'].get('path')} (run by the judge next to the submission): "
+          + (f"{pm} = {bm.get(pm)}" if pm in bm else f"{len(bm)} metrics"))
 if e.get("error"):
     print(f"judge error   {e['error']}")
