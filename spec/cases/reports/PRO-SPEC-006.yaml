@@ -1,0 +1,76 @@
+case: PRO-SPEC-006
+title: 'An EAGLE-3 Drafter Trained on the Target''s Own Answers'
+abstract: >-
+  This submission trains an EAGLE-3 drafter [@li2025eagle3] for Qwen3-8B [@yang2025qwen3] and serves it with vLLM's
+  exact speculative verification [@leviathan2023spec]. The drafter fuses the target's hidden states from a low, a
+  middle and a high layer, runs one decoder layer and predicts over the 32,000 target tokens most frequent in its
+  training data; training-time test unrolls it for seven steps on its own features. Training data are the target's
+  greedy answers to UltraChat prompts [@ding2023ultrachat].
+sections:
+- title: Introduction
+  paras:
+  - >-
+    At batch size 1, decoding is limited by reading the weights once per token; a cheap drafter that proposes several
+    tokens which the target verifies in one pass converts spare compute into fewer target passes, without changing
+    the output.
+- title: Related Work
+  paras:
+  - >-
+    Speculative decoding verifies drafts exactly [@leviathan2023spec]; EAGLE drafts at the feature level, and
+    EAGLE-3 replaces feature prediction by direct token prediction from fused multi-layer features with
+    training-time test [@li2025eagle3].
+- title: Method
+  paras:
+  - >-
+    60,000 UltraChat first turns are answered greedily by the target (non-thinking template, at most 1,024 tokens);
+    target features are computed on the fly during training. Loss: sum over the seven unrolled steps of 0.8^k times
+    the cross-entropy against the target's next token; AdamW 5e-5, four epochs, a checkpoint every 2,000 steps. The
+    server proposes 5 tokens per step.
+- title: Design Rationale
+  paras:
+  - >-
+    Training on the target's own outputs matches the distribution the drafter sees at inference; training-time test
+    trains the drafter on its own earlier predictions, which raises the acceptance of later draft positions.
+- title: Scope and Limitations
+  paras:
+  - >-
+    A fixed chain of 5 tokens instead of a dynamic tree; the weight names follow vLLM's EAGLE-3 loader at the frozen
+    version and must be checked against it. Nothing here has been run in this build.
+references:
+- id: li2025eagle3
+  title: 'EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test'
+  authors: Yuhui Li, Fangyun Wei, Chao Zhang and Hongyang Zhang
+  year: 2025
+  venue: arXiv
+  arxiv: '2503.01840'
+  used_for: 'Anchor: fused multi-layer features, one-layer drafter, training-time test'
+  code_location: 'train.py: Draft, main'
+- id: leviathan2023spec
+  title: Fast Inference from Transformers via Speculative Decoding
+  authors: Yaniv Leviathan, Matan Kalman and Yossi Matias
+  year: 2023
+  venue: ICML
+  arxiv: '2211.17192'
+  used_for: Exact verification of drafted tokens
+  code_location: 'serve.py: main'
+- id: ding2023ultrachat
+  title: Enhancing Chat Language Models by Scaling High-quality Instructional Conversations
+  authors: Ning Ding, Yulin Chen, Bokai Xu, Yujia Qin, Zhi Zheng, Shengding Hu, Zhiyuan Liu, Maosong Sun and Bowen Zhou
+  year: 2023
+  venue: EMNLP
+  arxiv: '2305.14233'
+  used_for: The training prompts (UltraChat)
+  code_location: 'train.py: main'
+- id: yang2025qwen3
+  title: Qwen3 Technical Report
+  authors: An Yang and others (Qwen Team)
+  year: 2025
+  venue: arXiv
+  arxiv: '2505.09388'
+  used_for: The target model and its chat template
+  code_location: 'train.py: main'
+changes:
+- text: The drafter is trained for Qwen3-8B on its own non-thinking answers with a reduced draft vocabulary chosen from those answers.
+  code: 'train.py: main'
+- text: A chain of 5 speculative tokens served by vLLM instead of EAGLE-3's dynamic draft tree.
+  code: 'serve.py: main'

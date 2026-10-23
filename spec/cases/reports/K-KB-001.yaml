@@ -1,0 +1,86 @@
+case: K-KB-001
+title: 'One-Pass Triton Kernels for the Elementwise Problems, Library Kernels Elsewhere'
+abstract: >-
+  This submission is the case's floor rather than a contender. For the five activation problems of the subset it
+  replaces PyTorch's operator with a one-pass Triton kernel [@tillet2019triton] that reads each element once, computes
+  in fp32 and writes once; for the other 25 problems — matrix products, normalisations, pooling, reductions,
+  convolutions, scans and attention — it submits the problem's own PyTorch code, so cuBLAS and cuDNN do the work
+  [@chetlur2014cudnn]. It is meant to be correct everywhere and close to the baselines, the ratio the case asks
+  entries to improve on [@ouyang2025kernelbench]. It has not been run yet: it needs PyTorch, Triton and a GPU, which
+  were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    KernelBench asks for kernels that replace PyTorch operators while staying within a fixed tolerance of the
+    original [@ouyang2025kernelbench]. Against a baseline that includes torch.compile [@ansel2024pytorch2], simple
+    elementwise problems are already at memory bandwidth, and gains come from operators where the library kernel is
+    a poor fit for the shape.
+- title: Related Work
+  paras:
+  - >-
+    Triton compiles blocked Python kernels to GPU code [@tillet2019triton]; TorchInductor generates Triton for fused
+    elementwise and reduction code [@ansel2024pytorch2]; cuDNN supplies convolutions [@chetlur2014cudnn]; TVM searches
+    schedules and fuses operators [@chen2018tvm]. KernelBench measures fast_p, the share of problems that are correct
+    and faster than a threshold [@ouyang2025kernelbench].
+- title: Method
+  paras:
+  - >-
+    `src/ew.py` holds one Triton kernel parameterised by an operation code: blocks of 4,096 elements with 64-bit
+    offsets, a masked load, the operation in fp32 and a masked store. ReLU, LeakyReLU (slope from the module),
+    sigmoid, hardsigmoid (relu6(x + 3) / 6) and hardtanh (clamp to [−1, 1]) use it; every other problem file is the
+    problem's code with Model renamed ModelNew.
+- title: Design Rationale
+  paras:
+  - >-
+    The activation problems are 0.75 GiB tensors read and written once, so a single pass at full bandwidth is all a
+    kernel can do; the other files keep the library path so that every problem counts as correct.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Nothing is tuned for the reference GPU, no problem other than the activations has a custom kernel, and neither
+    correctness nor timing has been measured yet.
+references:
+- id: ouyang2025kernelbench
+  title: 'KernelBench: Can LLMs Write Efficient GPU Kernels?'
+  authors: Anne Ouyang, Simon Guo, Simran Arora, Alex L. Zhang, William Hu, Christopher Ré and Azalia Mirhoseini
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.10517'
+  used_for: 'Anchor: the problems, the ModelNew interface and the correctness tolerance'
+  code_location: 'kernels/'
+- id: tillet2019triton
+  title: 'Triton: An Intermediate Language and Compiler for Tiled Neural Network Computations'
+  authors: Philippe Tillet, H. T. Kung and David Cox
+  year: 2019
+  venue: MAPL
+  doi: 10.1145/3315508.3329973
+  used_for: Kernel language of the custom kernels
+  code_location: 'src/ew.py: _ew'
+- id: ansel2024pytorch2
+  title: 'PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation'
+  authors: Jason Ansel et al.
+  year: 2024
+  venue: ASPLOS
+  doi: 10.1145/3620665.3640366
+  used_for: The torch.compile baseline (TorchDynamo and TorchInductor)
+  code_location: null
+- id: chetlur2014cudnn
+  title: 'cuDNN: Efficient Primitives for Deep Learning'
+  authors: Sharan Chetlur, Cliff Woolley, Philippe Vandermersch, Jonathan Cohen, John Tran, Bryan Catanzaro and Evan Shelhamer
+  year: 2014
+  venue: arXiv
+  arxiv: '1410.0759'
+  used_for: Library convolutions kept by the fallback files
+  code_location: null
+- id: chen2018tvm
+  title: 'TVM: An Automated End-to-End Optimizing Compiler for Deep Learning'
+  authors: Tianqi Chen et al.
+  year: 2018
+  venue: OSDI
+  arxiv: '1802.04799'
+  used_for: Related work (operator fusion and schedule search)
+  code_location: null
+changes:
+- text: The five activation problems use a single parameterised one-pass Triton kernel instead of PyTorch's operators.
+  code: 'src/ew.py: _ew, apply'

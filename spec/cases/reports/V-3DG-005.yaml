@@ -1,0 +1,73 @@
+case: V-3DG-005
+title: 'Random Backgrounds and an Anisotropy Penalty for Sparse-View Gaussian Splatting'
+abstract: >-
+  This submission is plain 3D Gaussian splatting [@kerbl2023gaussian] from a random initialisation with two
+  changes for sparse views: a random background colour at every training step, and a penalty on Gaussians whose
+  largest scale exceeds ten times their smallest, after the anisotropy regulariser of PhysGaussian [@xie2024physgaussian].
+  Both target artefacts that fit the 24 training views but fail elsewhere; neither adds a prior from outside the scene.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    With 24 views of an unbounded scene, Gaussian splatting overfits: semi-transparent Gaussians imitate the
+    background and needle-shaped ones explain single views. Sparse-view methods such as FSGS add densification rules
+    and depth priors [@zhu2024fsgs]; this submission tests two cheap regularisers that need no prior.
+- title: Related Work
+  paras:
+  - >-
+    3D Gaussian splatting optimises anisotropic Gaussians with a differentiable rasteriser [@kerbl2023gaussian]; FSGS
+    grows Gaussians by proximity and uses monocular depth for sparse views [@zhu2024fsgs]; PhysGaussian limits the
+    ratio of a Gaussian's scales [@xie2024physgaussian]; Mip-NeRF 360 introduced the scenes [@barron2022mipnerf360].
+- title: Method
+  paras:
+  - >-
+    The baseline's 7,000-step schedule, losses and densification are kept. Each step renders against a background
+    colour drawn uniformly at random; the loss adds 0.01 times the mean of max(0, s_max / s_min - 10) over Gaussians.
+- title: Design Rationale
+  paras:
+  - >-
+    A random background makes any Gaussian that stands in for empty space pay a loss on most steps; bounding
+    anisotropy keeps Gaussians from being thin enough to be invisible from all but one viewpoint.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Initialisation is still random in a sphere, and unseen regions get no geometric regularisation. Nothing here has
+    been run in this build.
+references:
+- id: kerbl2023gaussian
+  title: 3D Gaussian Splatting for Real-Time Radiance Field Rendering
+  authors: Bernhard Kerbl, Georgios Kopanas, Thomas Leimkühler and George Drettakis
+  year: 2023
+  venue: ACM Transactions on Graphics (SIGGRAPH)
+  arxiv: '2308.04079'
+  used_for: 'Anchor: the representation, losses, learning rates and densification schedule'
+  code_location: 'src/gs3d.py: fit'
+- id: xie2024physgaussian
+  title: 'PhysGaussian: Physics-Integrated 3D Gaussians for Generative Dynamics'
+  authors: Tianyi Xie, Zeshun Zong, Yuxing Qiu, Xuan Li, Yutao Feng, Yin Yang and Chenfanfu Jiang
+  year: 2024
+  venue: CVPR
+  arxiv: '2311.12198'
+  used_for: The penalty on the ratio of a Gaussian's largest to smallest scale
+  code_location: 'method.py: _anisotropy'
+- id: zhu2024fsgs
+  title: 'FSGS: Real-Time Few-shot View Synthesis using Gaussian Splatting'
+  authors: Zehao Zhu, Zhiwen Fan, Yifan Jiang and Zhangyang Wang
+  year: 2024
+  venue: ECCV
+  arxiv: '2312.00451'
+  used_for: The sparse-view setting with evenly spread training views on Mip-NeRF 360
+  code_location: 'method.py: fit'
+- id: barron2022mipnerf360
+  title: 'Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields'
+  authors: Jonathan T. Barron, Ben Mildenhall, Dor Verbin, Pratul P. Srinivasan and Peter Hedman
+  year: 2022
+  venue: CVPR
+  arxiv: '2111.12077'
+  used_for: The scenes
+  code_location: 'method.py: fit'
+changes:
+- text: A random background colour at every step instead of a fixed one.
+  code: 'method.py: fit; src/gs3d.py: fit'
+- text: A penalty on Gaussian anisotropy above a ratio of 10.
+  code: 'method.py: _anisotropy'

@@ -1,0 +1,101 @@
+case: C-SPEC-001
+title: 'Draft-Model Speculative Decoding with an Adaptive Draft Length'
+abstract: >-
+  This submission applies the anchor's speculative decoding [@leviathan2023spec; @chen2023spec] with the provided
+  Qwen2.5-0.5B-Instruct as draft and greedy verification by the fp32 target: each round the draft proposes k tokens, the
+  target scores them in one forward pass, and the longest agreeing prefix plus the target's own next token is kept, so the
+  output is the target's greedy output. The draft length moves between 1 and 8 with the recent acceptance, in the spirit
+  of later adaptive schemes. The decoding loop was checked against plain greedy decoding in a mock; it has not been
+  timed, since PyTorch and the models were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Autoregressive decoding of a small model is limited by memory bandwidth: every token reads all weights once.
+    Speculative decoding lets a cheaper model guess several tokens that the target checks in one pass; when guesses are
+    right, several tokens cost one target pass. How much it helps depends on the workload, so the case includes one
+    where agreement is expected to be low.
+- title: Related Work
+  paras:
+  - >-
+    Speculative decoding with a draft model was introduced by Leviathan et al. and Chen et al.
+    [@leviathan2023spec; @chen2023spec]; Medusa trains extra heads on the target to draft without a second model
+    [@cai2024medusa]; EAGLE drafts at the feature level [@li2024eagle]; SpecInfer verifies token trees
+    [@miao2024specinfer]; lookahead decoding needs no draft at all [@fu2024lookahead].
+- title: Method
+  paras:
+  - >-
+    The target (fp32) prefills the prompt and the draft (bf16) the prompt without its last token. Each round the draft
+    consumes the tokens it has not seen and proposes k tokens greedily; the target processes its last token and the k
+    proposals; n leading proposals that equal the target's argmax are accepted, followed by the target's argmax at
+    position n. Both caches are cropped to the accepted length. k increases after a fully accepted round and decreases
+    after a round that accepted fewer than half.
+  algorithm_caption: One round
+  algorithm:
+  - draft proposes p_1..p_k greedily
+  - target scores [last, p_1..p_k]; n ← length of the agreeing prefix
+  - append p_1..p_n and the target's token at n; crop both caches
+  - k ← k + 1 if n = k; k − 1 if n < k/2
+- title: Design Rationale
+  paras:
+  - >-
+    Greedy verification makes the output exactly the target's greedy output, which the case requires; running the
+    target in fp32 as the evaluator does avoids mismatches from lower precision; the adaptive k keeps the cost of
+    rejected proposals low on workloads where the draft disagrees.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The draft is not adapted to the target, verification is a single chain rather than a tree, and the speedup has not
+    been measured yet.
+references:
+- id: leviathan2023spec
+  title: Fast Inference from Transformers via Speculative Decoding
+  authors: Yaniv Leviathan, Matan Kalman and Yossi Matias
+  year: 2023
+  venue: ICML
+  arxiv: '2211.17192'
+  used_for: 'Anchor: speculative decoding'
+  code_location: 'model.py: generate'
+- id: chen2023spec
+  title: Accelerating Large Language Model Decoding with Speculative Sampling
+  authors: Charlie Chen, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre and John Jumper
+  year: 2023
+  venue: arXiv
+  arxiv: '2302.01318'
+  used_for: Speculative decoding
+  code_location: 'model.py: generate'
+- id: cai2024medusa
+  title: 'Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads'
+  authors: Tianle Cai, Yuhong Li, Zhengyang Geng, Hongwu Peng, Jason D. Lee, Deming Chen and Tri Dao
+  year: 2024
+  venue: ICML
+  arxiv: '2401.10774'
+  used_for: Related work
+  code_location: null
+- id: li2024eagle
+  title: 'EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty'
+  authors: Yuhui Li, Fangyun Wei, Chao Zhang and Hongyang Zhang
+  year: 2024
+  venue: ICML
+  arxiv: '2401.15077'
+  used_for: Related work
+  code_location: null
+- id: miao2024specinfer
+  title: 'SpecInfer: Accelerating Large Language Model Serving with Tree-based Speculative Inference and Verification'
+  authors: Xupeng Miao et al.
+  year: 2024
+  venue: ASPLOS
+  arxiv: '2305.09781'
+  used_for: Related work
+  code_location: null
+- id: fu2024lookahead
+  title: Break the Sequential Dependency of LLM Inference Using Lookahead Decoding
+  authors: Yichao Fu, Peter Bailis, Ion Stoica and Hao Zhang
+  year: 2024
+  venue: ICML
+  arxiv: '2402.02057'
+  used_for: Related work
+  code_location: null
+changes:
+- text: The draft length adapts between 1 and 8 to the acceptance of the previous round instead of being fixed.
+  code: 'model.py: generate'

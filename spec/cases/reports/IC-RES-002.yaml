@@ -1,0 +1,95 @@
+case: IC-RES-002
+title: 'ResNets with Averaging Shortcuts and Zero-Initialised Residual Branches'
+abstract: >-
+  This submission keeps the anchor's ResNet-18 and ResNet-50 [@he2016resnet] at the two budgets and applies two tricks
+  that cost no compute: downsampling shortcuts that average 2 × 2 pixels before a stride-1 projection (ResNet-D) and
+  residual branches whose last batch-normalisation scale starts at zero, so that every block starts as the identity
+  [@he2019bag; @goyal2017imagenet]. The deep stem of ResNet-C was left out because it would exceed the small budget at
+  128 pixels. It has not been run yet: it needs PyTorch and a GPU, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    With ten classes and fewer than ten thousand training images, a backbone's inductive biases and its behaviour early
+    in training matter as much as its capacity. The case fixes the recipe and two compute budgets, so the backbone is
+    the only variable.
+- title: Related Work
+  paras:
+  - >-
+    Residual networks made deep convolutional networks trainable [@he2016resnet]; a collection of refinements to the
+    shortcut, stem and training improved them without extra cost [@he2019bag]; zero-initialised residual branches
+    stabilise large-batch training [@goyal2017imagenet]. Later designs changed the blocks themselves: inverted
+    residuals [@sandler2018mobilenetv2], compound scaling [@tan2019efficientnet] and the modernised ConvNeXt design
+    [@liu2022convnext].
+- title: Method
+  paras:
+  - >-
+    The stages, widths and depths are ResNet-18 (basic blocks, 2-2-2-2) and ResNet-50 (bottlenecks, 3-4-6-3) with the
+    7 × 7 stem and max pooling. Every shortcut that changes resolution is average pooling with a 2 × 2 window followed
+    by a 1 × 1 convolution and batch normalisation; every residual branch ends in a batch normalisation whose scale is
+    initialised to 0. At 128 pixels the variants need 1.18 and 2.67 GFLOPs.
+- title: Design Rationale
+  paras:
+  - >-
+    A strided 1 × 1 shortcut discards three quarters of the activations it downsamples; averaging first keeps them at
+    the same cost. Identity-initialised blocks make the early network shallow in effect, which helps when 20 epochs
+    leave little time to recover from a poor start.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The changes are small by design; neither uses the slack between the variants' FLOPs and the budgets, and the
+    reference has not been run yet.
+references:
+- id: he2016resnet
+  title: Deep Residual Learning for Image Recognition
+  authors: Kaiming He, Xiangyu Zhang, Shaoqing Ren and Jian Sun
+  year: 2016
+  venue: CVPR
+  arxiv: '1512.03385'
+  used_for: 'Anchor: ResNet-18 and ResNet-50'
+  code_location: 'model.py: ResNet, Basic, Bottleneck'
+- id: he2019bag
+  title: Bag of Tricks for Image Classification with Convolutional Neural Networks
+  authors: Tong He, Zhi Zhang, Hang Zhang, Zhongyue Zhang, Junyuan Xie and Mu Li
+  year: 2019
+  venue: CVPR
+  arxiv: '1812.01187'
+  used_for: ResNet-D shortcuts
+  code_location: 'model.py: shortcut'
+- id: goyal2017imagenet
+  title: 'Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour'
+  authors: Priya Goyal, Piotr Dollár, Ross Girshick, Pieter Noordhuis, Lukasz Wesolowski, Aapo Kyrola, Andrew Tulloch, Yangqing Jia and Kaiming He
+  year: 2017
+  venue: arXiv
+  arxiv: '1706.02677'
+  used_for: Zero-initialised residual branches
+  code_location: 'model.py: Basic, Bottleneck, ResNet.__init__'
+- id: sandler2018mobilenetv2
+  title: 'MobileNetV2: Inverted Residuals and Linear Bottlenecks'
+  authors: Mark Sandler, Andrew Howard, Menglong Zhu, Andrey Zhmoginov and Liang-Chieh Chen
+  year: 2018
+  venue: CVPR
+  arxiv: '1801.04381'
+  used_for: Related work
+  code_location: null
+- id: tan2019efficientnet
+  title: 'EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks'
+  authors: Mingxing Tan and Quoc V. Le
+  year: 2019
+  venue: ICML
+  arxiv: '1905.11946'
+  used_for: Related work
+  code_location: null
+- id: liu2022convnext
+  title: A ConvNet for the 2020s
+  authors: Zhuang Liu, Hanzi Mao, Chao-Yuan Wu, Christoph Feichtenhofer, Trevor Darrell and Saining Xie
+  year: 2022
+  venue: CVPR
+  arxiv: '2201.03545'
+  used_for: Related work
+  code_location: null
+changes:
+- text: Downsampling shortcuts average 2 × 2 pixels before a stride-1 projection instead of a strided projection.
+  code: 'model.py: shortcut'
+- text: The last batch-normalisation scale of every residual branch is initialised to zero.
+  code: 'model.py: Basic, Bottleneck, ResNet.__init__'

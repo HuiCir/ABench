@@ -1,0 +1,65 @@
+case: V-DIT-003
+title: 'Long Skip Connections and QK-Norm for a Small DiT'
+abstract: >-
+  This submission is DiT-S/2 [@peebles2023dit] with two changes: U-ViT's long skip connections [@bao2023uvit], which
+  concatenate the output of block i with the input of block 11 - i and project back to the width, and normalised
+  queries and keys [@henry2020qknorm]. The skips add about 8% forward FLOPs, inside the case's 10% allowance; the
+  rest of the network is the baseline's adaLN-Zero transformer.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    At 64 tokens a diffusion transformer has to carry low-level detail through all its blocks; long skips give the
+    late blocks direct access to the early ones, as the encoder-decoder skips of a U-Net do.
+- title: Related Work
+  paras:
+  - >-
+    DiT conditions transformer blocks on time and class through adaLN-Zero [@peebles2023dit]; U-ViT treats all
+    inputs as tokens and adds long skips between shallow and deep blocks [@bao2023uvit]; QK-norm normalises queries
+    and keys before the dot product [@henry2020qknorm].
+- title: Method
+  paras:
+  - >-
+    The first six blocks store their outputs; each of the last six concatenates its input with the stored output of
+    its mirror block and applies a linear layer from 768 to 384 features before the usual adaLN-Zero attention and
+    MLP. Queries and keys are layer-normalised per head before scaled dot-product attention.
+- title: Design Rationale
+  paras:
+  - >-
+    The skip projections are the cheapest way to add a U-Net's information path to a transformer; QK-norm bounds the
+    attention logits, which matters with bfloat16 training and a fixed learning rate.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The 8% extra FLOPs are not compensated by removing computation elsewhere, so part of any gain may come from the
+    extra compute. Nothing here has been trained in this build.
+references:
+- id: peebles2023dit
+  title: Scalable Diffusion Models with Transformers
+  authors: William Peebles and Saining Xie
+  year: 2023
+  venue: ICCV
+  arxiv: '2212.09748'
+  used_for: 'Anchor: the DiT-S/2 backbone with adaLN-Zero conditioning'
+  code_location: 'backbone.py: DiT, Block'
+- id: bao2023uvit
+  title: 'All are Worth Words: A ViT Backbone for Diffusion Models'
+  authors: Fan Bao, Shen Nie, Kaiwen Xue, Yue Cao, Chongxuan Li, Hang Su and Jun Zhu
+  year: 2023
+  venue: CVPR
+  arxiv: '2209.12152'
+  used_for: Long skip connections between shallow and deep blocks
+  code_location: 'backbone.py: Block.skip, DiT.forward'
+- id: henry2020qknorm
+  title: Query-Key Normalization for Transformers
+  authors: Alex Henry, Prudhvi Raj Dachapally, Shubham Pawar and Yuxuan Chen
+  year: 2020
+  venue: Findings of EMNLP
+  arxiv: '2010.04245'
+  used_for: Normalising queries and keys before attention
+  code_location: 'backbone.py: QKNormAttention'
+changes:
+- text: Long skips from block i to block 11 - i with a linear projection, absent in DiT.
+  code: 'backbone.py: Block.skip, DiT.forward'
+- text: Queries and keys are layer-normalised per head.
+  code: 'backbone.py: QKNormAttention'

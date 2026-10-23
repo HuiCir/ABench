@@ -1,0 +1,105 @@
+case: C-FA-004
+title: 'Blockwise Attention with a Recomputing Backward Pass in Plain PyTorch'
+abstract: >-
+  This submission gives a correct, memory-bounded reference for trainable exact attention. A custom autograd function
+  processes blocks of queries for all heads at once; the forward pass keeps only the output and the log-sum-exp of each
+  query row, and the backward pass recomputes each block's probabilities from them, which is the recomputation idea of
+  the anchor [@dao2022flashattention]. Unlike the anchor, every block is a sequence of separate matrix products through
+  global memory, so it is not IO-aware; fusing these steps into on-chip tiles [@dao2023flashattention2;@tillet2019triton]
+  is what entries are expected to add.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Standard attention stores the T × T probability matrix for the backward pass, which makes memory quadratic in
+    sequence length. Storing only per-row softmax statistics and recomputing probabilities in the backward pass keeps
+    memory linear; doing so inside fused kernels also makes it faster, because the quadratic intermediates never leave
+    on-chip memory.
+- title: Related Work
+  paras:
+  - >-
+    FlashAttention tiles the forward and backward passes so that scores and probabilities live only in shared memory,
+    saving the log-sum-exp per row for the backward pass [@dao2022flashattention]. FlashAttention-2 reorders the loops to
+    parallelise over sequence blocks and reduces non-matrix-multiply work [@dao2023flashattention2]. Online softmax
+    computes the normaliser in one pass over the keys [@milakov2018online], and memory-efficient attention without
+    fusion processes queries in chunks [@rabe2021selfattention]. Triton makes such tiled kernels expressible in Python
+    [@tillet2019triton].
+  - >-
+    Chunking bounds memory but not traffic; the gap between this reference and SDPA is the cost of materialising each
+    block's intermediates in global memory.
+- title: Method
+  subsections:
+  - title: Forward and backward passes
+    paras:
+    - >-
+      The block length b is the largest value (between 16 and 256) for which a block of fp32 scores for all heads is no
+      larger than q. For each block of queries the forward pass computes the scores against all keys, applies the
+      causal mask, and stores the normalised output and the row log-sum-exp. The backward pass first forms
+      Δ = rowsum(dO ⊙ O); for each block it recomputes P = exp(S − lse), accumulates dV += Pᵀ dO and dK += dSᵀ Q · scale
+      in fp32 with dS = P ⊙ (dO Vᵀ − Δ), and writes dQ = dS K · scale.
+    algorithm_caption: Backward pass
+    algorithm:
+    - Δ ← rowsum(dO ⊙ O)
+    - 'for each query block i: P ← exp(Q_i Kᵀ · scale − lse_i) (masked)'
+    - '  dV += Pᵀ dO_i; dS ← P ⊙ (dO_i Vᵀ − Δ_i); dQ_i ← dS K · scale; dK += dSᵀ Q_i · scale'
+  - title: Complexity
+    paras:
+    - >-
+      Work is O(B H T² D) for each pass, the same as standard attention; memory beyond inputs and outputs is O(B H T)
+      for the statistics plus one block of scores, bounded by the size of q.
+- title: Design Rationale
+  paras:
+  - >-
+    Recomputation with saved row statistics is the part of the anchor that makes the backward pass memory-linear; it can
+    be written correctly in a few dozen lines of PyTorch, which makes it a dependable starting point whose remaining gap
+    to SDPA is purely about data movement.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Each block launches several kernels and round-trips its fp32 intermediates through global memory; causal blocks
+    still compute masked-out scores; and the Python loop over blocks adds overhead at short sequence lengths.
+references:
+- id: dao2022flashattention
+  title: 'FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness'
+  authors: Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra and Christopher Ré
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2205.14135'
+  used_for: 'Anchor: log-sum-exp statistics and recomputation in the backward pass'
+  code_location: 'kernel.py: _Attention.forward, _Attention.backward'
+- id: dao2023flashattention2
+  title: 'FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning'
+  authors: Tri Dao
+  year: 2023
+  arxiv: '2307.08691'
+  used_for: Related work (loop order and parallelism of the fused backward)
+  code_location: null
+- id: milakov2018online
+  title: Online normalizer calculation for softmax
+  authors: Maxim Milakov and Natalia Gimelshein
+  year: 2018
+  arxiv: '1805.02867'
+  used_for: Related work (one-pass softmax normaliser)
+  code_location: null
+- id: rabe2021selfattention
+  title: Self-attention Does Not Need O(n²) Memory
+  authors: Markus N. Rabe and Charles Staats
+  year: 2021
+  arxiv: '2112.05682'
+  used_for: Query chunking for bounded memory
+  code_location: 'kernel.py: _block'
+- id: tillet2019triton
+  title: 'Triton: An Intermediate Language and Compiler for Tiled Neural Network Computations'
+  authors: Philippe Tillet, H. T. Kung and David Cox
+  year: 2019
+  venue: MAPL
+  doi: 10.1145/3315508.3329973
+  used_for: Related work (tiled kernels in Python)
+  code_location: null
+changes:
+- text: The anchor's fused tiles are replaced by blocks of separate PyTorch matrix products over all heads at once.
+  code: 'kernel.py: _Attention.forward, _Attention.backward'
+- text: The block length is derived from the size of q so that one block of fp32 scores never exceeds it.
+  code: 'kernel.py: _block'
+- text: dK and dV are accumulated in fp32 across query blocks and cast to bf16 once.
+  code: 'kernel.py: _Attention.backward'

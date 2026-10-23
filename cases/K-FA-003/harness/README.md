@@ -1,11 +1,28 @@
-# K-FA-003 harness contract
+# K-FA-003 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+K-FA-003 pipeline: attention forward kernel, correctness and speed against PyTorch SDPA (evaluator and self-check).
+
+One stage, "bench":
+  setup   nothing (the CUDA context is created before the clock starts)
+  timed   import kernel.py (module-level compilation or autotuning counts here, capped by the stage timeout)
+  finish  for every held-out shape: random bf16 q, k, v from the shape's seed; your attention() vs an fp32 reference
+          for accuracy; CUDA-event timing of your attention() and of SDPA (flash backend where available)
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

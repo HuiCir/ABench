@@ -9,6 +9,8 @@ from abench_metrics import OutputError, need  # noqa: F401
 PRIMARY = {"metric": "mean_max_reward", "goal": "max"}
 GATES: list = []          # validity = no crash, time limits respected, finite actions
 
+# examples resampled together for the bootstrap 95% interval of the primary metric (abench_metrics.bootstrap_ci)
+RESAMPLE = [{"reference": [], "outputs": [["rollout", "episodes"]]}]
 
 def score(outputs: dict, reference: dict, params: dict, seconds: dict) -> dict:
     ep = need(outputs, "rollout", "episodes", shape=(None, 3))

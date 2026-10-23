@@ -1,0 +1,83 @@
+case: K-FUS-002
+title: 'Library Convolutions with One-Pass Triton Epilogues'
+abstract: >-
+  This submission is the case's floor rather than a contender. For three problems whose operations after the
+  convolution are all elementwise — problem 7 (ReLU, LeakyReLU, GELU, sigmoid, bias), 69 (hardswish, ReLU) and 100
+  (clamp, division) — it keeps the cuDNN convolution [@chetlur2014cudnn] and runs the whole tail in one Triton pass
+  [@tillet2019triton], so the convolution output is read once instead of once per operation; the other 17 problems
+  submit their own PyTorch code [@ouyang2025kernelbench]. It has not been run yet: it needs PyTorch, Triton and a GPU,
+  which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Level 2 of KernelBench chains a heavy operator with cheap ones [@ouyang2025kernelbench]. In eager PyTorch each
+    cheap operator re-reads and re-writes the heavy operator's output; fusing them removes that traffic, which is what
+    torch.compile does automatically for elementwise tails [@ansel2024pytorch2].
+- title: Related Work
+  paras:
+  - >-
+    TorchInductor fuses elementwise and reduction epilogues into generated Triton kernels [@ansel2024pytorch2]; TVM
+    fuses operators and searches schedules [@chen2018tvm]; Triton makes hand-written fused kernels short
+    [@tillet2019triton]; cuDNN supplies the convolutions [@chetlur2014cudnn].
+- title: Method
+  paras:
+  - >-
+    `src/ew.py` holds one Triton kernel with an operation code. For problem 7 it applies ReLU, LeakyReLU (0.01),
+    exact GELU through erf, sigmoid and the per-channel bias (channel index = offset ÷ spatial size mod channels); for
+    69 relu(x · relu6(x + 3) / 6); for 100 max(x, min) / divisor. The convolution stays in PyTorch with Model's
+    parameter names, so the evaluator's weight copy applies.
+- title: Design Rationale
+  paras:
+  - >-
+    An elementwise tail after a library convolution is the one fusion that needs no change to the convolution; it
+    removes all intermediate tensors of the tail. It only matches what torch.compile already does, so it is a floor.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Reductions, normalisations and pooling in the tails, and fusion into the convolution itself, are left to entries;
+    neither correctness nor timing has been measured yet.
+references:
+- id: ouyang2025kernelbench
+  title: 'KernelBench: Can LLMs Write Efficient GPU Kernels?'
+  authors: Anne Ouyang, Simon Guo, Simran Arora, Alex L. Zhang, William Hu, Christopher Ré and Azalia Mirhoseini
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.10517'
+  used_for: 'Anchor: the problems, the ModelNew interface and the correctness tolerance'
+  code_location: 'kernels/'
+- id: tillet2019triton
+  title: 'Triton: An Intermediate Language and Compiler for Tiled Neural Network Computations'
+  authors: Philippe Tillet, H. T. Kung and David Cox
+  year: 2019
+  venue: MAPL
+  doi: 10.1145/3315508.3329973
+  used_for: Kernel language of the custom kernels
+  code_location: 'src/ew.py: _ew'
+- id: ansel2024pytorch2
+  title: 'PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation'
+  authors: Jason Ansel et al.
+  year: 2024
+  venue: ASPLOS
+  doi: 10.1145/3620665.3640366
+  used_for: The torch.compile baseline (TorchDynamo and TorchInductor)
+  code_location: null
+- id: chetlur2014cudnn
+  title: 'cuDNN: Efficient Primitives for Deep Learning'
+  authors: Sharan Chetlur, Cliff Woolley, Philippe Vandermersch, Jonathan Cohen, John Tran, Bryan Catanzaro and Evan Shelhamer
+  year: 2014
+  venue: arXiv
+  arxiv: '1410.0759'
+  used_for: Library convolutions under the fused epilogues
+  code_location: null
+- id: chen2018tvm
+  title: 'TVM: An Automated End-to-End Optimizing Compiler for Deep Learning'
+  authors: Tianqi Chen et al.
+  year: 2018
+  venue: OSDI
+  arxiv: '1802.04799'
+  used_for: Related work (operator fusion and schedule search)
+  code_location: null
+changes:
+- text: The elementwise tail of problems 7, 69 and 100 runs in one Triton pass after the library convolution.
+  code: 'src/ew.py: _ew; kernels/L2_7_Conv3d_ReLU_LeakyReLU_GELU_Sigmoid_BiasAdd.py'

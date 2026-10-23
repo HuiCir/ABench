@@ -1,0 +1,69 @@
+case: B-OPT-002
+title: 'Mixing an Orthogonalised Momentum with a Clipped Adaptive Direction'
+abstract: >-
+  This submission is the outcome of a deliberately small search in the case's primitive language, in the spirit of
+  the symbolic discovery that produced Lion [@chen2023lion]. Each candidate mixes two update directions computed from
+  the same momentum — sign, row or global normalisation, Newton-Schulz orthogonalisation as in Muon
+  [@jordan2024muon], or an Adam-style ratio clipped to [-1, 1] [@kingma2015adam] — over a grid of momentum constants.
+  Candidates more similar than 0.97 to a known optimizer on the public gradient stream are discarded; among the rest the
+  one whose updates point most along the negative gradient is kept: half orthogonalised momentum, half clipped
+  adaptive direction.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Searching programs instead of hand-designing update rules needs two filters: one that rejects rediscoveries of
+    known optimizers cheaply, and one that measures training quality. The case provides the first as a NumPy screen.
+- title: Related Work
+  paras:
+  - >-
+    Lion was found by evolutionary search over programs and simplified afterwards [@chen2023lion]. Muon orthogonalises
+    the momentum of matrix parameters [@jordan2024muon]; Adam divides by a running second-moment estimate
+    [@kingma2015adam].
+- title: Method
+  paras:
+  - >-
+    120 candidates: 10 pairs of directions, mixing weight 0.25, 0.5 or 0.75, b1 in {0.9, 0.95}, b2 in {0.98, 0.995}.
+    The screen (seed 17) gives each candidate's largest similarity to the known optimizers and its mean descent
+    cosine; 113 candidates stay at or below 0.97, and the best by descent cosine (0.751, closest known rule at 0.78)
+    is submitted with a learning rate of 1e-3.
+- title: Design Rationale
+  paras:
+  - >-
+    Orthogonalised momentum equalises the scale of a matrix update across directions; the clipped adaptive term adds
+    per-coordinate scaling that orthogonalisation removes. Mixing them gives a rule that is close to neither parent.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The search stops at the screen: candidates were not ranked by training runs, and the learning rate was not tuned.
+    The descent cosine on a synthetic stream is a weak proxy for training loss. Training has not been run here.
+references:
+- id: chen2023lion
+  title: Symbolic Discovery of Optimization Algorithms
+  authors: Xiangning Chen, Chen Liang, Da Huang, Esteban Real, Kaiyuan Wang, Yao Liu, Hieu Pham, Xuanyi Dong, Thang Luong, Cho-Jui Hsieh, Yifeng Lu and Quoc V. Le
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2302.06675'
+  used_for: 'Anchor: program search for optimizers'
+  code_location: 'search.py'
+- id: jordan2024muon
+  title: 'Muon: An optimizer for hidden layers in neural networks'
+  authors: Keller Jordan, Yuchen Jin, Vlado Boza, Jiacheng You, Franz Cesista, Laker Newhouse and Jeremy Bernstein
+  year: 2024
+  url: https://kellerjordan.github.io/posts/muon/
+  used_for: The orthogonalised direction
+  code_location: 'program.yaml'
+- id: kingma2015adam
+  title: 'Adam: A Method for Stochastic Optimization'
+  authors: Diederik P. Kingma and Jimmy Ba
+  year: 2015
+  venue: ICLR
+  arxiv: '1412.6980'
+  used_for: The adaptive direction
+  code_location: 'program.yaml'
+changes:
+- text: The update mixes orthogonalised momentum with an Adam-style ratio clipped to [-1, 1], with equal weights, instead
+    of Lion's sign of an interpolated momentum.
+  code: 'program.yaml'
+- text: Candidates are filtered by similarity to known optimizers on a gradient stream before any training.
+  code: 'search.py: main'

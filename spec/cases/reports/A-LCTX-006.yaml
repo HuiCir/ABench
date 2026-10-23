@@ -1,0 +1,72 @@
+case: A-LCTX-006
+title: 'YaRN Scaling with Attention Temperature for a Model Trained at 1,024 Tokens'
+abstract: >-
+  This submission keeps rotary position embedding [@su2021roformer] up to the training length and applies YaRN
+  [@peng2023yarn] beyond it: rotary frequencies that turn many times over the training length are kept, slow ones are
+  interpolated by the length ratio as in position interpolation [@chen2023pi], with a linear ramp in between, and
+  queries and keys are scaled by YaRN's attention temperature. The case's 200-step extension phase at 4,096 tokens
+  plays the role of YaRN's short fine-tuning.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    A model trained at 1,024 tokens sees rotary angles it never saw when it reads 16,384. Interpolation keeps the
+    angles in range at the cost of resolution; YaRN interpolates only the dimensions that need it.
+- title: Related Work
+  paras:
+  - >-
+    RoPE encodes position by rotating query and key pairs [@su2021roformer]. Position interpolation divides positions
+    by the length ratio [@chen2023pi]; YaRN interpolates per frequency band and adds an attention temperature
+    [@peng2023yarn]. PG-19 provides book-length documents [@rae2020pg19].
+- title: Method
+  paras:
+  - >-
+    For T > 1,024 with s = T / 1,024: r_i = 1,024 theta_i / (2 pi), gamma_i = clamp((r_i - 1) / 31, 0, 1),
+    theta_i' = (1 - gamma_i) theta_i / s + gamma_i theta_i; q and k are multiplied by 0.1 ln s + 1.
+- title: Design Rationale
+  paras:
+  - >-
+    High-frequency dimensions carry local order and already cover all relative positions within the training length;
+    interpolating them would blur local syntax. Low-frequency dimensions are the ones that leave their training range.
+- title: Scope and Limitations
+  paras:
+  - >-
+    No learned parameters, the ramp bounds are YaRN's defaults for much larger models, and the temperature is not
+    tuned for a 32M model. It has not been run here.
+references:
+- id: peng2023yarn
+  title: 'YaRN: Efficient Context Window Extension of Large Language Models'
+  authors: Bowen Peng, Jeffrey Quesnelle, Honglu Fan and Enrico Shippole
+  year: 2024
+  venue: ICLR
+  arxiv: '2309.00071'
+  used_for: 'Anchor: NTK-by-parts interpolation and attention temperature'
+  code_location: 'positions.py: YaRN'
+- id: chen2023pi
+  title: Extending Context Window of Large Language Models via Positional Interpolation
+  authors: Shouyuan Chen, Sherman Wong, Liangjian Chen and Yuandong Tian
+  year: 2023
+  venue: arXiv
+  arxiv: '2306.15595'
+  used_for: Interpolation of positions
+  code_location: 'positions.py: YaRN.freqs'
+- id: su2021roformer
+  title: 'RoFormer: Enhanced Transformer with Rotary Position Embedding'
+  authors: Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen and Yunfeng Liu
+  year: 2021
+  venue: arXiv
+  arxiv: '2104.09864'
+  used_for: Rotary position embedding
+  code_location: 'positions.py: YaRN.forward'
+- id: rae2020pg19
+  title: Compressive Transformers for Long-Range Sequence Modelling
+  authors: Jack W. Rae, Anna Potapenko, Siddhant M. Jayakumar and Timothy P. Lillicrap
+  year: 2020
+  venue: ICLR
+  arxiv: '1911.05507'
+  used_for: The PG-19 books
+  code_location: null
+changes:
+- text: Beyond the training length, rotary frequencies are interpolated per band (NTK-by-parts) and queries and keys
+    are scaled by an attention temperature, instead of RoPE's unchanged angles.
+  code: 'positions.py: YaRN'

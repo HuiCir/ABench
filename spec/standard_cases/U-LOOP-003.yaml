@@ -15,7 +15,7 @@ task: |
 
   - Submit your model code, the trained checkpoint and the training program that produced it. `train.py` must draw its training examples only from the provided sampler (lengths 1–20). The evaluator loads the checkpoint and answers held-out problems of lengths 1–40; it never retrains.
   - The model must be learned from the sampled examples. Hand-written task algorithms, lookup of the answer by computation outside the learned model, or task-specific rules that encode the solution are not allowed; generic architectural choices (recurrence or looping, adaptive depth, position encodings, input formatting such as aligning operands) are the point of the task.
-  - You may build on any public work from before the cutoff (looped and universal transformers, adaptive computation, recurrent-depth models, position coupling), but the design report must state what you borrowed and what you changed.
+  - You may build on any public work (looped and universal transformers, adaptive computation, recurrent-depth models, position coupling), but the design report must state what you borrowed and what you changed.
 data: |
   There is no data file. Training data comes only from `interface/algo_tasks.py`: `Sampler(seed).sample(task, n, count)` returns `count` (input, output) pairs of length n ∈ 1..20 as int64 arrays.
 

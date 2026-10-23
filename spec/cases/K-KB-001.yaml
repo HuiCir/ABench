@@ -1,0 +1,155 @@
+id: K-KB-001
+title: "Faster kernels for 30 KernelBench Level-1 operators: correct on five input distributions, timed against eager PyTorch and torch.compile"
+template: K-FA-003
+anchor: {authors: "Anne Ouyang, Simon Guo, Simran Arora, Alex L. Zhang, William Hu, Christopher Ré, Azalia Mirhoseini", title: "KernelBench: Can LLMs Write Efficient GPU Kernels?", arxiv: "2502.10517"}
+baseline: "for every problem the faster of PyTorch eager and `torch.compile` (default mode) on the problem's own code, timed by the evaluator in a separate process on the same GPU; the reference submission (not shown) replaces the five activation problems (ReLU, LeakyReLU, sigmoid, hardsigmoid, hardtanh) with a one-pass Triton elementwise kernel and keeps the problem's own PyTorch code for the other 25"
+reference_verification: "Not executed yet: the evaluator and the reference need PyTorch, Triton and a GPU, which were not available where the case was built; the operator runs them at activation and checks that the reference is correct on every problem and reports no changed torch entry points. Checked in the container: the 30 problem files at the pinned commit (sha256), their input shapes after the overrides (all within 1 GiB of fp32, computed from get_inputs() with a shape-only stand-in for torch), the Triton kernel's formulas against PyTorch's definitions, and the problem loading and seed plumbing of the prepare module."
+mode: no_training
+n_seeds: 1
+leak_allow: [speedup]
+kit_extra: [kernels/kb_bench.py]
+task: |
+  Write **GPU kernels** for 30 problems of **KernelBench Level 1** — single operators — matrix products, activations, normalisations, pooling, reductions, convolutions, scans and attention — that are **correct** on inputs you have not seen and **as fast as possible relative to the faster of PyTorch eager and `torch.compile`** on one 24GB reference GPU.
+
+  - Submit code only: one file `kernels/<problem>.py` per problem with a `ModelNew` class that has the same constructor and `forward` signature as the problem's `Model`. Problems without a file count as failed; you may submit the problem's own PyTorch code as a fallback.
+  - At evaluation every ModelNew gets Model's weights (same seed, matching parameter names copied), is checked on five input distributions with seeds you do not know (it fails if it modifies any input), timed on the problem's own inputs, and checked once more on fresh inputs after timing and again after those input buffers are overwritten in place (a cache keyed on buffer addresses fails here).
+  - The problem files are public (KernelBench, MIT licence) and given in the sandbox; the held-out part is the seeds of the weights and inputs, and the timing on the reference GPU.
+  - Triton, hand-written CUDA via PyTorch's inline extension loading and PyTorch operators are allowed; `torch.compile`, TorchInductor, TorchDynamo and TorchScript are not, and all work must run on the current CUDA stream.
+  - You may build on any public work (KernelBench solutions, Triton tutorials, fusion and tiling techniques, library kernels), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only): the 30 problem files, renamed `L1_<KernelBench file name>` (KernelBench @423217d9, `KernelBench/level1/`, MIT licence), and `problems.json` (name, file and shape overrides of each problem, in evaluation order).
+
+  Overrides set module-level size variables of a problem file before `get_inputs()` and `get_init_inputs()` are called, so that every problem's inputs fit within 1 GiB of fp32; problems not listed keep their own sizes. The same overrides apply in the self-check and at evaluation.
+
+  | Problem | Overrides |
+  |---|---|
+  | `L1_2_Standard_matrix_multiplication_` | — |
+  | `L1_3_Batched_matrix_multiplication` | `n` = 1024 |
+  | `L1_4_Matrix_vector_multiplication_` | `K` = 65536 |
+  | `L1_5_Matrix_scalar_multiplication` | `M` = 16384 |
+  | `L1_9_Tall_skinny_matrix_multiplication_` | — |
+  | `L1_18_Matmul_with_transposed_both` | — |
+  | `L1_19_ReLU` | `dim` = 49152 |
+  | `L1_20_LeakyReLU` | `dim` = 49152 |
+  | `L1_21_Sigmoid` | `dim` = 49152 |
+  | `L1_28_HardSigmoid` | `dim` = 49152 |
+  | `L1_32_HardTanh` | `dim` = 49152 |
+  | `L1_35_GroupNorm_` | `dim1` = 128, `dim2` = 256 |
+  | `L1_36_RMSNorm_` | `dim1` = 128, `dim2` = 256 |
+  | `L1_37_FrobeniusNorm_` | `dim1` = 128, `dim2` = 256 |
+  | `L1_38_L1Norm_` | `dim` = 16383, `batch_size` = 16384 |
+  | `L1_41_Max_Pooling_1D` | `sequence_length` = 16384 |
+  | `L1_43_Max_Pooling_3D` | `dim1` = 64, `dim2` = 64 |
+  | `L1_44_Average_Pooling_1D` | `input_length` = 32768 |
+  | `L1_47_Sum_reduction_over_a_dimension` | `dim1` = 1024, `dim2` = 2047 |
+  | `L1_51_Argmax_over_a_dimension` | `dim1` = 1024, `dim2` = 2047 |
+  | `L1_52_Argmin_over_a_dimension` | `dim1` = 1024, `dim2` = 2047 |
+  | `L1_58_conv_transposed_3D__asymmetric_input__asymmetric_kernel` | — |
+  | `L1_60_conv_standard_3D__square_input__asymmetric_kernel` | — |
+  | `L1_64_conv_transposed_1D` | `length` = 32768 |
+  | `L1_71_conv_transposed_2D__asymmetric_input__square_kernel` | — |
+  | `L1_80_conv_standard_2D_square_input_asymmetric_kernel___dilated____padded__` | — |
+  | `L1_84_conv_depthwise_2D_asymmetric_input_square_kernel` | `width_in` = 128 |
+  | `L1_90_cumprod` | `batch_size` = 8192 |
+  | `L1_92_cumsum_exclusive` | `batch_size` = 8192 |
+  | `L1_97_ScaledDotProductAttention` | `embedding_dimension` = 256, `sequence_length` = 256 |
+
+  The held-out set is a table of seeds per problem (weights, five input distributions, the check after timing), drawn from a secret seed; it is not in the sandbox. The self-check uses the same problems with public seeds.
+interface: "One file `kernels/<problem>.py` per problem defining `ModelNew(nn.Module)` with the same constructor arguments as `Model` (from `get_init_inputs()`) and the same `forward` inputs and outputs (from `get_inputs()`); outputs are compared in fp32. Helper modules go in `src/` (the submission directory is on `sys.path`)."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Geometric-mean speedup** (primary) | Per problem, the time of the faster of PyTorch eager and `torch.compile` divided by your time, clipped to [0.1, 10], a failed or missing problem counting as 0.1; geometric mean over the 30 problems; higher is better | — |
+  | Fraction correct | Problems whose outputs are within 1e-2 + 1e-2·\|ref\| of Model's fp32 output on all five input distributions and on the checks after timing | reported |
+  | fast_1 | Fraction of problems that are correct and faster than the faster baseline; also against eager alone | reported |
+  | Geometric-mean speedup against eager | As the primary metric with PyTorch eager as the baseline | reported |
+  | Memory | Median over correct problems of your peak memory during one call divided by eager's | reported |
+  | Forbidden APIs | Occurrences of `torch.compile`, TorchInductor, TorchDynamo, TorchScript or stream creation in your source files | Threshold: 0 |
+  | Changed torch entry points | torch, `torch.nn.functional`, `torch.Tensor`, `torch.cuda` callables or `nn` module `forward` methods replaced by your code | Threshold: 0 |
+
+  **Measurement and decision**
+
+  - Input distributions: the problem's own `get_inputs()` (native), and the same shapes filled with N(0,1), 8·N(0,1), N(0,1) with 75% zeros, and 100·N(0,1) (numerical range); integer and non-tensor inputs are kept. Positions where Model's output is not finite are skipped.
+  - One call is timed as the wall-clock time between two device-wide synchronisations, median of 10 calls after 3 warm-up calls, on fixed native inputs. The baselines run first in their own process (`reference` stage), your kernels in a second process (`bench` stage) on the same GPU.
+  - The reference runs matmuls and convolutions in full fp32 (TF32 disabled), and the evaluator restores these flags before every call; lower precision is allowed inside your own kernels as long as the tolerance holds.
+  - Importing all `kernels/*.py` (including compilation and autotuning at import) must finish within 900 s, checking and timing all problems within 2,400 s. A problem that raises an error fails; after a CUDA error that may corrupt the context, all later problems fail.
+  - A submission is valid if both thresholds hold; valid submissions are ranked by the geometric-mean speedup. Differences below 3% are treated as ties (timing noise).
+  - The final ABench score is driven mainly by the geometric-mean speedup, and also considers how different the kernels are from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "6 GPU-hours"
+  software: "Python 3, PyTorch (CUDA, Triton; `torch.utils.cpp_extension.load_inline` with the CUDA toolkit), NumPy"
+  notes: |
+    - `selfcheck.py` runs both stages on all problems with public seeds (`--quick`: the first 4 problems); the baselines' `torch.compile` alone takes several minutes.
+    - Compile Triton or CUDA code at import time (module level), not in the first timed call: warm-up calls absorb only part of it.
+    - Sibling case: K-FUS-002 (Level 2) uses the same evaluator (`kb_bench.py`) on a different problem set.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── kernels/            # required: one <problem>.py per problem, each defining ModelNew
+    ├── src/                # optional: helper modules, .py only (CUDA sources go in Python strings)
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 400,000 bytes in total.
+rules: |
+  - Each ModelNew must compute its problem's output from the inputs it is given on every call: no cached outputs, no detection of the timing loop or of the input distribution, no work on other CUDA streams.
+  - Do not change torch's functions, modules or global settings for other code (monkey-patching); the evaluator checks torch's entry points before and after every problem.
+interface_md: |
+  # K-KB-001 interface
+
+  ## Entry points: `kernels/<problem>.py`
+
+  ```python
+  import torch.nn as nn
+
+  class ModelNew(nn.Module):
+      def __init__(self, *init_inputs):      # the same arguments as the problem's Model (get_init_inputs())
+          ...
+      def forward(self, *inputs):            # the same inputs as Model.forward (get_inputs()); same outputs
+          ...
+  ```
+
+  - `<problem>` is a name from `$ABENCH_DATA_DIR/problems.json`, for example `L1_19_ReLU`.
+  - The evaluator builds Model and ModelNew after the same `torch.manual_seed`, copies Model's parameters and buffers into ModelNew where names and shapes match, calls `.eval()` and runs `forward` under `torch.no_grad()`. Register the weights you use under Model's parameter names: they are overwritten by the copy after `__init__`, so anything derived from them inside `__init__` would come from your own initialisation; derive it in `forward` or lazily on the first call.
+  - The submission directory is on `sys.path`: `from src.mymodule import ...` works from a kernel file.
+
+  ## Evaluator code you can read
+
+  - `kb_bench.py`: problem loading with overrides, the five input distributions, the input-modification check, the correctness rule, timing, memory and the torch entry-point check.
+  - `stages.py`: the two stages; `metrics.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton, `torch.utils.cpp_extension`), NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/K-KB-001
+    public:
+      - {path: sandbox/data/K-KB-001/problems.json, sha256: pending}
+    hidden: {path: sandbox/hidden/K-KB-001/hidden.npz.enc, sha256_plain: pending, keys: [seeds]}
+    sources:
+      - name: "KernelBench level1 problem files (Ouyang et al. 2025), 30 selected, shape overrides in tools/prepare/kernelbench.py"
+        url: https://github.com/ScalingIntelligence/KernelBench
+        revision: 423217d9fda91e0c2d67e4a43bf62f96f6d104f1
+        license: MIT
+        verified: "2026-10-22: commit, licence file and the sha256 of every selected file from a clone"
+      - name: "Weight and input seeds (tools/prepare/kernelbench.py, secret seed ABENCH_K_KB_SEED)"
+        url: null
+        license: "generated by ABench"
+  submission:
+    kind: code_only
+    entry: kernels
+    checkpoint_dir: null
+    allowed_top_level: [README.md, kernels, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 400000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch and Triton versions frozen at activation)"
+    seeds: [2502]
+    code_audit: "the operator reads kernels that beat both baselines by more than 10x or whose correctness depends on the input distribution"

@@ -1,0 +1,106 @@
+case: IC-AUG-003
+title: 'A RandAugment-Style Policy with Cutout and a Clean Final Phase'
+abstract: >-
+  This submission gives a reference augmentation policy for the fixed 40-epoch CIFAR-10 recipe. It replaces the
+  anchor's learned sub-policies [@cubuk2019autoaugment] by RandAugment's two hyperparameters [@cubuk2020randaugment]:
+  after the standard flip and translation, each image receives two operations drawn uniformly from nine at a shared
+  magnitude, then an 8 × 8 cutout [@devries2017cutout]. The last 10% of the epochs use flip and translation only. No
+  search was run for the reference; the magnitude is the common default for CIFAR-10, which leaves the search
+  procedure itself to entries.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Augmentation policies trade the diversity of training images against their fidelity to the test distribution, and
+    the best trade-off depends on the network and the length of training. With a short recipe, strong policies can
+    hurt; with a longer one, they usually help.
+- title: Related Work
+  paras:
+  - >-
+    AutoAugment searched sub-policies of two operations with probabilities and magnitudes using reinforcement learning on
+    a reduced proxy task [@cubuk2019autoaugment]; Fast AutoAugment matched augmented and clean data distributions
+    with density matching instead of training [@lim2019fast]. RandAugment showed that sampling operations uniformly at a
+    single magnitude performs as well with two hyperparameters [@cubuk2020randaugment], and TrivialAugment that one
+    random operation at a random strength needs none [@muller2021trivialaugment]. Cutout removes random square regions
+    [@devries2017cutout].
+  - >-
+    These policies were tuned for training runs of hundreds of epochs; which search procedure finds the best policy for
+    a 40-epoch recipe within three GPU-hours is the open question.
+- title: Method
+  subsections:
+  - title: Policy
+    paras:
+    - >-
+      Every image is flipped with probability 0.5 and translated by up to four pixels. For two rounds, each image draws
+      one of nine operations — rotation up to 9°, horizontal or vertical shear up to 0.09, brightness, contrast,
+      saturation and sharpness changes up to 27%, posterisation to six bits or solarisation above 0.7 — and the drawn
+      operation is applied to those images only. An 8 × 8 cutout follows. From epoch 36 of 40 only flip and translation
+      remain.
+    algorithm_caption: augment(x, ops, gen, epoch, n_epochs)
+    algorithm:
+    - x ← translate(flip_lr(x), 4)
+    - if epoch ≥ 0.9 · n_epochs, return x
+    - 'repeat twice: k ← choice(9) per image; for each op i apply op_i(M) to the images with k = i'
+    - return cutout(x, 8)
+  - title: Complexity
+    paras:
+    - >-
+      Per epoch, each image passes through four transformations on the GPU; each operation runs only on its subset, so
+      the cost is about four whole-set passes, small next to an epoch of training.
+- title: Design Rationale
+  paras:
+  - >-
+    A single magnitude avoids a search over per-operation strengths that a 40-epoch recipe cannot amortise, and the
+    clean final phase lets the network adapt to unaugmented images before testing.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The magnitude and the clean-phase length were not searched, the operation list is fixed, and nothing adapts the
+    policy to the network's progress during training.
+references:
+- id: cubuk2019autoaugment
+  title: 'AutoAugment: Learning Augmentation Policies from Data'
+  authors: Ekin D. Cubuk, Barret Zoph, Dandelion Mane, Vijay Vasudevan and Quoc V. Le
+  year: 2019
+  venue: CVPR
+  arxiv: '1805.09501'
+  used_for: 'Anchor: augmentation policies as compositions of image operations with magnitudes'
+  code_location: 'policy.py: OPS'
+- id: cubuk2020randaugment
+  title: 'RandAugment: Practical automated data augmentation with a reduced search space'
+  authors: Ekin D. Cubuk, Barret Zoph, Jonathon Shlens and Quoc V. Le
+  year: 2020
+  venue: CVPR Workshops
+  arxiv: '1909.13719'
+  used_for: Two uniformly drawn operations at a shared magnitude
+  code_location: 'policy.py: augment, M'
+- id: devries2017cutout
+  title: Improved Regularization of Convolutional Neural Networks with Cutout
+  authors: Terrance DeVries and Graham W. Taylor
+  year: 2017
+  arxiv: '1708.04552'
+  used_for: Cutout
+  code_location: 'policy.py: augment (cutout)'
+- id: lim2019fast
+  title: Fast AutoAugment
+  authors: Sungbin Lim, Ildoo Kim, Taesup Kim, Chiheon Kim and Sungwoong Kim
+  year: 2019
+  venue: NeurIPS
+  arxiv: '1905.00397'
+  used_for: Related work (search without full training)
+  code_location: null
+- id: muller2021trivialaugment
+  title: 'TrivialAugment: Tuning-free Yet State-of-the-Art Data Augmentation'
+  authors: Samuel G. Müller and Frank Hutter
+  year: 2021
+  venue: ICCV
+  arxiv: '2103.10158'
+  used_for: Related work (one random operation at a random strength)
+  code_location: null
+changes:
+- text: The anchor's searched sub-policies are replaced by RandAugment's uniform choice of two operations at one magnitude.
+  code: 'policy.py: augment'
+- text: Cutout is applied after the operations, and the last 10% of the epochs use only flip and translation.
+  code: 'policy.py: augment'
+- text: Each drawn operation runs only on the images that drew it, on the whole training set at once.
+  code: 'policy.py: augment (masks)'

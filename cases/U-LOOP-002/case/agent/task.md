@@ -1,25 +1,103 @@
-# U-LOOP-002
+# U-LOOP-002: Adaptive test-time compute for a looped model: accuracy at three compute budgets on three reasoning tasks
 
-The literature cutoff is **2026-07-01**; use only material that was public and verifiable before it.
+Anchor: Jonas Geiping, Sean McLeish, Neel Jain, John Kirchenbauer, Siddharth Singh, Brian R. Bartoldson, Bhavya Kailkhura, Abhinav Bhatele, Tom Goldstein, *Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach* (arXiv:2502.05171). Baseline used for comparison: a recurrent-depth transformer trained with random unroll lengths and a confidence-threshold exit with a budget ledger (the reference submission; its code is shown under `interface/baseline/`).
 
 ## Task
 
-Search adaptive halting/exit rules so a looped model allocates test-time compute by sample difficulty.
+Design a **looped (recurrent-depth) model and its halting rule** so that it **allocates test-time compute by problem difficulty**: under a fixed average compute budget per problem, it should spend little on easy problems and more on hard ones, and reach the **highest accuracy at each of three budgets**.
 
-Anchor: **Recurrent Depth (Huginn)** (arXiv:2502.05171).
+- Submit a trained checkpoint and the code that loads it. At evaluation the evaluator drives the loop itself: it calls your `init`, then alternately `step` (one recurrent iteration on the problems still active) and `readout` (current answers and which problems stop), and counts the floating-point operations of every call.
+- Three tasks with a difficulty knob (pointer chasing with 1–16 hops, graph reachability at distance 1–8, bracketed arithmetic of depth 1–6), 512 held-out problems each, difficulties mixed uniformly. Budgets are 4, 8 and 16 times the cost of one reference transformer layer on the problem, averaged over the problems of a task.
+- A budget point counts only if the measured average compute stays within it; a fixed-depth model that never halts early is a valid but weak entry.
+- You may build on any public work (universal and looped transformers, adaptive computation time, early exit, recurrent depth, confidence calibration), but the design report must state what you borrowed and what you changed.
 
-## What you submit
+### Workflow
 
-1. The complete implementation of the method, with entry point `method.py`, written against the interface in `interface/`. After submission the code is trained and run from scratch in another environment, so trained parameters need not be submitted.
-2. Design report `report/index.html`: following the structure of `templates/report_template.html`, explain the design idea, definitions, algorithm, complexity and principles of the method. The report explains the design only, with no experimental procedure or numerical results.
-3. `references.yaml`: every paper cited in the report, in the format of `templates/references_template.yaml`; when you borrow a component from a paper, state what was borrowed and where it is in the code.
+1. **Research (throughout).** Study the anchor and related work, and come back to the literature whenever your experiments raise a question (an unexpected failure, a bottleneck, a result you cannot explain). The sandbox is online for papers, code and documentation, and the offline paper search `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` answers quickly from arXiv titles and abstracts. Searches and connections are logged with your run.
+2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address, and keep this up to date as you learn. It becomes Section 2 (Related Work) of the design report.
+3. **Design.** Propose an improvement over the anchor and the baseline: at least one change you can state precisely and point to in your code. List every change, with its code location, in the report's "Changes relative to the anchor" list (`<ol id="changes">`); a report without it fails the format check.
+4. **Develop and verify.** Implement it, write a `train.py` that produces your checkpoint from the provided data, train in the sandbox, check the checkpoint on the dev split with `selfcheck.py`, and iterate as your budget allows. The reference code in `interface/baseline/` (model code and `train.py`) runs as is and is a starting point. The checkpoint you submit is exactly what the evaluator scores; it does not retrain.
+5. **Submit** the deliverables below. Submission is one-shot.
 
-## Constraints
+## Data
 
-- Use only the data and interfaces provided in `data/` and `interface/`; do not download data or models from the network.
-- Development resources: one 24GB GPU, at most 4 GPU-hours in total during development.
-- Submission is one-shot.
+There is no data file. Training data comes only from `interface/reason_tasks.py`: `Sampler(seed).sample(task, d, count)` returns `count` problems of difficulty d as an int64 array (count, sequence length) and their answers (count,).
 
-## Current status
+| Task | Input | Answer | Difficulty |
+|---|---|---|---|
+| `pointer` | 32 pointers and a start index (33 tokens) | index after d hops (32 classes) | 1–16 |
+| `reach` | 24 directed edges on 16 nodes and a query (50 tokens) | reachable or not (2 classes) | 1–8 |
+| `arith` | bracketed expression mod 10, padded to 128 tokens | its value (10 classes) | 1–6 |
 
-The interface and data of this task are still being frozen. Once it is enabled, `interface/` will contain the interface notes and `data/` the usable data.
+The held-out set (512 problems per task, difficulty uniform) is generated by the same code with a secret seed; it is not in the sandbox. The self-check generates its own problems with a public seed.
+
+## Interface
+
+Implement `load(checkpoint_dir, device)`, `init(model, task, x, budget_flops) -> state`, `step(model, state, active) -> state`, `readout(model, state) -> (logits, halt)` and optionally `n_params(model)` in `model.py`. `x` is an int64 array of all problems of one task; `active` a bool mask of the problems still iterating; `logits` is (n, classes), `halt` a bool (n,) array. All computation inside `init`, `step` and `readout` must use PyTorch operators.
+
+The full reference is `interface/interface.md`. `abench_stage.py`, `stages.py` and `metrics.py` in `interface/` are the evaluator's own pipeline and metric code; `selfcheck.py` runs them on a dev split.
+
+## Metrics
+
+| Metric | Definition | Requirement |
+|---|---|---|
+| **Budgeted accuracy** (primary) | Mean over the 3 tasks × 3 budgets of the accuracy at that budget, counted as 0 where the measured compute exceeds the budget by more than 2%; higher is better | — |
+| Accuracy and compute per point | Accuracy, and measured FLOPs per problem divided by F_ref, for each task and budget | reported |
+| Adaptivity | Spearman correlation between the iterations a problem received and its difficulty, per point | reported |
+| Accuracy by difficulty | At the middle budget, per task and difficulty | reported |
+| Parameters | Parameters of the model | Threshold: ≤ 20M |
+| Load time | Seconds from the start signal to the return of `load()` | reported (killed at 120 s) |
+
+**Compute accounting and decision**
+
+- The evaluator runs every call to `init`, `step` and `readout` under `torch.utils.flop_counter.FlopCounterMode` and sums the counted operations; F_ref(task) is what the same counter reports for the reference layer in `interface/refblock.py` on one problem. At most 64 iterations are run; a problem that has not halted takes its answer from the last readout.
+- Loading and the loops run in a new process with empty cache directories on the reference GPU, timed by the evaluator's parent process (`interface/abench_stage.py`); all nine loops must finish within 600 seconds.
+- A submission is valid only if the parameter threshold holds and the code follows the rules below (checked by inspecting `model.py` and `src/`); valid submissions are ranked by budgeted accuracy. Differences inside the 95% interval over problems reported with the score are treated as ties.
+- If loading or a loop crashes, exceeds a time limit, or returns outputs of the wrong shape or non-finite logits, the submission is invalid.
+- The final ABench score is driven mainly by budgeted accuracy, and also considers how different the method is from existing methods and the quality of the sources cited in the design report; the exact weights are not published.
+
+## Evaluation
+
+1. When your session ends, the sandbox collects only the allowed files from `ABENCH_SUBMISSION_DIR`; the workspace is deleted.
+2. The evaluator runs outside the sandbox: it checks the submission format, then loads your submitted checkpoint with your model code and runs inference through the stages in `interface/stages.py`, once, on the evaluation hardware; it never retrains your model to evaluate it (`train.py` is only re-run in the audit below).
+3. Held-out inputs are copied into the run directory only after the timed phase has ended, and never with their labels or reference values; those stay in the evaluator process, which computes the metrics with `interface/metrics.py`.
+4. Audit: the operator re-runs your `train.py` from scratch for the top-ranked submissions and for a random sample of the others. If the re-trained checkpoint's primary metric falls outside your submitted checkpoint's 95% interval, widened by the run-to-run spread the operator measures for the reference `train.py`, the submission is invalid.
+5. You receive no evaluation results during your session.
+
+## Sandbox Guide
+
+The full guide is `interface/sandbox_guide.md`. Key points:
+
+- One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model. Available software: Python 3, PyTorch (CUDA, Triton), NumPy, SciPy; your submission may depend only on it (packages you install while developing are not available to the evaluator).
+- Network: online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run.
+- The session lasts at most 6 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 5 GPU-hours; the runner meters it (GPU-busy time, CPU time of your processes) and a run that exceeds it is not scored.
+- Data is read-only under `$ABENCH_DATA_DIR`. Write code and run experiments in `$ABENCH_WORKSPACE`; put the final files in `$ABENCH_SUBMISSION_DIR`.
+- Offline paper search (arXiv titles and abstracts, fast, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
+- Self-check: `python3 "$ABENCH_VIEW_DIR/interface/selfcheck.py" --quick` (interface, small slice), then without `--quick` on the full dev split with your checkpoint.
+
+## Deliverables
+
+```
+$ABENCH_SUBMISSION_DIR/
+├── model.py            # required: load(), init(), step(), readout()
+├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+├── checkpoint/         # required: trained parameters, any file types, at most 200 MB
+├── src/                # optional: other .py modules imported by model.py or train.py
+├── README.md           # optional
+├── report/index.html   # required: design report
+└── references.yaml     # required: reference register
+```
+
+- Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+- Write the design report following the structure of `templates/report_template.html`: related work and the gap you address, the changes relative to the anchor (`<ol id="changes">`, each with its code location), method definition, algorithm, complexity and design rationale. The report explains the design only; it does not describe experiments or numeric results.
+- Fill in `references.yaml` following `templates/references_template.yaml`. Each entry states what was borrowed and where it is in the code; ids match the report's references one to one.
+
+## Rules
+
+- The checkpoint must be produced by your `train.py` from the provided sampler only; no pretrained weights and no external data.
+- Inside `init`, `step` and `readout`, all computation on the problems must use PyTorch operators on tensors (no NumPy, Python arithmetic over the inputs, Triton or custom CUDA kernels), so that the evaluator's counter sees it; bookkeeping of masks and budgets in NumPy is allowed.
+- No hand-written solution of a task anywhere in the submission (following pointers, graph search or expression evaluation outside the learned model); the answers must come from the learned model.
+- `readout` may coordinate the halting of the problems in a batch (for example by a budget ledger), but must not use the problems' difficulty labels, which it never receives.
+- Do not read or write files outside the submission directory, the run directory and the paths the stage gives you; do not access the network; do not touch the timing pipe or the protocol bytes.
+- Do not use extra processes or background threads to move work outside the timed phase, and do not leave processes running after a stage returns.
+- Submission is one-shot. A submission that breaks the rules is invalid.

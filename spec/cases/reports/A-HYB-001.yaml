@@ -1,0 +1,105 @@
+case: A-HYB-001
+title: 'Interleaved Blocked Local and Global Attention'
+abstract: >-
+  This submission keeps the baseline transformer's sublayers and replaces full attention in six of eight layers by
+  blocked local attention: each block of 256 tokens attends causally to itself and the previous block. Every fourth
+  layer keeps global attention, which preserves exact retrieval over the whole context. Because local attention is
+  computed block by block, its cost grows linearly with the context, so at 16k tokens the model needs well under the
+  60% compute cap while costing less than the transformer at 1k. The layout follows the local-global interleaving of
+  Longformer and Gemma 2 [@beltagy2020longformer; @gemma2024gemma2]. It has not been run yet: it needs PyTorch and a
+  GPU, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Full attention costs time quadratic in the context; recurrent and state-space mixers cost linear time but compress
+    the past into a fixed state, which hurts associative recall [@arora2023zoology]. Hybrids keep a few attention layers
+    for recall and make the rest cheap.
+- title: Related Work
+  paras:
+  - >-
+    Selective state-space models made linear-time mixers competitive on language modelling [@gu2023mamba]; Zoology
+    traced their remaining gap to associative recall and measured it with MQAR [@arora2023zoology]. Hybrid models mix
+    attention with state-space layers [@lieber2024jamba] or with local attention, as in Longformer
+    [@beltagy2020longformer] and Gemma 2 [@gemma2024gemma2]; gated linear attention offers a parallelisable recurrence
+    [@yang2023gla].
+  - >-
+    The reference uses the simplest cheap mixer — local attention — so the question of which linear-time mixer best
+    complements the global layers is left to entries.
+- title: Method
+  paras:
+  - >-
+    Layers 3 and 7 use the baseline attention. In the other layers the sequence is padded to a multiple of 256 and cut
+    into blocks; queries of block b attend to the keys of blocks b − 1 and b with a causal mask, through one
+    scaled-dot-product call over all blocks. Projections, rotary embedding, MLPs and normalisation are the baseline's.
+  algorithm_caption: Blocked local attention
+  algorithm:
+  - split q, k, v into n blocks of 256; K_b ← [k_{b−1}; k_b], V_b ← [v_{b−1}; v_b]
+  - mask query i of block b to keys j ≤ i in the window (block 0 has no previous block)
+  - y_b ← softmax(q_b K_bᵀ / √d) V_b for all blocks in one call
+- title: Design Rationale
+  paras:
+  - >-
+    At 16k tokens each local layer costs about 4 · 512 · 384 FLOPs per token for attention instead of about
+    4 · 16,384 · 384, while the two global layers keep full recall; at 1k tokens local layers are cheaper than global
+    ones, so the short-context compute gate holds with room to spare.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Tokens beyond 512 positions are visible only through the two global layers, whose cost still grows quadratically;
+    the saved compute at 1k is not reinvested in width; and the model has not been run yet.
+references:
+- id: gu2023mamba
+  title: 'Mamba: Linear-Time Sequence Modeling with Selective State Spaces'
+  authors: Albert Gu and Tri Dao
+  year: 2023
+  venue: arXiv
+  arxiv: '2312.00752'
+  used_for: 'Anchor: linear-time mixers'
+  code_location: null
+- id: arora2023zoology
+  title: 'Zoology: Measuring and Improving Recall in Efficient Language Models'
+  authors: Simran Arora, Sabri Eyuboglu, Aman Timalsina, Isys Johnson, Michael Poli, James Zou, Atri Rudra and Christopher Ré
+  year: 2023
+  venue: arXiv
+  arxiv: '2312.04927'
+  used_for: Associative recall and MQAR
+  code_location: null
+- id: lieber2024jamba
+  title: 'Jamba: A Hybrid Transformer-Mamba Language Model'
+  authors: Opher Lieber et al.
+  year: 2024
+  venue: arXiv
+  arxiv: '2403.19887'
+  used_for: Related work (hybrid layouts)
+  code_location: null
+- id: beltagy2020longformer
+  title: 'Longformer: The Long-Document Transformer'
+  authors: Iz Beltagy, Matthew E. Peters and Arman Cohan
+  year: 2020
+  venue: arXiv
+  arxiv: '2004.05150'
+  used_for: Local attention windows combined with global attention
+  code_location: 'src/local_attention.py: LocalAttention'
+- id: gemma2024gemma2
+  title: 'Gemma 2: Improving Open Language Models at a Practical Size'
+  authors: Gemma Team
+  year: 2024
+  venue: arXiv
+  arxiv: '2408.00118'
+  used_for: Interleaving local and global attention layers
+  code_location: 'model.py: build'
+- id: yang2023gla
+  title: Gated Linear Attention Transformers with Hardware-Efficient Training
+  authors: Songlin Yang, Bailin Wang, Yikang Shen, Rameswar Panda and Yoon Kim
+  year: 2023
+  venue: arXiv
+  arxiv: '2312.06635'
+  used_for: Related work (linear-time mixers)
+  code_location: null
+changes:
+- text: Six of eight layers use blocked causal local attention over the current and previous block of 256 tokens instead
+    of full attention.
+  code: 'src/local_attention.py: LocalAttention.forward; model.py: build'
+- text: Every fourth layer keeps full causal attention for retrieval across the whole context.
+  code: 'model.py: build'

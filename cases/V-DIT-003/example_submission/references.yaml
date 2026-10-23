@@ -1,0 +1,26 @@
+schema: abench.references/v2
+references:
+- id: peebles2023dit
+  title: Scalable Diffusion Models with Transformers
+  authors: William Peebles and Saining Xie
+  year: 2023
+  venue: ICCV
+  arxiv: '2212.09748'
+  used_for: 'Anchor: the DiT-S/2 backbone with adaLN-Zero conditioning'
+  code_location: 'backbone.py: DiT, Block'
+- id: bao2023uvit
+  title: 'All are Worth Words: A ViT Backbone for Diffusion Models'
+  authors: Fan Bao, Shen Nie, Kaiwen Xue, Yue Cao, Chongxuan Li, Hang Su and Jun Zhu
+  year: 2023
+  venue: CVPR
+  arxiv: '2209.12152'
+  used_for: Long skip connections between shallow and deep blocks
+  code_location: 'backbone.py: Block.skip, DiT.forward'
+- id: henry2020qknorm
+  title: Query-Key Normalization for Transformers
+  authors: Alex Henry, Prudhvi Raj Dachapally, Shubham Pawar and Yuxuan Chen
+  year: 2020
+  venue: Findings of EMNLP
+  arxiv: '2010.04245'
+  used_for: Normalising queries and keys before attention
+  code_location: 'backbone.py: QKNormAttention'

@@ -1,0 +1,130 @@
+id: X-MUP-003
+title: "A parametrisation whose learning rate, tuned on a narrow model, stays optimal on models four and eight times wider"
+template: B-OPT-001
+anchor: {authors: "Greg Yang, Edward J. Hu, Igor Babuschkin, Szymon Sidor, Xiaodong Liu, David Farhi, Nick Ryder, Jakub Pachocki, Weizhu Chen, Jianfeng Gao", title: "Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer", arxiv: "2203.03466"}
+baseline: "the standard parametrisation (width-independent initialisation and one learning rate), run by the evaluator under the same protocol (`interface/baselines/sp/`)"
+baseline_run: "Under exactly the same protocol (hardware, seeds, data, sweep, transfer), the evaluator also runs the standard parametrisation in `interface/baselines/sp/` and reports your losses and transfer gap relative to it."
+reference_verification: "Not executed yet: the protocol and the reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation, which also calibrates the stage time (about 13 training runs per seed)."
+mode: judge_trains
+n_seeds: 2
+kit_extra:
+  - microlm/lm_train.py
+extra_interface:
+  - harness/mup_lm.py
+  - harness/lm_model.py
+  - harness/token_data.py
+  - harness/baselines/sp/param.py
+task: |
+  Design a **parametrisation** — per-tensor initialisation, per-tensor learning-rate and weight-decay multipliers, output and attention scales — so that **a learning rate tuned on a width-128 model transfers** to models of width 512 and 1,024, and the width-1,024 model trained with it reaches the **lowest held-out loss**.
+
+  - Submit the parametrisation only (`param.py`). At evaluation the evaluator runs a fixed protocol once for each of 2 seeds unknown to you: it trains the 8-layer decoder at width 128 with 7 global learning rates (2⁻¹² to 2⁻⁶), picks the best on a tuning set, trains width 512 with that rate times ¼, ½, 1, 2 and 4 (to measure the transfer gap) and width 1,024 with that rate. Every run uses the same data, steps, optimiser and schedule; only your parametrisation and the global rate differ.
+  - The primary metric rewards both transfer and the quality of the parametrisation itself: the loss of the wide model trained with the transferred rate. The transfer gap at width 512 is reported.
+  - You may build on any public work (μP and its variants, unit scaling, depth and width scaling rules, per-layer learning rates), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only) holds the first two training shards of FineWeb-10B pre-tokenized with the GPT-2 BPE (Hugging Face `kjj0/fineweb10B-gpt2`, the data of the modded-nanogpt speedrun):
+
+  | File | Contents |
+  |---|---|
+  | `fineweb_train_000001.bin`, `fineweb_train_000002.bin` | 256 int32 header (magic 20240520, version 1, token count), then about 100M uint16 tokens each |
+
+  Read them with `interface/token_data.py`. The evaluator's tuning set is the last 1,048,576 tokens of the second shard (not used for training). The held-out set is the first 4,194,304 tokens of the official FineWeb validation shard; it is not in the sandbox. The self-check holds out the last 2,097,152 tokens of the second shard and tunes on the 1,048,576 before them.
+interface: "Implement a class in `param.py` and export it as `PARAM` with `init_std(name, shape, width, base_width)`, `lr_scale(name, shape, width, base_width)` and `output_multiplier(width, base_width)`, optionally `wd_scale(...)` and `attention_scale(head_dim, width, base_width)`; base_width is 128. `interface/mup_lm.py` shows exactly how each is applied."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Held-out loss at width 1,024** (primary) | Mean next-token cross-entropy (nats) on the 4,194,304 held-out tokens in windows of 1,024 of the width-1,024 model trained with the learning rate selected at width 128, mean over 2 seeds; lower is better | — |
+  | Transfer gap at width 512 | Tuning-set loss at width 512 with the selected rate minus the best over the five multiples | reported |
+  | Optimum shift at width 512 | log₂ of the multiple with the lowest width-512 loss (0 = perfect transfer) | reported |
+  | Held-out loss at width 512 | With the selected rate | reported |
+  | Width-128 sweep | Tuning-set loss of the 7 rates, the selected rate, and how many rates lie within 0.02 of the best | reported |
+  | Protocol time | Seconds of the whole timed protocol (13 training runs, parent clock) | Threshold: ≤ 3,600 s |
+
+  **Fixed protocol** (`interface/stages.py`, `interface/lm_train.py`, `interface/mup_lm.py`): 8 layers, head dimension 64, MLP width 2.75 × width, tied embeddings; each run 1,500 steps of 32 × 1,024 tokens, AdamW (β = 0.9, 0.95; weight decay 0.1 × your `wd_scale` on matrices), per-tensor rate η × `lr_scale`, 150 warm-up steps then cosine decay to 0.1, clipping at 1.0, bf16 autocast with fp32 weights. A diverged run counts as ln(50,304) = 10.83.
+
+  **Decision**
+
+  - A submission is valid only if the time threshold holds in every seed; valid submissions are ranked by held-out loss at width 1,024. Differences smaller than the spread over the two seeds are treated as ties.
+  - If a seed's protocol crashes or exceeds the time limit (killed at 4,200 s), the submission is invalid.
+  - The final ABench score is driven mainly by the primary metric relative to the baseline, and also considers how different the parametrisation is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "8 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML"
+  notes: |
+    - `selfcheck.py --quick` runs the whole protocol with 150 steps per run and 3 learning rates; one full protocol takes most of a GPU-hour.
+    - Coordinate checks (activation sizes across widths after a few steps) are a cheap way to test a parametrisation before running the protocol.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── param.py            # required: PARAM
+    ├── src/                # optional: helper modules imported by param.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; no trained parameters are submitted.
+rules: |
+  - The parametrisation may depend only on the parameter's name and shape, the width and the base width; it must not read files, environment variables or the network, or depend on the seed or the data.
+  - It may not change the architecture, the optimiser, the schedule or the number of steps.
+interface_md: |
+  # X-MUP-003 interface
+
+  ## Entry point: `param.py`
+
+  ```python
+  class MyParam:
+      @staticmethod
+      def init_std(name, shape, width, base_width) -> float: ...        # matrices (ndim >= 2) only
+      @staticmethod
+      def lr_scale(name, shape, width, base_width) -> float: ...        # every tensor
+      @staticmethod
+      def output_multiplier(width, base_width) -> float: ...
+      # optional
+      @staticmethod
+      def wd_scale(name, shape, width, base_width) -> float: ...        # matrices; default 1
+      @staticmethod
+      def attention_scale(head_dim, width, base_width) -> float: ...    # default 1 / sqrt(head_dim)
+
+  PARAM = MyParam
+  ```
+
+  - Names: `embed.weight` (input and tied output), `blocks.<i>.attn.{q,k,v,o}.weight`, `blocks.<i>.mlp.{gate,up,down}.weight`,
+    `blocks.<i>.n1.weight`, `blocks.<i>.n2.weight`, `norm.weight`. Widths: 128 (tuning), 512, 1,024; base_width = 128.
+
+  ## Evaluator code you can read
+
+  `mup_lm.py` (model and where the parametrisation applies), `stages.py` (the protocol), `lm_train.py` (recipe),
+  `metrics.py`, `lm_model.py`, `token_data.py`, `baselines/sp/param.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/X-MUP-003
+    public:
+      - {path: sandbox/data/X-MUP-003/fineweb_train_000001.bin, sha256: pending}
+      - {path: sandbox/data/X-MUP-003/fineweb_train_000002.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/X-MUP-003/hidden.npz.enc, sha256_plain: pending, keys: [tokens], tokens: 4194305}
+    sources:
+      - name: FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (data of the modded-nanogpt speedrun)
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        files: [fineweb_train_000001.bin, fineweb_train_000002.bin, fineweb_val_000000.bin]
+        license: MIT on the token repository; the underlying FineWeb text is ODC-BY
+        verified: "2026-10-19: revision, license and file list from the Hugging Face API (shared with B-OPT-001)"
+  submission:
+    kind: code_only
+    entry: param.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, param.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [2203, 3466]          # kept secret by the operator
+    baseline: harness/baselines/sp

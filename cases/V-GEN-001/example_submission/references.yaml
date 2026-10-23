@@ -1,0 +1,42 @@
+schema: abench.references/v2
+references:
+- id: ho2020ddpm
+  title: Denoising Diffusion Probabilistic Models
+  authors: Jonathan Ho, Ajay Jain and Pieter Abbeel
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11239'
+  used_for: 'Anchor: architecture, schedule, loss and training settings'
+  code_location: 'model.py: UNET_CONFIG, BETAS; train.py: main'
+- id: song2021ddim
+  title: Denoising Diffusion Implicit Models
+  authors: Jiaming Song, Chenlin Meng and Stefano Ermon
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.02502'
+  used_for: Deterministic few-step sampling
+  code_location: 'model.py: generate'
+- id: nichol2021improved
+  title: Improved Denoising Diffusion Probabilistic Models
+  authors: Alex Nichol and Prafulla Dhariwal
+  year: 2021
+  venue: ICML
+  arxiv: '2102.09672'
+  used_for: Related work (cosine schedule, learned variances)
+  code_location: null
+- id: karras2022edm
+  title: Elucidating the Design Space of Diffusion-Based Generative Models
+  authors: Tero Karras, Miika Aittala, Timo Aila and Samuli Laine
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2206.00364'
+  used_for: Related work (preconditioning, training noise distribution, samplers)
+  code_location: null
+- id: kingma2015adam
+  title: 'Adam: A Method for Stochastic Optimization'
+  authors: Diederik P. Kingma and Jimmy Ba
+  year: 2015
+  venue: ICLR
+  arxiv: '1412.6980'
+  used_for: Optimiser
+  code_location: 'train.py: main'

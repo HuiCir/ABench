@@ -1,0 +1,76 @@
+case: PRO-OPD-002
+title: 'Warm-Started On-Policy Distillation with a Per-Token Reverse KL'
+abstract: >-
+  This submission distils Qwen3-8B into Qwen3-1.7B-Base [@yang2025qwen3] in two phases: 100 steps of supervised
+  fine-tuning on teacher answers that are correct, which teaches the base student the chat format and the boxed
+  answer (sequence-level KD [@kim2016seqkd]), then on-policy distillation in the sense of GKD [@agarwal2024gkd]: the
+  student samples, the teacher scores every sampled token, and the per-token difference of log-probabilities is
+  used as a fixed advantage in a policy-gradient step, an estimator of the reverse KL on the student's own outputs.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    A small student trained only on teacher outputs is evaluated on its own outputs, where its early mistakes lead
+    it to states the teacher never visited; training on its own samples with the teacher's judgement of every token
+    removes this mismatch.
+- title: Related Work
+  paras:
+  - >-
+    Sequence-level KD trains on teacher-generated outputs [@kim2016seqkd]; GKD trains on student samples with a
+    divergence to the teacher's token distributions [@agarwal2024gkd]; MiniLLM optimises the reverse KL with policy
+    gradients [@gu2024minillm].
+- title: Method
+  paras:
+  - >-
+    GPU 0 samples the current student (vLLM, weights reloaded every step), GPU 1 holds the teacher for sampling in
+    phase 1 and for scoring in phase 2, GPUs 2-3 train the student with FSDP. Phase 2: 64 prompts x 4 samples of at
+    most 8,192 tokens per step, advantage log p_teacher - log p_student per token, learning rate 1e-6, 600 steps in
+    all, a checkpoint every 25 steps.
+- title: Design Rationale
+  paras:
+  - >-
+    The single-sample reverse-KL estimate needs only the teacher's log-probability of the sampled token, so the
+    teacher runs one forward pass per sample and no full distributions are moved between GPUs.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The answers' correctness is used only to filter phase 1; no reward is combined with the distillation signal.
+    Nothing here has been run in this build.
+references:
+- id: agarwal2024gkd
+  title: 'On-Policy Distillation of Language Models: Learning from Self-Generated Mistakes'
+  authors: Rishabh Agarwal, Nino Vieillard, Yongchao Zhou, Piotr Stanczyk, Sabela Ramos, Matthieu Geist and Olivier Bachem
+  year: 2024
+  venue: ICLR
+  arxiv: '2306.13649'
+  used_for: 'Anchor: training on student samples against the teacher'
+  code_location: 'train.py: main (phase 2)'
+- id: kim2016seqkd
+  title: Sequence-Level Knowledge Distillation
+  authors: Yoon Kim and Alexander M. Rush
+  year: 2016
+  venue: EMNLP
+  arxiv: '1606.07947'
+  used_for: Warm start on teacher-generated answers
+  code_location: 'train.py: main (phase 1)'
+- id: gu2024minillm
+  title: 'MiniLLM: Knowledge Distillation of Large Language Models'
+  authors: Yuxian Gu, Li Dong, Furu Wei and Minlie Huang
+  year: 2024
+  venue: ICLR
+  arxiv: '2306.08543'
+  used_for: Reverse KL optimised with policy gradients
+  code_location: 'train.py: main (phase 2)'
+- id: yang2025qwen3
+  title: Qwen3 Technical Report
+  authors: An Yang and others (Qwen Team)
+  year: 2025
+  venue: arXiv
+  arxiv: '2505.09388'
+  used_for: The student, the teacher and the chat template
+  code_location: 'train.py: main'
+changes:
+- text: A filtered SFT warm start precedes on-policy distillation, so that a base model can be the student.
+  code: 'train.py: main'
+- text: The reverse KL is estimated per sampled token and used as a fixed advantage instead of GKD's full-distribution divergence.
+  code: 'train.py: main'

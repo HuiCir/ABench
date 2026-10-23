@@ -1,5 +1,3 @@
-# RS-GRAPH-002 example submission contract
+# RS-GRAPH-002 reference submission
 
-This directory intentionally contains no simulated implementation or score.
-
-A real submission should provide the files named in case/task_prompt.md, pass L0 schema checks, and leave all measurements to the benchmark runner. The scaffold is complete only after real resources, reference runs, hidden evaluation and a sandbox have been frozen.
+`train.py` trains implicit-ALS factors in NumPy (`--dev` for the self-check split); `model.py` scores all items and returns the top 20 per user. The checkpoint is built by `train.py`, not shipped. Design report: `report/index.html`; references: `references.yaml`.

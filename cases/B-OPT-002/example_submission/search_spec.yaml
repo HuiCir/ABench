@@ -1,8 +1,0 @@
-case_id: B-OPT-002
-grammar_version: lion-primitive-v1
-seed: 17
-candidate_limit: 256
-objective: "0.45 direction + 0.35 spectral stability + 0.20 μ1 proxy loss"
-selected_program: ridge_sign_slow
-selected_program_id: 2ab6fad54414
-replay_command: "python3 search.py --seed 17"

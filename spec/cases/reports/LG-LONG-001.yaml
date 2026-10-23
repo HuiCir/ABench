@@ -1,0 +1,114 @@
+case: LG-LONG-001
+title: 'Whole-Document tf-idf with Per-Article Logistic Regression for ECtHR Violation Prediction'
+abstract: >-
+  This submission gives a length-unlimited linear reference for the ECtHR task of LexGLUE [@chalkidis2022lexglue]. Each
+  case is represented by sublinear tf-idf [@salton1988tfidf] over word unigrams and bigrams of all its paragraphs, and
+  one L2-regularised logistic regression per article predicts whether the article was violated, with a single decision
+  threshold tuned for micro-F1. It ignores the provided legal-domain encoder [@chalkidis2020legalbert] on purpose:
+  how to bring a 512-token encoder to documents several thousand tokens long is the question entries answer.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Judgment prediction on ECtHR cases asks which articles of the Convention were violated, given the facts as
+    described by the court [@chalkidis2019judgment]. The facts run to thousands of tokens, longer than the input
+    window of standard pretrained encoders, so models either truncate, encode paragraphs hierarchically, or use
+    sparse attention.
+- title: Related Work
+  paras:
+  - >-
+    LexGLUE compares linear tf-idf models with pretrained encoders and finds that domain pretraining and hierarchical
+    encoding of paragraphs give the strongest results on ECtHR [@chalkidis2022lexglue;@chalkidis2020legalbert]. Sparse
+    attention patterns extend the window of a single transformer to several thousand tokens [@beltagy2020longformer].
+    Paragraph-level rationales show that a few paragraphs usually carry the decision [@chalkidis2021rationale].
+  - >-
+    Linear models see the whole document but no word order beyond bigrams; encoders see order but not the whole
+    document. This reference is the first kind, which leaves the second kind, and combinations of both, to entries.
+- title: Method
+  subsections:
+  - title: Features and classifiers
+    paras:
+    - >-
+      Lower-cased word tokens and adjacent-word bigrams are counted per case; the 100,000 terms with the highest
+      document frequency (at least three cases) form the vocabulary. Each case vector holds (1 + log tf) · idf and is
+      normalised to unit length. For each of the ten articles a logistic regression with L2 penalty 1e-4 is fitted
+      by L-BFGS on 90% of the training cases; the remaining 10% choose one probability threshold for all articles that
+      maximises micro-F1 including the "no violation" label.
+    algorithm_caption: Training
+    algorithm:
+    - vocabulary ← top 100,000 unigrams and bigrams by document frequency (≥ 3)
+    - X ← unit-normalised sublinear tf-idf of the fitting cases
+    - 'for article j = 1 … 10: (w_j, b_j) ← L-BFGS on logistic loss + 1e-4/2 ‖w_j‖²'
+    - threshold ← argmax over {0.10, 0.15, …, 0.70} of micro-F1 on the selection cases
+  - title: Complexity
+    paras:
+    - >-
+      Feature extraction is linear in document length; each L-BFGS iteration costs one sparse product with the
+      9,000 × 100,000 case matrix per article. Prediction is one sparse matrix product.
+- title: Design Rationale
+  paras:
+  - >-
+    A linear model over the whole document sets a reference that has no length limit, which makes visible how much an
+    encoder-based design gains from word order and pretraining despite seeing less of each case.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Bag-of-n-grams features cannot tell which party a statement concerns, the threshold is shared by all articles, and
+    rare articles get few positive examples.
+references:
+- id: chalkidis2022lexglue
+  title: 'LexGLUE: A Benchmark Dataset for Legal Language Understanding in English'
+  authors: Ilias Chalkidis, Abhik Jana, Dirk Hartung, Michael Bommarito, Ion Androutsopoulos, Daniel Martin Katz and Nikolaos Aletras
+  year: 2022
+  venue: ACL
+  arxiv: '2110.00976'
+  used_for: 'Anchor: the task, the data and the evaluation with the no-violation label'
+  code_location: 'train.py: micro_f1_none'
+- id: chalkidis2019judgment
+  title: Neural Legal Judgment Prediction in English
+  authors: Ilias Chalkidis, Ion Androutsopoulos and Nikolaos Aletras
+  year: 2019
+  venue: ACL
+  arxiv: '1906.02059'
+  used_for: Origin of the ECtHR judgment prediction task
+  code_location: null
+- id: chalkidis2021rationale
+  title: 'Paragraph-level Rationale Extraction through Regularization: A case study on European Court of Human Rights Cases'
+  authors: Ilias Chalkidis, Manos Fergadiotis, Dimitrios Tsarapatsanis, Nikolaos Aletras, Ion Androutsopoulos and Prodromos Malakasiotis
+  year: 2021
+  venue: NAACL
+  arxiv: '2103.13084'
+  used_for: Related work (the ECtHR task A/B data; paragraph rationales)
+  code_location: null
+- id: chalkidis2020legalbert
+  title: 'LEGAL-BERT: The Muppets straight out of Law School'
+  authors: Ilias Chalkidis, Manos Fergadiotis, Prodromos Malakasiotis, Nikolaos Aletras and Ion Androutsopoulos
+  year: 2020
+  venue: Findings of EMNLP
+  arxiv: '2010.02559'
+  used_for: The provided encoder (not used by this reference)
+  code_location: null
+- id: beltagy2020longformer
+  title: 'Longformer: The Long-Document Transformer'
+  authors: Iz Beltagy, Matthew E. Peters and Arman Cohan
+  year: 2020
+  arxiv: '2004.05150'
+  used_for: Related work (sparse attention over long inputs)
+  code_location: null
+- id: salton1988tfidf
+  title: Term-weighting approaches in automatic text retrieval
+  authors: Gerard Salton and Christopher Buckley
+  year: 1988
+  venue: Information Processing & Management
+  doi: 10.1016/0306-4573(88)90021-0
+  used_for: Sublinear tf-idf weighting
+  code_location: 'model.py: tfidf'
+changes:
+- text: One logistic regression per article over whole-document tf-idf replaces the anchor's hierarchical encoders,
+    so the full case is always used.
+  code: 'model.py: tfidf, predict; train.py: fit_logistic'
+- text: A single decision threshold for all articles is tuned on held-aside training cases for micro-F1 with the
+    no-violation label.
+  code: 'train.py: main (threshold)'
+- text: Word bigrams are added to the anchor's unigram tf-idf baseline.
+  code: 'model.py: terms'

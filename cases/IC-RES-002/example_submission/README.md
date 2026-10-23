@@ -1,5 +1,3 @@
-# IC-RES-002 example submission contract
+# IC-RES-002 reference submission
 
-This directory intentionally contains no simulated implementation or score.
-
-A real submission should provide the files named in case/task_prompt.md, pass L0 schema checks, and leave all measurements to the benchmark runner. The scaffold is complete only after real resources, reference runs, hidden evaluation and a sandbox have been frozen.
+`model.py`: ResNet-18 / ResNet-50 with ResNet-D shortcuts and zero-initialised residual branches (code only; the evaluator trains both variants). Design report: `report/index.html`; references: `references.yaml`.

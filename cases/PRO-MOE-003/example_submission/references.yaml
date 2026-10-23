@@ -1,0 +1,26 @@
+schema: abench.references/v2
+references:
+- id: dai2024deepseekmoe
+  title: 'DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models'
+  authors: Damai Dai, Chengqi Deng, Chenggang Zhao, R.X. Xu, Huazuo Gao, Deli Chen and others
+  year: 2024
+  venue: ACL
+  arxiv: '2401.06066'
+  used_for: 'Anchor: fine-grained routed experts, shared experts and the expert-level balance loss'
+  code_location: 'model.py: MoE'
+- id: shazeer2017moe
+  title: 'Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer'
+  authors: Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton and Jeff Dean
+  year: 2017
+  venue: ICLR
+  arxiv: '1701.06538'
+  used_for: Top-k routing of tokens to experts
+  code_location: 'model.py: MoE.forward'
+- id: wang2024lossfree
+  title: Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts
+  authors: Lean Wang, Huazuo Gao, Chenggang Zhao, Xu Sun and Damai Dai
+  year: 2024
+  venue: arXiv
+  arxiv: '2408.15664'
+  used_for: The alternative balancing recipe that the operator also runs
+  code_location: 'model.py: MoE'

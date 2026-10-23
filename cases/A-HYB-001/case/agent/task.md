@@ -1,25 +1,102 @@
-# A-HYB-001
+# A-HYB-001: A hybrid sequence model that keeps language-modelling loss and associative recall while cutting long-context cost
 
-The literature cutoff is **2026-07-01**; use only material that was public and verifiable before it.
+Anchor: Albert Gu, Tri Dao, *Mamba: Linear-Time Sequence Modeling with Selective State Spaces* (arXiv:2312.00752). Baseline used for comparison: the B-OPT-001 transformer with full causal attention in every layer, run by the evaluator under identical conditions (`interface/baselines/transformer/`).
 
 ## Task
 
-Design a sequence mixer or a hybrid layer layout that keeps both language-modeling loss and retrieval ability at fixed FLOPs.
+Design a **sequence model — a new mixer, a hybrid layer layout, or both —** that matches a transformer's **language-modelling loss and associative recall** at the same parameters and short-context compute, while costing **at most 60% of the transformer's compute per token at 16k tokens of context**.
 
-Anchor: **Mamba** (arXiv:2312.00752).
+- Submit the model only (`model.py` with `build(cfg)`). At evaluation the evaluator builds it twice and trains both from scratch with fixed recipes, once for each of 2 seeds unknown to you: as a language model at the sizes of B-OPT-001's μ2 decoder (3,000 steps of 32 × 1,024 FineWeb tokens), and as a 4-layer, width-128 model on multi-query associative recall (MQAR; A-LIN-002's recipe), tested on longer sequences with more key-value pairs than in training.
+- The evaluator measures the compute itself (FlopCounterMode): at 1,024 tokens your forward pass may cost at most 5% more than the transformer's, at 16,384 tokens at most 60% of it; parameters may exceed the transformer's by at most 5%.
+- The primary metric is the held-out loss of the language model; MQAR accuracy may fall at most 0.05 below the transformer's. Forward latency per token at 1k, 4k and 16k tokens is reported as the throughput–context curve.
+- You may build on any public work (state-space models, linear attention and gated recurrences, local attention, hybrid layouts), but the design report must state what you borrowed and what you changed.
 
-## What you submit
+### Workflow
 
-1. The complete implementation of the method, with entry point `method.py`, written against the interface in `interface/`. After submission the code is trained and run from scratch in another environment, so trained parameters need not be submitted.
-2. Design report `report/index.html`: following the structure of `templates/report_template.html`, explain the design idea, definitions, algorithm, complexity and principles of the method. The report explains the design only, with no experimental procedure or numerical results.
-3. `references.yaml`: every paper cited in the report, in the format of `templates/references_template.yaml`; when you borrow a component from a paper, state what was borrowed and where it is in the code.
+1. **Research (throughout).** Study the anchor and related work, and come back to the literature whenever your experiments raise a question (an unexpected failure, a bottleneck, a result you cannot explain). The sandbox is online for papers, code and documentation, and the offline paper search `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` answers quickly from arXiv titles and abstracts. Searches and connections are logged with your run.
+2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address, and keep this up to date as you learn. It becomes Section 2 (Related Work) of the design report.
+3. **Design.** Propose an improvement over the anchor and the baseline: at least one change you can state precisely and point to in your code. List every change, with its code location, in the report's "Changes relative to the anchor" list (`<ol id="changes">`); a report without it fails the format check.
+4. **Develop and verify.** Implement it and run the evaluator's own training pipeline on the dev split with `selfcheck.py`; use the results to iterate as your budget allows. The evaluator then runs your submission from scratch under the same pipeline.
+5. **Submit** the deliverables below. Submission is one-shot.
 
-## Constraints
+## Data
 
-- Use only the data and interfaces provided in `data/` and `interface/`; do not download data or models from the network.
-- Development resources: one 24GB GPU, at most 8 GPU-hours in total during development.
-- Submission is one-shot.
+`$ABENCH_DATA_DIR/` (read-only) holds the first two training shards of FineWeb-10B pre-tokenized with the GPT-2 BPE (Hugging Face `kjj0/fineweb10B-gpt2`, the data of the modded-nanogpt speedrun):
 
-## Current status
+| File | Contents |
+|---|---|
+| `fineweb_train_000001.bin`, `fineweb_train_000002.bin` | 256 int32 header (magic 20240520, version 1, token count), then about 100M uint16 tokens each |
 
-The interface and data of this task are still being frozen. Once it is enabled, `interface/` will contain the interface notes and `data/` the usable data.
+Read them with `interface/token_data.py`. The held-out language-model set is the first 4,194,304 tokens of the official FineWeb validation shard; MQAR training sequences come from `interface/mqar.py` (lengths up to 256), and the held-out MQAR sequences (lengths 256–2,048, 16–256 pairs, 256 per cell) are generated by the same code with a secret seed. Neither held-out set is in the sandbox; the self-check holds out the last 2,097,152 tokens of the second shard and generates MQAR sequences with a public seed.
+
+## Interface
+
+Implement `build(cfg) -> nn.Module` in `model.py`. `cfg` is an `lm_model.Config` (vocab_size, d_model, n_layers, n_heads, n_kv_heads, d_ff, max_seq, rope_base, init_std); the module maps token ids (B, T) to logits (B, T, vocab) causally and has `loss(idx, targets)`. The evaluator calls it with `LM_CONFIG` (μ2 sizes, max_seq 16,384) and `MQAR_CONFIG` (vocab 8,192, width 128, 4 layers) from `interface/stages.py`.
+
+The full reference is `interface/interface.md`. `abench_stage.py`, `stages.py` and `metrics.py` in `interface/` are the evaluator's own pipeline and metric code; `selfcheck.py` runs them on a dev split.
+
+## Metrics
+
+| Metric | Definition | Requirement |
+|---|---|---|
+| **Held-out loss** (primary) | Mean next-token cross-entropy (nats) of the language model on the 4,194,304 held-out tokens in windows of 1,024, mean over 2 seeds; lower is better | — |
+| MQAR accuracy | Accuracy of the predicted values at the query positions of the held-out MQAR sequences, averaged over grid cells | Threshold: ≥ the transformer's − 0.05 |
+| Compute at 1k | Forward FLOPs per token at T = 1,024 relative to the transformer (FlopCounterMode, batch 1) | Threshold: ≤ 1.05 |
+| Compute at 16k | The same at T = 16,384 | Threshold: ≤ 0.60 |
+| Parameters | Relative to the transformer at the same sizes | Threshold: ≤ 1.05 |
+| Causality | Relative change of outputs at positions < T/2 when later tokens change (both models) | Threshold: ≤ 1e-3 |
+| Throughput–context curve | Forward latency per token at 1,024, 4,096 and 16,384 tokens (batch 1, bf16), and its ratio to the transformer's at 16,384 | reported |
+| Training time | Seconds of the language-model training (parent clock) | Threshold: ≤ 1,800 s |
+| Divergence | 1 if the language-model training loss became non-finite or exceeded 20 | Threshold: 0 |
+
+**Fixed training setting** (`interface/lm_train.py`, `interface/stages.py`): language model — AdamW at 1e-3 (β = 0.9, 0.95; weight decay 0.1 on matrices), 150 warm-up steps then cosine decay to 0.1, clipping at 1.0, bf16 autocast; MQAR — AdamW at 1e-3, 400 warm-up steps then cosine decay to 0, 8,000 steps of 128 sequences cycling through `mqar.TRAIN_GRID`.
+
+**Decision**
+
+- A submission is valid only if every threshold holds for the 2-seed means; valid submissions are ranked by held-out loss. Differences smaller than the spread over the two seeds are treated as ties.
+- If any stage crashes or exceeds a time limit (the language-model stage is killed at 2,100 s, the MQAR stage at 1,620 s), the whole submission is invalid.
+- The final ABench score is driven mainly by the held-out loss relative to the baseline, and also considers how different the model is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+
+## Evaluation
+
+1. When your session ends, the sandbox collects only the allowed files from `ABENCH_SUBMISSION_DIR`; the workspace is deleted.
+2. The evaluator runs outside the sandbox: it checks the submission format, then runs your training program from scratch through the stages in `interface/stages.py`, once for each of 2 seeds unknown to you, on the evaluation hardware, because the training itself is what this case measures.
+3. Held-out inputs are copied into the run directory only after the timed phase has ended, and never with their labels or reference values; those stay in the evaluator process, which computes the metrics with `interface/metrics.py`.
+4. The primary metric is reported with a 95% bootstrap interval over the held-out examples (`RESAMPLE` in `interface/metrics.py`; `selfcheck.py` prints the same interval on the dev split). Submissions whose intervals overlap are ranked as tied on the primary metric.
+5. Under exactly the same conditions (hardware, seeds, data, recipes), the evaluator also trains the transformer baseline in `interface/baselines/transformer/` and reports your loss, recall and latency relative to it; the recall gate is relative to the baseline's recall.
+6. You receive no evaluation results during your session.
+
+## Sandbox Guide
+
+The full guide is `interface/sandbox_guide.md`. Key points:
+
+- One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model. Available software: Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML; your submission may depend only on it (packages you install while developing are not available to the evaluator).
+- Network: online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run.
+- The session lasts at most 8 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 8 GPU-hours (the whole session on one GPU); the runner meters it (GPU-busy time, CPU time of your processes) and a run that exceeds it is not scored.
+- Data is read-only under `$ABENCH_DATA_DIR`. Write code and run experiments in `$ABENCH_WORKSPACE`; put the final files in `$ABENCH_SUBMISSION_DIR`.
+- Offline paper search (arXiv titles and abstracts, fast, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
+- Self-check: `python3 "$ABENCH_VIEW_DIR/interface/selfcheck.py" --quick` (interface, small slice), then without `--quick` on the full dev split.
+
+## Deliverables
+
+```
+$ABENCH_SUBMISSION_DIR/
+├── model.py            # required: build(cfg)
+├── src/                # optional: helper modules imported by model.py
+├── README.md           # optional
+├── report/index.html   # required: design report
+└── references.yaml     # required: reference register
+```
+
+- The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; no trained parameters are submitted.
+- Write the design report following the structure of `templates/report_template.html`: related work and the gap you address, the changes relative to the anchor (`<ol id="changes">`, each with its code location), method definition, algorithm, complexity and design rationale. The report explains the design only; it does not describe experiments or numeric results.
+- Fill in `references.yaml` following `templates/references_template.yaml`. Each entry states what was borrowed and where it is in the code; ids match the report's references one to one.
+
+## Rules
+
+- The model must be built from `cfg` alone and trained by the evaluator; no pretrained weights, files, environment variables or network access.
+- All computation must use PyTorch operators that `torch.utils.flop_counter.FlopCounterMode` sees; custom Triton or CUDA kernels are not allowed in this case.
+- The model must be causal; it must not change the loss, the optimiser or the data.
+- Do not read or write files outside the submission directory, the run directory and the paths the stage gives you; do not access the network; do not touch the timing pipe or the protocol bytes.
+- Do not use extra processes or background threads to move work outside the timed phase, and do not leave processes running after a stage returns.
+- Submission is one-shot. A submission that breaks the rules is invalid.

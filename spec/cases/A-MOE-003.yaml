@@ -1,0 +1,134 @@
+id: A-MOE-003
+title: "Expert capacity and routing for a small mixture-of-experts language model at fixed active and total parameters"
+template: B-OPT-001
+anchor: {authors: "William Fedus, Barret Zoph, Noam Shazeer", title: "Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity", arxiv: "2101.03961"}
+baseline: "top-2 of 8 SwiGLU experts with the Switch load-balancing loss, run by the evaluator under identical conditions (`interface/baselines/top2/`)"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, recipe), the evaluator also trains the model with the top-2 baseline layer in `interface/baselines/top2/` and reports your loss and throughput relative to it."
+reference_verification: "Not executed yet: the stage code, baseline and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The parameter and compute budgets of the reference (16 experts of width 512, top-4) equal those of the baseline by construction."
+mode: judge_trains
+n_seeds: 3
+kit_extra:
+  - microlm/lm_train.py
+extra_interface:
+  - harness/moe_lm.py
+  - harness/lm_model.py
+  - harness/token_data.py
+  - harness/baselines/top2/moe.py
+task: |
+  Design the **feed-forward layer of a mixture-of-experts language model** — how many experts and of what size, how tokens are routed, how load is balanced — that trains a fixed 8-layer decoder to the **lowest held-out loss** without exceeding the **total parameters of eight dense MLPs** or the **active compute of two** per token.
+
+  - Submit the layer only (`moe.py`). At evaluation the evaluator puts your layer in every block of the fixed μ2 model (attention, normalisation, embeddings, data, optimiser and schedule are fixed) and trains it from scratch for 3,000 steps of 32 × 1,024 tokens, once for each of 3 seeds unknown to you. It trains the top-2 baseline the same way.
+  - The evaluator measures the compute itself: forward FLOPs per token on held-out data must stay within 5% of a dense model with two SwiGLU MLPs of width 1,024 per layer, so computing all experts and masking does not fit.
+  - Routing must be per token and causal in evaluation mode: a token's output may not depend on later tokens or on other sequences in the batch (no batch-level capacity limits at evaluation).
+  - Load balance and expert utilisation are reported, not scored: they matter only through the loss and the compute.
+  - You may build on any public work (Switch and top-k routing, expert choice, fine-grained and shared experts, balancing losses and loss-free balancing, router regularisation), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only) holds the first two training shards of FineWeb-10B pre-tokenized with the GPT-2 BPE (Hugging Face `kjj0/fineweb10B-gpt2`, the data of the modded-nanogpt speedrun):
+
+  | File | Contents |
+  |---|---|
+  | `fineweb_train_000001.bin`, `fineweb_train_000002.bin` | 256 int32 header (magic 20240520, version 1, token count), then about 100M uint16 tokens each |
+
+  Read them with `interface/token_data.py`. The evaluator samples training windows from both shards with the seed. The held-out set is the first 4,194,304 tokens of the official FineWeb validation shard (`fineweb_val_000000.bin`); it is not in the sandbox. The self-check holds out the last 2,097,152 tokens of the second shard.
+interface: "Implement a layer class in `moe.py` and export it as `FFN`: `FFN(d_model, layer, n_layers)` is an `nn.Module` whose `forward(x)` maps (B, T, d_model) to `(y, aux)`; `aux` may hold `loss` (a scalar added to the training loss) and `counts` (tokens per expert, for the load metrics). `interface/moe_lm.py` shows where it is called and the budgets."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Held-out loss** (primary) | Mean next-token cross-entropy (nats) on the 4,194,304 held-out tokens in windows of 1,024, mean over 3 seeds; lower is better | — |
+  | Loss vs top-2 | Held-out loss minus the baseline's on the same seeds | reported |
+  | Active compute | Forward FLOPs per token of the model on 8 held-out windows (FlopCounterMode) divided by those of the dense model with two MLPs of width 1,024 per layer | Threshold: ≤ 1.05 |
+  | Total parameters | Largest per-layer parameter count of your layer divided by 8 · 3 · d · 1,024 + 64 · d (eight dense MLPs and a router) | Threshold: ≤ 1.0 |
+  | Causality and batch independence | In evaluation mode, outputs at positions ≤ t unchanged when later tokens change, and a sequence's outputs unchanged when the other sequences change (relative tolerance 1e-3) | Threshold: both hold |
+  | Load imbalance | Per layer, the largest expert share of held-out tokens times the number of experts (1 = balanced), mean over layers | reported |
+  | Expert utilisation | Fraction of experts receiving at least 1% of a layer's held-out tokens | reported |
+  | Throughput | Training tokens per second, and its ratio to the baseline's | reported |
+  | Training time | Seconds of the 3,000 steps (parent clock) | Threshold: ≤ 1,800 s |
+  | Divergence | 1 if the training loss became non-finite or exceeded 20 | Threshold: 0 |
+
+  **Fixed training setting** (`interface/lm_train.py`, `interface/stages.py`): AdamW at 1e-3 (β = 0.9, 0.95; weight decay 0.1 on matrices only, including expert weights), 150 warm-up steps then cosine decay to 0.1, gradient clipping at 1.0, bf16 autocast with fp32 weights; the attention and embedding initialisation is fixed, your layer initialises itself.
+
+  **Decision**
+
+  - A submission is valid only if every threshold holds in every seed; valid submissions are ranked by held-out loss. Differences smaller than the spread over the three seeds are treated as ties.
+  - If any run crashes or exceeds a time limit (the stage is killed at 2,100 s), the whole submission is invalid.
+  - The final ABench score is driven mainly by the held-out loss relative to the baseline, and also considers how different the routing is from existing designs and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 6
+  dev_budget: "6 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML"
+  notes: |
+    - `selfcheck.py --quick` trains 300 steps and runs every check of the evaluation; one full seed takes about half a GPU-hour.
+    - The compute gate counts what actually runs: grouped matrix multiplications over routed tokens count once per token and expert.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── moe.py              # required: FFN
+    ├── src/                # optional: helper modules imported by moe.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; no trained parameters are submitted.
+rules: |
+  - The layer may only transform its input; it must not read files, environment variables or the network, or change the rest of the model, the optimiser or the data.
+  - Computation must use PyTorch operators that the FLOP counter sees (no custom CUDA or Triton kernels that hide matrix multiplications).
+  - Non-gradient state (for example balancing biases) may be updated during training forward passes only.
+interface_md: |
+  # A-MOE-003 interface
+
+  ## Entry point: `moe.py`
+
+  ```python
+  import torch.nn as nn
+
+  class MyMoE(nn.Module):
+      def __init__(self, d_model: int, layer: int, n_layers: int): ...
+      def forward(self, x):                      # x: (B, T, d_model), after the block's RMSNorm
+          return y, {"loss": aux_loss, "counts": tokens_per_expert}     # both entries optional
+
+  FFN = MyMoE
+  ```
+
+  - d_model = 384, 8 layers; the dense reference MLP is SwiGLU of width 1,024 (3 · 384 · 1,024 parameters).
+  - Per layer: parameters ≤ 8 · 3 · 384 · 1,024 + 64 · 384; forward FLOPs per token ≤ 1.05 × the top-2 dense equivalent.
+  - `aux["loss"]` is added to the cross-entropy during training only; `aux["counts"]` is summed over the held-out pass.
+
+  ## Evaluator code you can read
+
+  - `moe_lm.py`: the model and the budgets; `lm_model.py`: attention, RMSNorm, RoPE; `lm_train.py`: the fixed recipe;
+    `stages.py`: the run, the compute and causality checks; `token_data.py`: shard format.
+  - `baselines/top2/moe.py`: the baseline layer and a routing helper you may copy; `metrics.py`, `abench_metrics.py`,
+    `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 6}
+  data:
+    public_dir: sandbox/data/A-MOE-003
+    public:
+      - {path: sandbox/data/A-MOE-003/fineweb_train_000001.bin, sha256: pending}
+      - {path: sandbox/data/A-MOE-003/fineweb_train_000002.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/A-MOE-003/hidden.npz.enc, sha256_plain: pending, keys: [tokens], tokens: 4194305}
+    sources:
+      - name: FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (data of the modded-nanogpt speedrun)
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        files: [fineweb_train_000001.bin, fineweb_train_000002.bin, fineweb_val_000000.bin]
+        license: MIT on the token repository; the underlying FineWeb text is ODC-BY
+        verified: "2026-10-19: revision, license and file list (val shard + 103 train shards) from the Hugging Face API (shared with B-OPT-001)"
+  submission:
+    kind: code_only
+    entry: moe.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, moe.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [2101, 3961, 2017]          # kept secret by the operator
+    baseline: harness/baselines/top2

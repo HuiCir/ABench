@@ -7,7 +7,7 @@ def load(checkpoint_dir: str):
     """Load your trained classifier from checkpoint/ and return it (any Python object)."""
 
 def predict(model, texts: list[str]) -> numpy.ndarray:
-    """Return integer labels (M,) in 0..3 (0 World, 1 Sports, 2 Business, 3 Sci/Tech), one per text, in order."""
+    """Return integer labels (M,) in 0..4 (0 = 1 star ... 4 = 5 stars), one per text, in order."""
 ```
 
 - The evaluator calls `load` inside the timed phase and `predict` after it, once, on the held-out texts.
@@ -23,6 +23,7 @@ it is kept with the submission so the checkpoint can be audited and reproduced. 
 ## Evaluator code you can read
 
 - `stages.py`: the pipeline (one stage, `predict`), the dev split used by the self-check and the time limits.
+- `textpack.py`: `unpack(utf8, offsets[, idx])` → list of str, for the packed texts in `train.npz`.
 - `metrics.py` and `abench_metrics.py`: how the metrics are computed from your outputs.
 - `abench_stage.py`: the process and timing protocol shared by all ABench standard cases.
 - `selfcheck.py`: runs the files above on the dev split with your checkpoint.

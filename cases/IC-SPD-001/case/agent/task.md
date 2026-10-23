@@ -1,7 +1,5 @@
 # IC-SPD-001: CIFAR-10 speedrun to 94%
 
-Knowledge cutoff: **2026-07-01**. You may only rely on material that was public and verifiable before that date.
-
 Anchor: Keller Jordan, *94% on CIFAR-10 in 3.29 Seconds on a Single GPU* (arXiv:2404.00498).
 
 ## Task
@@ -10,12 +8,12 @@ Design an image classification network and its training recipe so that, on one 2
 
 - Submit code only. At evaluation your code trains from scratch once for each of 5 seeds unknown to you, on the same GPU model, and is then evaluated on the test set.
 - Only the 50,000 provided training images may be used: no pretrained weights and no external data.
-- You may build on any public work from before the cutoff, but the design report must state what you borrowed and what you changed. This task tests your understanding of training algorithms and hardware efficiency: architecture, optimizer and learning-rate schedule, data augmentation, precision and kernels, and compilation strategy are all open.
+- You may build on any public work, but the design report must state what you borrowed and what you changed. This task tests your understanding of training algorithms and hardware efficiency: architecture, optimizer and learning-rate schedule, data augmentation, precision and kernels, and compilation strategy are all open.
 
 ### Workflow
 
-1. **Retrieve.** Study the anchor and find related work published before the cutoff with the offline paper search tool: `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` (titles and abstracts of arXiv papers up to the cutoff). Every call is logged automatically; the log is kept with your run.
-2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address. This is Section 2 (Related Work) of the design report.
+1. **Research (throughout).** Study the anchor and related work, and come back to the literature whenever your experiments raise a question (an unexpected failure, a bottleneck, a result you cannot explain). The sandbox is online for papers, code and documentation, and the offline paper search `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` answers quickly from arXiv titles and abstracts. Searches and connections are logged with your run.
+2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address, and keep this up to date as you learn. It becomes Section 2 (Related Work) of the design report.
 3. **Design.** Propose an improvement over the anchor: at least one change you can state precisely and point to in your code. List every change, with its code location, in the report's "Changes relative to the anchor" list (`<ol id="changes">`); a report without it fails the format check.
 4. **Develop and verify.** Implement it and run the evaluator's own training pipeline on the dev split with `selfcheck.py`; use the results to iterate as your budget allows. The evaluator then runs your submission from scratch under the same pipeline.
 5. **Submit** the deliverables below. Submission is one-shot.
@@ -68,10 +66,11 @@ Implement `train(data, seed, device)` and `predict(model, x, device)` in `method
 
 The full guide is `interface/gpu_sandbox.md`. Key points:
 
-- One 24GB reference GPU; no network and no package installation; Python 3, PyTorch (with CUDA and Triton) and NumPy are available.
+- One 24GB reference GPU; Python 3, PyTorch (with CUDA and Triton) and NumPy are available, and your submission may depend only on them.
+- Network: online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run.
 - The session lasts at most 3 hours; the deadline is in `$ABENCH_DEADLINE`. GPU usage during development is capped at 1 GPU-hour.
 - Write code and run experiments in `$ABENCH_WORKSPACE`; put the final files in `$ABENCH_SUBMISSION_DIR`.
-- Paper search (offline, cutoff-filtered, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
+- Offline paper search (arXiv titles and abstracts, fast, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
 - Self-check: `python3 "$ABENCH_VIEW_DIR/interface/selfcheck.py" --quick` (interface), `--seeds 2` (timing and dev accuracy).
 
 ## Deliverables
@@ -93,6 +92,6 @@ $ABENCH_SUBMISSION_DIR/
 
 - No pretrained weights, no external data, and no trained parameters embedded in the code.
 - `predict()` must not update model parameters and must not use test images for training or adaptation.
-- Do not read or write files outside the submission directory and the paths given by the timing script, do not access the network, and do not touch the timing pipe (the file descriptor given by `--fd`).
+- Do not read or write files outside the submission directory and the paths given by the timing script, do not access the network (the evaluation runs without one), and do not touch the timing pipe (the file descriptor given by `--fd`).
 - Do not use extra processes or background threads to move training work outside the timing window.
 - Submission is one-shot. A submission that breaks the rules is invalid.

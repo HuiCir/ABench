@@ -1,0 +1,77 @@
+case: E-VLA-003
+title: 'A Pooled-Feature Regression Head on a Frozen SmolVLM2'
+abstract: >-
+  This submission reads the frozen SmolVLM2-500M backbone at layer 16, the depth SmolVLA keeps [@shukor2025smolvla],
+  with both camera images and the instruction in one prompt, mean-pools the hidden states over the image tokens and
+  over the text tokens, and regresses 8-step action chunks [@zhao2023act] with an MLP that also sees the
+  proprioceptive state. Chunks are executed open loop, so the backbone runs once every eight control steps. It is a
+  deliberately plain head: no generative action model, no attention over tokens, no adapters.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    OpenVLA turns a vision-language model into a policy by fine-tuning all of it to emit discretised actions
+    [@kim2024openvla]. With the backbone frozen, everything the policy learns must sit in what it reads from the
+    backbone and in the head that turns it into actions.
+- title: Related Work
+  paras:
+  - >-
+    SmolVLA keeps the first 16 layers of SmolVLM2 and trains a flow-matching action expert that attends to them
+    [@shukor2025smolvla]; OpenVLA predicts one discretised action per forward pass [@kim2024openvla]; ACT predicts
+    chunks of continuous actions [@zhao2023act]; LIBERO provides the tasks and demonstrations [@liu2023libero].
+- title: Method
+  paras:
+  - >-
+    Images are given at 512 x 512 without splitting into sub-images. The 1,920 pooled features (960 image, 960 text)
+    are layer-normalised and concatenated with a 128-dimensional projection of the state; two hidden layers of 1,024
+    units output 8 x 7 numbers through a tanh. Features of every second demonstration frame are computed once;
+    training uses L1 loss, AdamW at 3e-4 with cosine decay, 20,000 steps of batch 256.
+- title: Design Rationale
+  paras:
+  - >-
+    Pooling discards spatial detail but keeps the head small and the training cheap once the features are cached;
+    querying every eight steps keeps the mean cost per control step far below 50 ms.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Mean pooling loses where objects are in the image, the deterministic regressor averages multimodal
+    demonstrations, and smolvla_base is not used. Nothing here has been run on LIBERO in this build.
+references:
+- id: kim2024openvla
+  title: 'OpenVLA: An Open-Source Vision-Language-Action Model'
+  authors: Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair, Rafael Rafailov, Ethan Foster, Grace Lam, Pannag Sanketi, Quan Vuong, Thomas Kollar, Benjamin Burchfiel, Russ Tedrake, Dorsa Sadigh, Sergey Levine, Percy Liang and Chelsea Finn
+  year: 2024
+  venue: CoRL
+  arxiv: '2406.09246'
+  used_for: 'Anchor: a vision-language model turned into a policy over LIBERO-style 7-dimensional actions'
+  code_location: 'policy.py: Policy.act'
+- id: shukor2025smolvla
+  title: 'SmolVLA: A Vision-Language-Action Model for Affordable and Efficient Robotics'
+  authors: Mustafa Shukor, Dana Aubakirova, Francesco Capuano, Pepijn Kooijmans, Steven Palma, Adil Zouitine, Michel Aractingi, Caroline Pascal, Martino Russi, Andres Marafioti, Simon Alibert, Matthieu Cord, Thomas Wolf and Remi Cadene
+  year: 2025
+  venue: arXiv
+  arxiv: '2506.01844'
+  used_for: Reading SmolVLM2 at layer 16 and giving images at 512 x 512 without splitting
+  code_location: 'src/features.py: LAYER, configure'
+- id: zhao2023act
+  title: Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware
+  authors: Tony Z. Zhao, Vikash Kumar, Sergey Levine and Chelsea Finn
+  year: 2023
+  venue: RSS
+  arxiv: '2304.13705'
+  used_for: Predicting chunks of continuous actions with L1 loss
+  code_location: 'src/head.py: Head; train.py'
+- id: liu2023libero
+  title: 'LIBERO: Benchmarking Knowledge Transfer for Lifelong Robot Learning'
+  authors: Bo Liu, Yifeng Zhu, Chongkai Gao, Yihao Feng, Qiang Liu, Yuke Zhu and Peter Stone
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2306.03310'
+  used_for: The tasks, demonstrations and their observation format
+  code_location: 'train.py: demo_features'
+changes:
+- text: The backbone stays frozen and only an MLP on pooled layer-16 features is trained, instead of OpenVLA's full
+    fine-tuning with discretised action tokens.
+  code: 'src/features.py: encode; src/head.py: Head'
+- text: Continuous 8-step chunks executed open loop replace one action per forward pass.
+  code: 'policy.py: Policy.act'

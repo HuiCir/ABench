@@ -1,0 +1,53 @@
+schema: abench.references/v2
+references:
+- id: liu2024kivi
+  title: 'KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache'
+  authors: Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong, Zhaozhuo Xu, Vladimir Braverman, Beidi Chen and Xia
+    Hu
+  year: 2024
+  venue: ICML
+  arxiv: '2402.02750'
+  used_for: 'Anchor: asymmetric low-bit cache quantisation'
+  code_location: 'cache.py: quantize, dequantize, QuantCache'
+- id: hooper2024kvquant
+  title: 'KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization'
+  authors: Coleman Hooper, Sehoon Kim, Hiva Mohammadzadeh, Michael W. Mahoney, Yakun Sophia Shao, Kurt Keutzer and
+    Amir Gholami
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2401.18079'
+  used_for: Related work
+  code_location: null
+- id: zhang2023h2o
+  title: 'H2O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models'
+  authors: Zhenyu Zhang et al.
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2306.14048'
+  used_for: Related work (eviction)
+  code_location: null
+- id: xiao2024streaming
+  title: Efficient Streaming Language Models with Attention Sinks
+  authors: Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song Han and Mike Lewis
+  year: 2024
+  venue: ICLR
+  arxiv: '2309.17453'
+  used_for: Related work
+  code_location: null
+- id: li2024snapkv
+  title: 'SnapKV: LLM Knows What You are Looking for Before Generation'
+  authors: Yuhong Li et al.
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2404.14469'
+  used_for: Related work
+  code_location: null
+- id: hsieh2024ruler
+  title: 'RULER: What''s the Real Context Size of Your Long-Context Language Models?'
+  authors: Cheng-Ping Hsieh, Simeng Sun, Samuel Kriman, Shantanu Acharya, Dima Rekesh, Fei Jia, Yang Zhang and Boris
+    Ginsburg
+  year: 2024
+  venue: COLM
+  arxiv: '2404.06654'
+  used_for: The task design of the case
+  code_location: null

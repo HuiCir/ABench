@@ -10,12 +10,14 @@
 #   preflight  Python packages; `claude` CLI; the EXACT argv the runner will use, run with the runner's isolated HOME
 #              and the prompt on stdin (proves authentication and that every flag is accepted)
 #   key        ~/.abench/hidden.key (created once, 0600, outside the repository)
-#   data       DATA=real (default): download AG News at a pinned Hugging Face revision and freeze it.
+#   data       DATA=real (default): download Yelp Review Full at the Hugging Face revision pinned in
+#              tools/prepare/tc_ft_001.py and freeze it (needs access to huggingface.co).
 #              DATA=synthetic: generated plumbing data (never scorable; rerun `data` with DATA=real afterwards)
 #   mock       the plumbing agent sandbox/mock_agent.sh through the same runner: reads the view, calls the paper tool,
 #              trains the reference code, runs selfcheck, writes a template report, then is judged. ~1-3 minutes, no
 #              tokens. If this fails, the claude run would fail for the same reason.
-#   agent      tools/sandbox_runner.py --harness claude --smoke: the real agent run (AGENT_TIMEOUT seconds, default 3600)
+#   agent      tools/sandbox_runner.py --harness claude --smoke: the real agent run (AGENT_TIMEOUT seconds, default 3600);
+#              smoke on macOS: no separate user and no egress firewall (benchmark runs need a Linux host as root)
 #   judge      tools/oj_eval.py on the last agent run's submission and on the reference submission (its checkpoint is
 #              trained here first): calibration runs (the case stays awaiting_data, so they are never scorable)
 #
@@ -34,7 +36,6 @@ DATA="${DATA:-real}"
 KEY="$HOME/.abench/hidden.key"
 RAW="$HOME/.abench/raw/$CASE"
 STATE="$HOME/.abench/state"
-REV=eb185aade064a813bc0b7f42de02595523103ca4
 cd "$ROOT"
 mkdir -p "$STATE"
 
@@ -108,10 +109,11 @@ data() {
     "$PY" tools/prepare/run.py --case "$CASE" --synthetic 3000 --key-file "$KEY"
   else
     mkdir -p "$RAW"
-    for f in train test; do
-      out="$RAW/$f-00000-of-00001.parquet"
-      [ -s "$out" ] || curl -fL --retry 3 -o "$out" \
-        "https://huggingface.co/datasets/fancyzhx/ag_news/resolve/$REV/data/$f-00000-of-00001.parquet"
+    # file names and URLs come from the prepare module, so they cannot drift from what the freeze verifies
+    "$PY" -c "import sys; sys.path.insert(0, 'tools'); from prepare import tc_ft_001 as m; [print(s['name'], s['url']) for s in m.SOURCES]" |
+    while read -r name url; do
+      out="$RAW/$name"
+      [ -s "$out" ] || curl -fL --retry 3 -o "$out" "$url"
       shasum -a 256 "$out"
     done
     "$PY" tools/prepare/run.py --case "$CASE" --raw-dir "$RAW" --key-file "$KEY"

@@ -10,7 +10,7 @@ paper_weight:
     D:  {score: 0.40, examples: ["arXiv preprint (not accepted)", "workshop"]}
     E:  {score: 0.25, examples: ["Blog post, code repository README"]}
   citations:
-    source: "Google Scholar, snapshot at the cutoff; no API, so the benchmark operator scrapes manually/semi-automatically and archives at freeze time. OpenAlex counts_by_year is used for cross-checking"
+    source: "Google Scholar, snapshot at session start; no API, so the benchmark operator scrapes manually/semi-automatically and archives at freeze time. OpenAlex counts_by_year is used for cross-checking"
     normalize: "Annual citations = citations / max(paper age in years, 0.5); take log1p and compute the percentile within the snapshot cohort, giving C ∈ [0,1]"
     cohort: "Same track, same first-release year; if the cohort has fewer than 10 papers, fall back to the whole snapshot"
   combine: "w = (1 - 0.6a)·V + 0.6a·C, where a = min(1, age / 2 years). New papers have weak citation signals, so their weight depends mainly on venue"
@@ -24,7 +24,7 @@ reference_quality:
   usage_levels: {core: 1.0, partial: 0.5, decorative: 0.0}   # judges decide whether the paper's idea is actually reflected in the code
   aggregate: "Q = 1 - Π(1 - w_i·u_i), saturating aggregation: one or two high-quality core sources already bring it close to 1"
   penalties:
-    post_cutoff_source: 0.8   # each post-cutoff source multiplies by 0.8
+    post_cutoff_source: 0.8   # kept for compatibility: no cutoff since 2026-10-23, so this applies to sources dated after the session
     unresolvable_source: 0.8  # each unresolvable/suspected fabricated source multiplies by 0.8
 
 # ---------- 3. SOTA margin M ----------

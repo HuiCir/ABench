@@ -15,7 +15,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from build_agent_views import leak_allow, leaky  # noqa: E402
+from leak_check import leak_allow, leaky  # noqa: E402
 
 SECTIONS = ["Task", "Data", "Interface", "Metrics", "Evaluation", "Sandbox Guide", "Deliverables", "Rules"]
 
@@ -67,9 +67,15 @@ def check_case(cid: str) -> dict:
     if task:
         # v2.1 working procedure: retrieval with the offline paper tool, related-work synthesis, a stated list of
         # changes relative to the anchor, and development with the self-check
-        for need, msg in ((r"### Workflow", "### Workflow subsection"), (r"abench_papers\.py", "paper search tool"),
-                          (r"Related Work", "related-work synthesis (report Section 2)"),
-                          (r'id="changes"', 'changes list <ol id="changes">'), (r"selfcheck", "self-check in the workflow")):
+        if oj.get("mode") == "judgment":    # judgment cases: evidence, calibrated judgments, a verification plan
+            needs = ((r"### Workflow", "### Workflow subsection"), (r"abench_papers\.py", "paper search tool"),
+                     (r"judgments\.yaml", "judgments file"), (r"verification plan", "verification plan"),
+                     (r"selfcheck", "self-check in the workflow"))
+        else:
+            needs = ((r"### Workflow", "### Workflow subsection"), (r"abench_papers\.py", "paper search tool"),
+                     (r"Related Work", "related-work synthesis (report Section 2)"),
+                     (r'id="changes"', 'changes list <ol id="changes">'), (r"selfcheck", "self-check in the workflow"))
+        for need, msg in needs:
             if not re.search(need, task):
                 issues.append(f"Task: missing {msg}")
     if oj.get("mode") == "checkpoint" or (oj.get("submission") or {}).get("kind") == "code_plus_checkpoint":

@@ -1,27 +1,38 @@
-# ABench Case A-LCTX-006: Under fixed training and inference budgets, design a position encoding, state cache or context-compression scheme so that long-context recall, short-context loss, memory and throughput form a better Pareto front
+# ABench case A-LCTX-006: Position encoding for context extension: a 32M language model trained at 1,024 tokens, used at up to 16,384
 
-This case is currently marked `deferred_out_of_scope_v1` and is kept only for direction auditing; while resources are tight in this round it is not in the reference plan. When enabled in future, it will evaluate only reproducible long-context architecture/training changes without requiring a single SOTA point; final ranking is by Pareto dominance over quality, memory and throughput.
+Case built to task statement standard v2.1 from the template of A-HYB-001. Anchor: Bowen Peng, Jeffrey Quesnelle, Honglu Fan, Enrico Shippole, *YaRN: Efficient Context Window Extension of Large Language Models*
+(arXiv:2309.00071).
 
-- Corpus cutoff: 2026-07-01.
-- Difficulty: **high**; resource rating: **medium**; budget tier: **medium**.
-- Proxy: SYN, MICRO, INFER; development about 4 GPU-h, per verification about 2 GPU-h, reference precompute about 20 GPU-h.
-- Resources: `case/resources.yaml`; all resources are mounted offline by the server, and network access at run time is forbidden.
-- Currently only a scaffold, with no real reference runs, hidden evaluation or simulated scores.
+## Status
 
-## Proxy setting
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Partly executed: the data preparation (book windows, copy-test sequences) ran on synthetic tokens. The model, training and measurements need PyTorch and a GPU, which were not available here; the operator runs the RoPE baseline and the reference at activation.
+- No number in the case files is a result: there are no training curves or reference scores.
+- Baseline run by the judge alongside every submission: `harness/baselines/rope`.
 
-Fixed offline data and a small decoder-only model; maximum training context 4k, hidden inference lengths 8k/16k/32k; all submissions use the same tokenizer, data and base checkpoint.
+## Files
 
-## Metrics and scoring
+- `spec/cases/A-LCTX-006.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case A-LCTX-006`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/a_lctx_006.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
 
-Metric definitions are in `case/eval_protocol.yaml`. This case uses `pareto_frontier`: quality metrics are maximized, cost metrics minimized, and constraint metrics must pass first; the output is the full non-dominated set and the hypervolume relative to the reference envelope.
+## Data sources (links only; nothing is downloaded in the repository)
 
-## Blockers before launch
+- FineWeb 10B pre-tokenized with GPT-2 BPE (kjj0/fineweb10B-gpt2), as B-OPT-001: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2 — license: MIT on the token repository; the underlying FineWeb text is ODC-BY (verified 2026-10-19)
+- PG-19 (Rae et al. 2020), validation and test books from the deepmind-gutenberg bucket: https://github.com/google-deepmind/pg19 — license: Apache-2.0 (verified 2026-10-23)
+- GPT-2 tokenizer (openai-community/gpt2): https://huggingface.co/openai-community/gpt2 — license: MIT (verified 2026-10-22)
 
-- `frozen_tokenizer_and_base_model_hash`
-- `offline_long_context_probe_and_hidden_lengths`
-- `fixed_gpu_memory_and_throughput_timer`
+## Activation (operator)
 
+```bash
+python3 tools/prepare/run.py --case A-LCTX-006 --list-sources                 # what to download
+python3 tools/prepare/run.py --case A-LCTX-006 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case A-LCTX-006 --submission cases/A-LCTX-006/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case A-LCTX-006 --activate                     # after reviewing the calibration run
+```
 
-Protocol references: [`spec/pareto_protocol.md`](../../spec/pareto_protocol.md); [`spec/sandbox_profiles.md`](../../spec/sandbox_profiles.md).
-Resource profile: `single_gpu_24gb`; objective mode: `objective_mode: pareto`.
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

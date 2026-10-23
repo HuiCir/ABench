@@ -1,11 +1,33 @@
-# V-DST-004 harness contract
+# V-DST-004 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+V-DST-004 pipeline: images from your trained generator, scored by FID against CIFAR-10 (evaluator and self-check).
+
+Stage "sample" (imports model.py; the teacher is not available, only checkpoint/)
+  timed   load(checkpoint_dir, device) -> net, a torch.nn.Module with at most PARAMS["max_params"] parameters
+  finish  for each step budget S in (1, 2, 4): N images from generate(net, n, S, generator, device) in batches, each batch
+          with its own seeded generator; a forward hook counts calls of net during each generate() (at most S);
+          images saved as uint8 for the next stage
+Stage "fid" (does not import your code; receives only the image files)
+  finish  Inception-v3 pool features (pytorch-fid weights) -> mean and covariance per budget; the evaluator computes
+          FID against the CIFAR-10 training-set statistics
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/model.py`
+- `baseline/train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

@@ -1,0 +1,142 @@
+case: PH-SYM-005
+title: 'Sparse Identification with Smoothed Derivatives, Scale-Free Thresholds and Cross-Validated Supports'
+abstract: >-
+  This submission keeps the sparse-regression formulation of SINDy [@brunton2016sindy] and changes the three places
+  where the anchor's sequentially thresholded least squares (STLSQ) is fragile on unseen systems: derivatives are
+  estimated with Savitzky-Golay smoothing [@savitzky1964] whose window follows a noise estimate, thresholds act on a
+  column-normalised term library so that they do not depend on variable scales, and each equation's support is chosen
+  along a path of thresholds by leave-one-trajectory-out error, keeping the sparsest support within 10% of the best.
+  On three development sets of 20 systems drawn by the case's generator with public seeds, it recovers the exact
+  structure of 65%, 35% and 50% of the systems against 30%, 35% and 50% for the anchor's STLSQ, with a lower
+  extrapolation error on all three; these are calibration checks, not results of the case.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Equation discovery asks for the terms of an unknown vector field, not only for a good fit. SINDy casts it as
+    sparse regression of estimated derivatives on a library of candidate terms [@brunton2016sindy]; the anchor's STLSQ
+    alternates least squares with hard thresholding at a fixed level. On systems it has not been tuned for, three
+    choices decide whether the structure comes out right: how derivatives are estimated from noisy samples, how the
+    threshold relates to coefficient scales, and how the final support is selected.
+- title: Related Work
+  paras:
+  - >-
+    The anchor introduced the library regression and STLSQ [@brunton2016sindy]; PDE-FIND extended it to partial
+    differential equations with ridge-regularised thresholding [@rudy2017pdefind]. Model selection over candidate
+    supports with information criteria was studied by Mangan et al. [@mangan2017selection]. Weak formulations replace
+    pointwise derivatives by integrals against test functions and are markedly more robust to noise
+    [@messenger2021weak]; ensembles over bootstrapped data give inclusion probabilities for each term
+    [@fasel2022ensemble]; relaxed sparse optimisation unifies several thresholding schemes [@champion2020sr3].
+  - >-
+    The reference uses only pointwise derivatives and a deterministic support path, so weak forms and ensembles remain
+    open directions for entries.
+- title: Method
+  subsections:
+  - title: Derivatives
+    paras:
+    - >-
+      For each trajectory, the relative size of second differences estimates the noise level; it selects a cubic
+      Savitzky-Golay window of 7, 15, 25 or 41 samples [@savitzky1964]. The filter gives smoothed states and their
+      derivatives; half a window is trimmed at both ends, where the fit is one-sided.
+  - title: Support selection
+    paras:
+    - >-
+      All trajectories are stacked and every library column is scaled to unit RMS. For each equation, STLSQ is run on
+      the normalised columns for 30 thresholds spaced logarithmically between 10^-4 and 0.5 of the largest
+      least-squares coefficient. Each distinct support is scored by leave-one-trajectory-out squared error; the sparsest
+      support within 10% of the best error is kept and refit by least squares on all data, and the coefficients are
+      mapped back to the original scale.
+    algorithm_caption: Support selection for equation i
+    algorithm:
+    - Θ ← library at smoothed states; Θn ← Θ / rms(Θ); y ← estimated dx_i/dt
+    - for λ in 30 thresholds, S(λ) ← support of STLSQ(Θn, y, λ)
+    - e(S) ← Σ over held-out trajectories of the squared error of the fit on the other trajectories
+    - S* ← sparsest S with e(S) ≤ 1.1 · min e; coefficients ← least squares on S*, rescaled
+  - title: Complexity
+    paras:
+    - >-
+      For n samples and p library terms each STLSQ run costs O(n p²); with 30 thresholds, d equations and 8 folds per
+      distinct support the total is a few hundred least-squares solves per system, 20 to 75 seconds for 20 systems on
+      two cores.
+- title: Design Rationale
+  paras:
+  - >-
+    A fixed threshold mixes two scales: the size of a coefficient and the size of the term it multiplies. Normalising
+    the columns makes the threshold a statement about a term's contribution to the derivative. Cross-validation across
+    trajectories penalises spurious terms that only fit noise along one trajectory, and the 10% tolerance prefers
+    parsimony when supports explain the data equally well. On the development sets the reference halves the
+    extrapolation error of STLSQ (0.07 to 0.11 against 0.18 to 0.30) but fails, like the baseline, on most random sparse
+    systems with four variables and on systems whose trajectories excite few terms.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Pointwise derivatives remain the main source of error at 1% noise; the noise estimate is coarse; the support path
+    is greedy, so terms masked by a correlated term are lost; and nothing exploits the shared structure across
+    equations or the inclusion statistics an ensemble would give.
+references:
+- id: brunton2016sindy
+  title: Discovering governing equations from data by sparse identification of nonlinear dynamical systems
+  authors: Steven L. Brunton, Joshua L. Proctor and J. Nathan Kutz
+  year: 2016
+  venue: PNAS
+  arxiv: '1509.03580'
+  used_for: 'Anchor: library regression and STLSQ'
+  code_location: 'discover.py: _stlsq, discover'
+- id: savitzky1964
+  title: Smoothing and Differentiation of Data by Simplified Least Squares Procedures
+  authors: Abraham Savitzky and Marcel J. E. Golay
+  year: 1964
+  venue: Analytical Chemistry
+  doi: 10.1021/ac60214a047
+  used_for: Derivative estimation
+  code_location: 'discover.py: _derivative'
+- id: rudy2017pdefind
+  title: Data-driven discovery of partial differential equations
+  authors: Samuel H. Rudy, Steven L. Brunton, Joshua L. Proctor and J. Nathan Kutz
+  year: 2017
+  venue: Science Advances
+  arxiv: '1609.06401'
+  used_for: Related work (thresholded ridge regression)
+  code_location: null
+- id: mangan2017selection
+  title: Model selection for dynamical systems via sparse regression and information criteria
+  authors: Niall M. Mangan, J. Nathan Kutz, Steven L. Brunton and Joshua L. Proctor
+  year: 2017
+  venue: Proceedings of the Royal Society A
+  arxiv: '1701.01773'
+  used_for: Selecting supports along a path by a criterion
+  code_location: 'discover.py: discover'
+- id: messenger2021weak
+  title: 'Weak SINDy: Galerkin-Based Data-Driven Model Selection'
+  authors: Daniel A. Messenger and David M. Bortz
+  year: 2021
+  venue: Multiscale Modeling & Simulation
+  arxiv: '2005.04339'
+  used_for: Related work (weak formulation)
+  code_location: null
+- id: fasel2022ensemble
+  title: 'Ensemble-SINDy: Robust sparse model discovery in the low-data, high-noise limit, with active learning and control'
+  authors: Urban Fasel, J. Nathan Kutz, Bingni W. Brunton and Steven L. Brunton
+  year: 2022
+  venue: Proceedings of the Royal Society A
+  arxiv: '2111.10992'
+  used_for: Related work (ensembles)
+  code_location: null
+- id: champion2020sr3
+  title: A unified sparse optimization framework to learn parsimonious physics-informed models from data
+  authors: Kathleen Champion, Peng Zheng, Aleksandr Y. Aravkin, Steven L. Brunton and J. Nathan Kutz
+  year: 2020
+  venue: IEEE Access
+  arxiv: '1906.10612'
+  used_for: Related work (relaxed sparse regression)
+  code_location: null
+changes:
+- text: Derivatives come from Savitzky-Golay smoothing with a window chosen from a noise estimate, instead of finite
+    differences of the raw samples.
+  code: 'discover.py: _noise_level, _derivative'
+- text: Thresholding acts on a library whose columns are scaled to unit RMS, so one threshold path serves every
+    variable scale.
+  code: 'discover.py: discover'
+- text: Each equation's support is chosen along a path of 30 thresholds by leave-one-trajectory-out error (the sparsest
+    within 10% of the best) instead of one fixed threshold.
+  code: 'discover.py: discover, TOL'

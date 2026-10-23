@@ -82,6 +82,16 @@
   // ``undefined`` or gets mistaken for a finished benchmark.
   const STATUS_ZH = { built: "built", spec: "spec final", scaffold: "skeleton built", planned: "scheduled" };
   const READINESS_ZH = { deferred: "deferred", contract_only: "contract only", proxy_ready: "proxy ready", reference_ready: "reference ready", hidden_ready: "hidden set ready" };
+  // verification state of a case, from verify.csv (ref_run: how far its reference submission has been run)
+  const REFRUN_ZH = { real_gpu: "run on real data (GPU)", real_cpu: "run on real data (CPU)", synthetic: "run on synthetic data",
+                      mock: "parts run (mock)", none: "not run yet" };
+  const REFRUN_TAG = { real_gpu: "green", real_cpu: "green", synthetic: "amber", mock: "plain", none: "plain" };
+  const regTags = c => {
+    const r = c.registry || {};
+    return `<span class="tag ${REFRUN_TAG[r.ref_run] || "plain"}">${esc(REFRUN_ZH[r.ref_run] || r.ref_run || "state unknown")}</span>`
+      + (r.review_tier === "cal" ? `<span class="tag amber">pipeline calibration</span>` : "")
+      + (r.activation === "active" ? `<span class="tag green">active</span>` : `<span class="tag plain">awaiting data freeze</span>`);
+  };
   const SUBSET_ZH = { main: "main", calibration: "calibration", primitive: "primitive search", stress: "stress" };
   const KIND_ZH = { code_only: "code", code_plus_checkpoint: "code + weights", report_only: "judgment report" };
   const KIND_READS = { code_only: "runs only the submitted code: it trains from scratch where training is what is measured (optimizers, time to target), otherwise it only runs and measures", code_plus_checkpoint: "loads only the submitted model code and the checkpoint trained in the sandbox, for inference and measurement; train.py is kept for audit and never run", report_only: "judges review the judgment report and minimal verification plan" };
@@ -161,7 +171,13 @@
       boxes.push({ x1: p._x - p._r - 2, x2: p._x + p._r + 6 + textW(p._label), y1: pick - 12, y2: pick + 12 });
     });
     const EXT_Y = 494;
-    ext.forEach((p, i) => { p._x = 210 + i * 210; p._y = EXT_Y; p._r = 5 + 12 * (p.w ?? 0.4); p._label = `${PAPER_SHORT[p.id] || p.id} (${p.venue.replace(/\s*\d{4}$/, "")}, ${p.year})`; });
+    let extX = 210;   // place cross-field sources one after another so that circles and labels never overlap
+    ext.forEach(p => {
+      p._r = 5 + 12 * (p.w ?? 0.4); p._y = EXT_Y;
+      p._label = `${PAPER_SHORT[p.id] || p.id} (${p.venue.replace(/\s*\d{4}$/, "")}, ${p.year})`;
+      p._x = extX + p._r;
+      extX = p._x + p._r + 5 + textW(p._label) + 36;
+    });
 
     const ex = C.submissions.example_submission;
     const srcRows = ex.Q.sources;
@@ -202,7 +218,7 @@
         S("circle", { cx: p._x, cy: p._y, r: p._r, css: style, "stroke-width": 1.5, "stroke-dasharray": p.role === "T7" ? "3 2" : null }, g);
         if (p.role === "anchor") {
           S("text", { x: p._x - p._r - 8, y: p._y + 1, "text-anchor": "end", "font-size": 17, "font-weight": 700, class: "t-ink", text: "Adam" }, g);
-          S("text", { x: p._x - p._r - 8, y: p._y + 19, "text-anchor": "end", "font-size": 12, text: "anchor · 2014" }, g);
+          S("text", { x: p._x, y: p._y + p._r + 16, "text-anchor": "middle", "font-size": 12, text: "anchor · 2014" }, g);
         } else {
           S("text", { x: p._x + p._r + 5, y: p._y + 4.5, "font-size": FS, text: p._label }, g);
         }
@@ -211,8 +227,8 @@
 
       const cut = S("path", { d: `M${cutoffX},50 L${cutoffX},${axisY}`, fill: "none", css: "stroke:var(--red)", "stroke-width": 1.8, "stroke-dasharray": "6 4" }, gTop);
       const cutLabel = S("g", {}, gTop);
-      S("text", { x: cutoffX + 8, y: axisY - 26, "font-size": 12.5, class: "t-red", text: "cutoff 2026-07-01" }, cutLabel);
-      S("text", { x: cutoffX + 8, y: axisY - 10, "font-size": 12, class: "t-red", text: "not retrievable after" }, cutLabel);
+      S("text", { x: cutoffX + 8, y: axisY - 26, "font-size": 12.5, class: "t-red", text: "session start (example run)" }, cutLabel);
+      S("text", { x: cutoffX + 8, y: axisY - 10, "font-size": 12, class: "t-red", text: "novelty judged against all before" }, cutLabel);
 
       const propEdges = [];
       let ghost = null;
@@ -229,7 +245,7 @@
         const sx = prop.x - 60, sy = prop.y + Math.max(-20, Math.min(20, (ty - prop.y) * 0.15));
         let d;
         if (ty > 460) {
-          d = `M${prop.x - 20},${prop.y + 26} C${prop.x - 20},${ty} ${tx + 260},${ty} ${tx + p._r},${ty}`;
+          d = `M${prop.x - 20},${prop.y + 26} C${prop.x - 20},${ty + 30} ${tx},${ty + 30} ${tx},${ty + p._r}`;   // enter from below, clear of the label
         } else {
           const mx = (sx + tx) / 2;
           const my = Math.abs(ty - 250) < 5 ? 48 : ty < 250 ? Math.min(sy, ty) - 46 : Math.max(sy, ty) + 46;
@@ -298,10 +314,10 @@
     const lad = C.ladder;
     const STEPS = [
       { code: "S0", name: "Issue view", title: "Issue: a read-only agent view", text: "The agent gets the task statement, interface notes, report templates and public training data (none for this task). Hidden settings, the reference pool, the hidden set and the scoring weights stay outside the sandbox; the view is checked for leaked judge-side material when it is built.", vis: visView },
-      { code: "S1", name: "Open retrieval", title: "Retrieve: any paper from before the cutoff", text: "The retrieval backend blocks papers after the cutoff and returns no citation counts; calls are logged by the operator. Below is the historical retrieval log of the example submission.", vis: visLog },
+      { code: "S1", name: "Research", title: "Research: any paper, at any point of the work", text: "The sandbox is online for papers, code and documentation through the runner's logging proxy; dataset and model hubs and the case's own data sources are blocked, and a per-user firewall stops any bypass. The agent comes back here whenever an experiment raises a question. Below is the historical retrieval log of the example submission.", vis: visLog },
       { code: "S2", name: "Synthesize", title: "Synthesize: lineage, evidence and gaps", text: "Organize the neighborhood into a technical lineage, separate strong from weak evidence, and find what existing methods do not cover.", vis: visLineage },
       { code: "S3", name: "Design", title: "Design: the RankGate update rule", text: "Interpolates continuously between the orthogonalized and factored adaptive updates by the normalized stable rank of the momentum matrix. The gate works on a log scale with threshold τ = 0.02.", vis: visDesign },
-      { code: "S3′", name: "Self-test", title: "Self-test: trial and error in its own workspace", text: "With a development budget of 8 GPU-h, the agent trains and judges for itself in a writable workspace. Here it found that the linear gate was almost always 0 and switched to a log gate. The agent cannot see the evaluation settings.", vis: visBudget },
+      { code: "S3′", name: "Self-test", title: "Self-test: trial and error in its own workspace", text: "With a development budget of 8 GPU-h, the agent trains and judges for itself in a writable workspace. Here it found that the linear gate was almost always 0, went back to the literature on stable rank, and switched to a log gate. The agent cannot see the evaluation settings.", vis: visBudget },
       { code: "S4", name: "Design report", title: "Report: arXiv layout, principles only", text: "Write report/index.html from the template: introduction, background, method (structure diagram, equations, algorithm, complexity), design rationale, scope; references registered in references.yaml. No experiments or numbers.", vis: visDoc },
       { code: "S5", name: "Submit", title: "Submit: one-shot delivery, allowlisted collection", text: "B-OPT-001 submits code only: the evaluation environment trains it from scratch. Collection keeps only allowlisted files and drops self-reported metrics; the agent's workspace is then deleted.", vis: visFiles },
       { code: "S6", name: "OJ evaluation", title: "Evaluate: outside the sandbox, reading code and weights", text: "The judge checks the format and then runs the submission on hidden settings. Tasks like DS-GBM-001 load the checkpoint directly and predict on the encrypted test set; the retraining judge of B-OPT-001 is defined, with data still to be frozen.", vis: visJudge },
@@ -345,7 +361,7 @@
       const seen = (o.view || []).map(f => `<li class="f"><span class="mono">view/${esc(f)}</span></li>`).join("");
       const hidden = ["case/eval_protocol.yaml", "case/scoring_config.yaml", "case/metric_registry.yaml", "case/reference_pool.yaml", "case/anti_gaming.md", "harness/reference_rules.py", "case/oj.yaml"];
       box.innerHTML = `<div class="view-cmp"><div><span class="k">the agent can see</span><ul class="tree small">${seen}</ul>
-        <div class="card-sheet" style="margin-top:10px">${[["Anchor", "Adam (arXiv 1412.6980)"], ["Cutoff", "2026-07-01"], ["Development budget", "8 GPU-h, one 24GB card"], ["Submissions", "one"]].map(r => `<div class="row"><span>${r[0]}</span><span>${esc(r[1])}</span></div>`).join("")}</div></div>
+        <div class="card-sheet" style="margin-top:10px">${[["Anchor", "Adam (arXiv 1412.6980)"], ["Literature", "any date, online during the session"], ["Development budget", "8 GPU-h, one 24GB card"], ["Submissions", "one"]].map(r => `<div class="row"><span>${r[0]}</span><span>${esc(r[1])}</span></div>`).join("")}</div></div>
         <div><span class="k">cannot see</span><ul class="tree small gone">${hidden.map(f => `<li class="f"><span class="mono">${f}</span></li>`).join("")}</ul></div></div>`;
       [...box.querySelectorAll(".tree li, .row")].forEach((r, i) => fade(r, 60 + i * 60, 260, 4));
       [...box.querySelectorAll(".gone li")].forEach((r, i) => setTimeout(() => r.classList.add("x"), RM ? 0 : 900 + i * 90));
@@ -360,14 +376,14 @@
       [...box.querySelectorAll(".mp-toc i, .mp-main > *")].forEach((n, i) => fade(n, 60 + i * 70, 260, 3));
     }
     function visJudge(box) {
-      const rows = [["Format check", "layout, allowlist, report structure, consistent references", "ok"], ["Decrypt hidden set", "the judge holds the key exclusively and decrypts into its own temporary directory", "ok"], ["Run the submission", "the subprocess gets only a copy of the submission and the features; minimal environment, no network, resource limits", "ok"],
+      const rows = [["Format check", "layout, allowlist, report structure, consistent references", "ok"], ["Decrypt hidden set", "the judge holds the key exclusively and decrypts into its own temporary directory", "ok"], ["Run the submission", "the child runs as the user abench-judge in a new network namespace and gets only a copy of the submission and the features; resource limits", "ok"],
         ["Compute metrics", "labels exist only in the parent process's memory", "ok"], ["B-OPT-001: retraining judge", "trains from scratch on hidden settings with a fixed small LM; data still to be frozen", "wait"]];
       box.innerHTML = `<div class="dr-flow">${rows.map(r => `<div class="fl ${r[2]}"><span class="d"></span><span class="c"><b>${r[0]}</b><span>${r[1]}</span></span></div>`).join("")}</div>
         <p class="panel-note" style="margin-top:8px">See the step-by-step animation in the "OJ evaluation" section below.</p>`;
       [...box.querySelectorAll(".fl")].forEach((r, i) => fade(r, 80 + i * 160, 300, 4));
     }
     function visCard(box) {
-      const rows = [["Case", "B-OPT-001 · track B optimizers"], ["Anchor", "Adam (arXiv 1412.6980, ICLR 2015)"], ["Cutoff", "2026-07-01"], ["Goal", "Design a new optimizer for small-scale LLM pretraining: stay at SOTA and be distinguishable from existing methods"],
+      const rows = [["Case", "B-OPT-001 · track B optimizers"], ["Anchor", "Adam (arXiv 1412.6980, ICLR 2015)"], ["Literature", "any date, online during the session"], ["Goal", "Design a new optimizer for small-scale LLM pretraining: stay at SOTA and be distinguishable from existing methods"],
         ["Development budget", "8 GPU-h, one 24GB reference card"], ["Resources / difficulty", "high / medium"], ["Submissions", "one"]];
       box.innerHTML = `<div class="card-sheet">${rows.map(r => `<div class="row"><span>${r[0]}</span><span>${esc(r[1])}</span></div>`).join("")}</div>`;
       [...box.querySelectorAll(".row")].forEach((r, i) => fade(r, 80 + i * 90, 300, 4));
@@ -475,9 +491,9 @@
 
   // ------------------------------------------------------------------ OJ evaluation
   (() => {
-    const CASES = ["DS-GBM-001", "B-OPT-001", "B-T7-005"].map(id => allCases.find(c => c.id === id)).filter(Boolean);
+    const CASES = ["DS-GBM-001", "B-OPT-001", "FN-LTSF-005"].map(id => allCases.find(c => c.id === id)).filter(Boolean);
     const sw = $("#ojCaseSwitch");
-    const ENV = ["ABENCH_VIEW_DIR", "ABENCH_DATA_DIR", "ABENCH_WORKSPACE", "ABENCH_CHECKPOINT_DIR", "ABENCH_SUBMISSION_DIR", "ABENCH_DEVICE", "ABENCH_DEADLINE", "PATH", "HOME (temporary)"];
+    const ENV = ["ABENCH_VIEW_DIR", "ABENCH_DATA_DIR", "ABENCH_WORKSPACE", "ABENCH_CHECKPOINT_DIR", "ABENCH_SUBMISSION_DIR", "ABENCH_DEVICE", "ABENCH_DEADLINE", "PATH", "HOME (temporary)", "HTTPS_PROXY (research egress)"];
     const judgeTree = c => {
       const o = c.oj || {};
       return [["case/oj.yaml", "submission allowlist, judge configuration"], ["case/eval_protocol.yaml", "evaluation settings, including hidden ones"], ["case/scoring_config.yaml", "scoring weights"], ["case/metric_registry.yaml", "metric directions and units"],
@@ -506,6 +522,15 @@
     const waiting = active.filter(c => c.oj?.activation === "awaiting_data").length;
     $("#ojProv").textContent = `Cases with a judge wired in: ${active.map(c => c.id).join(", ") || "none"} (${waiting} of them awaiting operator-frozen data); the other ${allCases.length - active.length} only get format checks until their judges are frozen. The metrics of "normal submission" below come from the deterministic reference agent of DS-GBM-001 (logistic regression on synthetic micro data) and only validate the pipeline.`;
 
+    // calibration runs (real records, never scorable)
+    const CAL = A.calibration || {};
+    if (CAL.runs && CAL.runs.length) {
+      $("#calDate").textContent = CAL.date || "";
+      $("#calTable").innerHTML = `<thead><tr><th>Case</th><th>Data</th><th>Primary (95% CI)</th><th>Reference training</th></tr></thead><tbody>${CAL.runs.map(r =>
+        `<tr><td class="mono nowrap">${esc(r.case)}</td><td>${esc(r.data)}</td><td class="mono">${esc(r.primary)}</td><td>${esc(r.agent)}</td></tr>`).join("")}</tbody>`;
+      $("#calNote").textContent = CAL.note || "";
+    } else { $("#calTable").closest(".panel").remove(); }
+
     // run-path animation
     const svg = $("#ojPipe");
     const ST = [["Build view", "allowlisted copy, read-only"], ["Run agent", "view + workspace"], ["Collect", "allowlist, drop self-reports"], ["Format check", "layout, report, references"], ["Decrypt hidden set", "judge holds the key"], ["Prediction subprocess", "gets only submission and features"], ["Compute metrics", "labels only in the parent"], ["evaluation.json", "judge_real"]];
@@ -520,8 +545,11 @@
       const c = S("circle", { cx: X(i), cy: Y, r: 15, css: "fill:var(--sheet);stroke:var(--ink-3)", "stroke-width": 2 }, g);
       S("text", { x: X(i), y: Y + 4.5, "text-anchor": "middle", "font-size": 12, class: "t-mono t-ink", text: i + 1 }, g);
       S("text", { x: X(i), y: Y - 30, "text-anchor": "middle", "font-size": 13.5, class: "t-ink", text: a }, g);
-      S("text", { x: X(i), y: Y + 40, "text-anchor": "middle", "font-size": 11.5, text: b }, g);
-      const note = S("text", { x: X(i), y: Y + 62, "text-anchor": "middle", "font-size": 12, text: "" }, g);
+      // two short lines per step so that neighbouring captions (140 px apart) never run into each other
+      const words = b.split(" "), lines = [""];
+      words.forEach(w => { const cur = lines[lines.length - 1]; if (cur && (cur + " " + w).length > 17) lines.push(w); else lines[lines.length - 1] = cur ? cur + " " + w : w; });
+      lines.slice(0, 3).forEach((ln, k) => S("text", { x: X(i), y: Y + 36 + k * 14, "text-anchor": "middle", "font-size": 11.5, text: ln }, g));
+      const note = S("text", { x: X(i), y: Y + 86, "text-anchor": "middle", "font-size": 12, text: "" }, g);
       return { c, note };
     });
     const dot = S("circle", { cx: X(0), cy: Y, r: 7, css: "fill:var(--blue)" }, svg);
@@ -530,7 +558,8 @@
       { id: "selfrep", name: "Smuggled metrics.json", stop: null, notes: { 2: ["dropped metrics.json", "amber"] }, verdict: "evaluated", vtext: "the self-reported file is dropped; metrics are still computed by the judge", metrics: { accuracy: 0.96875, roc_auc: 0.994135, log_loss: 0.173018 } },
       { id: "exp", name: "Report with an experiments section", stop: 3, notes: { 3: ["section '4 Experimental Results'", "red"] }, verdict: "submission_invalid", vtext: "the report covers design rationale only, not experiments" },
       { id: "smoke", name: "Smoke run", stop: 4, notes: { 4: ["no decryption", "amber"] }, verdict: "smoke_unscored", vtext: "validates process and format only; unscored" },
-      { id: "nowrap", name: "Benchmark without isolation", stop: 0, notes: { 0: ["refused to start", "red"] }, verdict: "refused", vtext: "benchmark requires --agent-wrapper" },
+      { id: "hub", name: "Fetching the test set online", stop: null, notes: { 1: ["huggingface.co → 403", "amber"] }, verdict: "evaluated", vtext: "the request is denied by the egress policy and written to egress_log.jsonl; the agent keeps working with the public data", metrics: { accuracy: 0.96875, roc_auc: 0.994135, log_loss: 0.173018 } },
+      { id: "nowrap", name: "Benchmark without isolation", stop: 0, notes: { 0: ["refused to start", "red"] }, verdict: "refused", vtext: "benchmark requires an allow-listed wrapper (dedicated user with research egress, or no network)" },
     ];
     const ssw = $("#ojScenario");
     ssw.innerHTML = SC.map(s => `<button type="button" role="tab" data-id="${s.id}">${s.name}</button>`).join("");
@@ -569,7 +598,7 @@
     const DOCS = [["reports/B-OPT-001-rankgate.html", "RankGate example", "cases/B-OPT-001/example_submission/report/index.html"], ["reports/design_template.html", "Design report template", "templates/report_template.html"], ["reports/judgment_template.html", "Judgment report template", "templates/report_template.html (T7)"]]
       .filter(d => (A.reports || []).includes(d[0]));
     const sw = $("#repSwitch"), fr = $("#repFrame");
-    const ANCH = ["abstract1", "S1", "S2", "S3", "S4", "bib"];
+    const ANCH = ["abstract1", "S1", "S2", "S3", "S4", "changes", "bib"];
     const CLS = ["ltx_document", "ltx_title_document", "ltx_abstract", "ltx_section", "ltx_equation", "ltx_float_algorithm", "ltx_theorem", "ltx_bibliography"];
     $("#repAnchors").innerHTML = ANCH.map(a => `<span class="tag plain mono" data-a="${a}">#${a}</span>`).join("");
     $("#repClasses").innerHTML = CLS.map(a => `<span class="tag plain mono" data-c="${a}">.${a}</span>`).join("");
@@ -784,7 +813,7 @@
     function build() {
       svg.innerHTML = "";
       S("text", { x: ox + n * cs + 30, y: oy - 12, "text-anchor": "middle", "font-size": 11.5, text: "row sum" }, svg);
-      S("text", { x: ox - 10, y: oy + n * cs + 30, "text-anchor": "end", "font-size": 11.5, text: "col sum" }, svg);
+      S("text", { x: ox + n * cs + 30, y: oy + n * cs + 30, "text-anchor": "middle", "font-size": 11.5, text: "← col sum" }, svg);
       sweep = S("rect", { x: ox, y: oy, width: 0, height: 0, rx: 4, css: "fill:none;stroke:var(--red)", "stroke-width": 2, opacity: 0 }, svg);
       cells = [];
       for (let i = 0; i < n; i++) {
@@ -897,11 +926,11 @@
       brT.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 150, fill: "forwards" });
     }, 0.4);
 
-    // judgment
+    // strong baselines at equal compute (the T7 judgment cases were retired on 2026-10-22; their lesson lives here)
     const claims = [
-      { c: "Matrix optimizers give a 1.4–2× token-efficiency gain over AdamW", src: "B-T7-005 · checked against Fantastic Pretraining Optimizers (2509.02046)", v: "partly holds", why: "With tuned baselines, about 1.4× appears only at the 0.1B scale and shrinks to about 1.1× at 1.2B", ok: false },
-      { c: "A newly proposed 3D segmentation architecture beats nnU-Net across the board", src: "MD-T7-002 · checked against nnU-Net Revisited (2404.09556)", v: "mostly does not hold", why: "Under rigorous validation, a well-configured nnU-Net remains a very strong baseline", ok: false },
-      { c: "A tuned GBDT remains a strong baseline on medium-sized tabular data", src: "DS-T7-003 · checked against Grinsztajn et al. (2207.08815)", v: "holds", why: "On the medium-sized datasets of their benchmark, tree models lead deep tabular models overall", ok: true }
+      { c: "A new optimizer must beat AdamW whose learning rate and weight decay were tuned on the same model and schedule", src: "B-OPT-001 · baseline trained by the evaluator in the same runs", v: "tuned AdamW", why: "Speedups reported against a poorly tuned AdamW shrink once it is tuned (Fantastic Pretraining Optimizers, 2509.02046)", ok: false },
+      { c: "A new layer must beat the MLP layer at exactly the same parameter count, with the same learning-rate search", src: "U-KAN-009 · MLP trained next to the submitted layer", v: "matched MLP", why: "KAN's advantages largely disappear at matched parameters and FLOPs outside symbolic fitting (KAN or MLP: A Fairer Comparison, 2407.16674)", ok: false },
+      { c: "A forecasting architecture must beat a linear map from the recent past, refitted on all public rows", src: "FN-LTSF-005 · score = MSE ratio to the fitted linear reference", v: "tuned linear", why: "Linear models matched or beat many Transformer forecasters (Are Transformers Effective for Time Series Forecasting?, 2205.13504)", ok: true }
     ];
     const jd = $("#judgeDemo");
     let ci = 0, jt = null;
@@ -909,7 +938,7 @@
       const k = claims[ci % claims.length]; ci++;
       jd.innerHTML = `<div class="claim"><span class="src">${esc(k.src)}</span><span>"${esc(k.c)}"</span></div>
         <div class="verdict"><span class="stamp ${k.ok ? "ok" : ""}">${esc(k.v)}</span><span style="color:var(--ink-2);font-size:13.5px">${esc(k.why)}</span></div>
-        <p class="panel-note">Scoring: whether the judgment is correct, plus the information content of the minimal verification plan. The agent submits only a judgment report and runs no experiments.</p>`;
+        <p class="panel-note">The baseline is run or fitted by the evaluator under the same conditions as the submission, so a gain cannot come from a weaker comparison.</p>`;
       fade(jd.querySelector(".claim"), 0, 300);
       const st = jd.querySelector(".stamp");
       if (!RM) st.animate([{ opacity: 0, transform: "rotate(-4deg) scale(1.8)" }, { opacity: 1, transform: "rotate(-4deg) scale(1)" }], { duration: 420, delay: 500, easing: "cubic-bezier(.2,1.3,.4,1)", fill: "backwards" });
@@ -954,8 +983,8 @@
         <p><b>Submitted:</b> <span class="mono">${esc(MODE[m].what)}</span></p><p>${esc(MODE[m].does)}</p>
         <div class="ids">${rows.map(r => `<button type="button" data-open="${r.id}">${r.id}</button>`).join("")}</div></div>`;
     }).join("");
-    const FLOW = [["Retrieve", "Study the anchor and search related work before the cutoff with the offline paper tool (logged)."],
-                  ["Synthesise", "What existing methods do, where they fall short, the gap addressed: report Section 2, Related Work."],
+    const FLOW = [["Research (throughout)", "Study the anchor and related work, and come back to the literature whenever an experiment raises a question: online papers, code and docs, plus the offline paper search (all logged)."],
+                  ["Synthesise", "What existing methods do, where they fall short, the gap addressed; kept up to date: report Section 2, Related Work."],
                   ["Design", "At least one precise change relative to the anchor, each listed with its code location in <ol id=\"changes\">."],
                   ["Develop and verify", "Train in the sandbox (from interface/baseline/ if useful) and run selfcheck.py: the evaluator's own stages and metrics on a dev split."],
                   ["Submit", "One shot: code (+ checkpoint and train.py), design report, references.yaml."]];
@@ -976,6 +1005,7 @@
     seg.innerHTML = [null, "checkpoint", "judge_trains", "no_training"].map(m => `<button type="button" role="tab" data-m="${m || ""}" aria-selected="${m === filt}">${m ? MODE[m].name : "All"}</button>`).join("");
     seg.addEventListener("click", e => { const b = e.target.closest("button[data-m]"); if (!b) return; filt = b.dataset.m || null; seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-selected", x === b)); table(); });
     table();
+    $("#stdCount").textContent = `The ${STD.length} standard cases`;
     const e2e = STD.filter(r => r.verified_e2e_synthetic).length;
     const waiting = STD.filter(r => r.activation === "awaiting_data").length;
     $("#stdNote").textContent = `${e2e} of ${STD.length} cases run end to end in tests on synthetic data (reference train.py → checkpoint → stage pipeline → metrics); the others need PyTorch, a GPU or a simulator and have not been executed yet. ${waiting} of ${STD.length} wait for the operator to freeze the real data; until then no result is scorable. Click a row for the full task statement.`;
@@ -1011,7 +1041,7 @@
     search.addEventListener("input", () => { st.q = search.value; renderList(); });
     function hit(c) {
       const q = st.q.trim().toLowerCase();
-      return (!st.group || c.group === st.group) && (!st.diff || c.difficulty === st.diff) && (!st.res || c.budget === st.res) && (!st.status || c.status === st.status) && (!st.kind || c.oj?.kind === st.kind)
+      return (!st.group || c.group === st.group) && (!st.diff || c.difficulty === st.diff) && (!st.res || c.budget === st.res) && (!st.status || (c.registry || {}).ref_run === st.status) && (!st.kind || c.oj?.kind === st.kind)
         && (!q || [c.id, c.anchor, c.arxiv, c.task, c.metrics, c.track.name].join(" ").toLowerCase().includes(q));
     }
     function renderList() {
@@ -1023,7 +1053,7 @@
         n += rows.length;
         html += `<div class="case-group-h"><h3>${GROUP_TITLE[g]}</h3><span>${esc(IDX.legend.groups[g])}</span></div>`;
         html += rows.map(c => `<button type="button" class="case-row" data-id="${c.id}"><span class="cid">${c.id}</span><span class="canchor">${esc(c.anchor)}</span><span class="ctask">${esc(c.task)}</span>
-          <span class="cmeta"><span class="tag ${c.status === "built" ? "built" : "plain"}">${STATUS_ZH[c.status] || c.status || "status unknown"}</span><span class="tag plain">${READINESS_ZH[c.readiness] || c.readiness || "readiness unknown"}</span><span class="tag plain">${KIND_ZH[c.oj?.kind] || "submission TBD"}</span>${c.oj?.standard ? `<span class="tag green">standard case</span>` : (c.oj?.judge && c.oj.judge !== "pending" ? `<span class="tag green">judge wired in</span>` : "")}<span class="tag plain">difficulty ${c.difficulty}</span><span class="tag ${c.budget === "pro" ? "red" : ""}">resources ${c.budget}</span></span></button>`).join("");
+          <span class="cmeta">${regTags(c)}<span class="tag plain">${KIND_ZH[c.oj?.kind] || "submission TBD"}</span>${c.oj?.standard ? `<span class="tag green">standard case</span>` : c.oj?.template ? `<span class="tag green">from ${esc(c.oj.template)}</span>` : (c.oj?.judge && c.oj.judge !== "pending" ? `<span class="tag green">judge wired in</span>` : "")}<span class="tag plain">difficulty ${c.difficulty}</span><span class="tag ${c.budget === "pro" ? "red" : ""}">resources ${c.budget}</span></span></button>`).join("");
       });
       list.innerHTML = html || `<div class="case-empty">No cases match. Try another filter or clear the search.</div>`;
       $("#caseCount").textContent = `Showing ${n} / ${allCases.length}`;
@@ -1032,7 +1062,7 @@
       chips("#fGroup", "group", GROUP_ORDER, GROUP_TITLE);
       chips("#fDiff", "diff", LEVELS, { low: "low", medium: "medium", high: "high" });
       chips("#fRes", "res", ["low", "medium", "high", "pro"], LEVEL_ZH);
-      chips("#fStatus", "status", ["built", "spec", "scaffold", "planned"], STATUS_ZH);
+      chips("#fStatus", "status", ["real_gpu", "real_cpu", "synthetic", "mock", "none"], REFRUN_ZH);
       chips("#fKind", "kind", ["code_only", "code_plus_checkpoint", "report_only"], KIND_ZH);
       search.value = st.q;
       renderList();
@@ -1059,11 +1089,11 @@
       const u = v.unit || "GPU-h";
       const m = modeOf(c);
       if (m === "pro") return [["4 × H100, 24 hours", "development, debugging and final training all happen within these 24 hours"], ["Deliver code, weights and design report", "logs, GPU telemetry and the checkpoint hash chain are written by the harness"], ["Judge verification about " + v.verify + " " + u, "outside the sandbox, the weights are evaluated on the hidden set; one randomly chosen registered point is resumed for 1 hour to check"], ["Compared with strong industry recipes", "a lead counts only above the 2σ noise floor"], ["Scoring", "M · D · Q · (1 + 0.25X); engineering metrics such as MFU and throughput reported separately"]];
-      if (m === "judge") return [["Given a published claim and a paper snapshot", "material from before the cutoff, same retrieval rules as other cases"], ["Submit a judgment report", "conclusion, reasons and a minimal verification plan; no experiments"], ["Judge check", "verify the judgment with existing reference results or a small experiment"], ["Scoring", "correctness of the judgment + information content of the verification plan"]];
+      if (m === "judge") return [["Given a published claim", "same research access as other cases"], ["Submit a judgment report", "conclusion, reasons and a minimal verification plan; no experiments"], ["Judge check", "verify the judgment with existing reference results or a small experiment"], ["Scoring", "correctness of the judgment + information content of the verification plan"]];
       const k = c.oj?.kind;
-      if (c.oj?.standard && c.oj?.mode) {
+      if ((c.oj?.standard || c.oj?.template) && MODE[c.oj?.mode]) {
         const md = MODE[c.oj.mode];
-        return [["Retrieve and synthesise", "offline paper search before the cutoff; Related Work in the report"],
+        return [["Research and synthesise", "online literature and code throughout the session; Related Work in the report"],
                 ["Design and develop in the sandbox", "changes relative to the anchor with code locations; selfcheck.py runs the evaluator's own pipeline on a dev split"],
                 ["One-shot submission", md.what + ", design report, references"],
                 ["Evaluation: " + md.name, md.does],
@@ -1076,10 +1106,24 @@
       if (!o.kind) return "";
       const judge = o.judge && o.judge !== "pending";
       return `<div class="dr-sec"><span class="k">OJ configuration</span>
-        <div class="dr-tags"><span class="tag">${esc(KIND_ZH[o.kind])}</span>${o.entry ? `<span class="tag plain mono">${esc(o.entry)}</span>` : ""}${o.checkpoint_dir ? `<span class="tag plain mono">${esc(o.checkpoint_dir)}/</span>` : ""}<span class="tag plain">${o.report_profile === "judgment_report_v2" ? "judgment report" : "design report"}</span><span class="tag ${judge ? "green" : "amber"}">${JUDGE_ZH[o.judge] || o.judge}</span>${o.standard ? `<span class="tag green">standard case</span>` : ""}${o.mode ? `<span class="tag ${MODE[o.mode]?.tag || "plain"}">${esc(MODE[o.mode]?.name || o.mode)}</span>` : ""}${(o.required_files || []).map(f => `<span class="tag plain mono">${esc(f)}</span>`).join("")}${o.activation === "awaiting_data" ? `<span class="tag amber">awaiting frozen data</span>` : ""}${o.handcrafted ? `<span class="tag plain">handcrafted</span>` : ""}</div>
+        <div class="dr-tags"><span class="tag">${esc(KIND_ZH[o.kind])}</span>${o.entry ? `<span class="tag plain mono">${esc(o.entry)}</span>` : ""}${o.checkpoint_dir ? `<span class="tag plain mono">${esc(o.checkpoint_dir)}/</span>` : ""}<span class="tag plain">${o.report_profile === "judgment_report_v2" ? "judgment report" : "design report"}</span><span class="tag ${judge ? "green" : "amber"}">${JUDGE_ZH[o.judge] || o.judge}</span>${o.standard ? `<span class="tag green">standard case</span>` : (o.template ? `<span class="tag green">from template ${esc(o.template)}</span>` : "")}${o.mode ? `<span class="tag ${MODE[o.mode]?.tag || "plain"}">${esc(MODE[o.mode]?.name || o.mode)}</span>` : ""}${(o.required_files || []).map(f => `<span class="tag plain mono">${esc(f)}</span>`).join("")}${o.activation === "awaiting_data" ? `<span class="tag amber">awaiting frozen data</span>` : ""}${o.handcrafted ? `<span class="tag plain">handcrafted</span>` : ""}</div>
         <p>${esc((o.mode && MODE[o.mode] ? MODE[o.mode].does : (KIND_READS[o.kind] || "")).replace(/\.$/, ""))}${judge ? `; metrics ${esc(o.judge_metrics.join(", "))}${o.hidden_rows ? `, hidden set ${o.hidden_rows} rows (encrypted)` : ""}` : "; format checks only until the judge is frozen"}.</p></div>
         <div class="dr-sec"><span class="k">Agent view (read-only)</span><ul class="tree small">${(o.view || []).map(f => `<li class="f"><span class="mono">${esc(f)}</span></li>`).join("")}</ul>
         ${o.task_md ? `<details class="taskmd"><summary>Show the task.md the agent receives</summary><pre>${esc(o.task_md)}</pre></details>` : ""}</div>`;
+    }
+    function stateSec(c) {
+      const r = c.registry || {};
+      if (!r.ref_run) return "";
+      const b = (c.oj || {}).agent_budget || {};
+      const budget = [b.gpu_hours != null ? `${b.gpu_hours} GPU-h` : "", b.h100_hours != null ? `${b.h100_hours} H100-h` : "",
+                      b.cpu_core_hours != null ? `${b.cpu_core_hours} CPU core-h` : "", b.session_hours != null ? `session ${b.session_hours} h` : ""].filter(Boolean).join(" · ");
+      return `<div class="dr-sec"><span class="k">State (verify.csv, ${esc(r.last_update || "")})</span>
+        <p><b>Reference run:</b> ${esc(REFRUN_ZH[r.ref_run] || r.ref_run)}${r.ref_result ? ` — ${esc(r.ref_result)}` : ""}</p>
+        ${r.data_source ? `<p><b>Data source:</b> ${esc(r.data_source)}</p>` : ""}
+        ${budget ? `<p><b>Agent budget:</b> ${esc(budget)}</p>` : ""}
+        ${r.review_note ? `<p><b>Review:</b> ${esc(r.review_note)}</p>` : ""}
+        ${r.blockers ? `<p><b>Blockers:</b> ${esc(r.blockers)}</p>` : ""}
+        ${r.next_step ? `<p class="panel-note">Next: ${esc(r.next_step)}</p>` : ""}</div>`;
     }
     function open(id, from) {
       const c = allCases.find(x => x.id === id); if (!c) return;
@@ -1088,11 +1132,12 @@
       const u = v.unit || "GPU-h";
       const link = c.arxiv ? `<a href="https://arxiv.org/abs/${esc(c.arxiv)}" target="_blank" rel="noopener">arXiv:${esc(c.arxiv)}</a>` : c.link ? `<a href="${esc(c.link)}" target="_blank" rel="noopener">${esc(c.venue || "link")}</a>` : "anchor paper to be chosen";
       const mode = modeOf(c);
-      const modeName = c.oj?.standard && c.oj?.mode ? `${MODE[c.oj.mode]?.name || c.oj.mode} (standard case)` : { budget: "Budget micro-scale retraining", pro: "Pro audit", judge: "judgment" }[mode];
+      const modeName = (c.oj?.standard || c.oj?.template) && c.oj?.mode ? `${MODE[c.oj.mode]?.name || c.oj.mode} (${c.oj.standard ? "standard case" : "from " + c.oj.template})` : { budget: "Budget micro-scale retraining", pro: "Pro audit", judge: "judgment" }[mode];
       body.innerHTML = `
         <div class="dr-sec"><span class="dr-id">${c.id} · ${esc(GROUP_TITLE[c.group])} · ${esc(c.track.name)}</span><h2 class="dr-title" id="drawerTitle">${esc(c.anchor)}</h2><span>${link}</span>
-          <div class="dr-tags">${c.status === "built" ? `<span class="tag green">built</span>` : `<span class="tag plain">${STATUS_ZH[c.status] || c.status || "status unknown"}</span>`}<span class="tag plain">${READINESS_ZH[c.readiness] || c.readiness || "readiness unknown"}</span><span class="tag plain">difficulty ${c.difficulty}</span><span class="tag ${c.budget === "pro" ? "red" : ""}">resources ${c.budget}</span><span class="tag plain">${SUBSET_ZH[c.subset] || c.subset}</span><span class="tag plain">${c.type}</span>${c.verify ? `<span class="tag amber">anchor to be verified</span>` : ""}</div></div>
+          <div class="dr-tags">${regTags(c)}<span class="tag plain">difficulty ${c.difficulty}</span><span class="tag ${c.budget === "pro" ? "red" : ""}">resources ${c.budget}</span><span class="tag plain">${SUBSET_ZH[c.subset] || c.subset}</span><span class="tag plain">${c.type}</span>${c.verify ? `<span class="tag amber">anchor to be verified</span>` : ""}</div></div>
         <div class="dr-sec"><span class="k">Task</span><p>${esc(c.task)}</p></div>
+        ${stateSec(c)}
         ${ojSec(c)}
         <div class="dr-sec"><span class="k">Metrics</span><p>${esc(c.metrics)}</p></div>
         <div class="dr-sec"><span class="k">Evaluation mode: ${modeName}</span><div class="dr-flow">${flowFor(c).map(([a, b]) => `<div class="fl"><span class="d"></span><span class="c"><b>${esc(a)}</b><span>${esc(b)}</span></span></div>`).join("")}</div></div>

@@ -8,6 +8,8 @@ from abench_metrics import OutputError, need, nrmse  # noqa: F401
 PRIMARY = {"metric": "nrmse", "goal": "min"}
 GATES: list = []          # validity = no crash, time limits respected, well-formed predictions
 
+# examples resampled together for the bootstrap 95% interval of the primary metric (abench_metrics.bootstrap_ci)
+RESAMPLE = [{"reference": ["u_out", "u_out_512"], "outputs": [["predict", "pred"], ["predict", "pred_512"]]}]
 
 def score(outputs: dict, reference: dict, params: dict, seconds: dict) -> dict:
     y = np.asarray(reference["u_out"], np.float64)

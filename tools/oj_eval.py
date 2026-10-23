@@ -9,6 +9,17 @@ Flow
 
 Results are written only to the operator's result directory; the agent stage has long ended, so results never reach the agent's view.
 
+Child isolation (operator environment, recorded as judge_isolation)
+  ABENCH_JUDGE_CHILD_USER=abench-judge  every process that runs submission code (prediction child, harness stages)
+                                        runs as this unprivileged user (setpriv) in a new network namespace
+                                        (unshare --net; ABENCH_JUDGE_CHILD_NETNS=0 to skip). The judge must run as
+                                        root to switch users. Before decrypting anything it checks as that user that
+                                        the repository, the hidden set and the key are out of reach; the child gets
+                                        copies of the code and data it needs in the judge's temporary directory.
+                                        Benchmark results without child isolation are recorded as not scorable.
+  ABENCH_JUDGE_DEVICE=cpu               run the judge on another device than oj.yaml names (calibration on a host
+                                        without the reference GPU); recorded, and the result is not scorable.
+
 Usage (normally called by sandbox_runner):
   python3 tools/oj_eval.py --case DS-GBM-001 --submission <dir> --hidden-key-file <key> --out <evaluation.json>
 """
@@ -38,7 +49,7 @@ sys.path.insert(0, str(TOOLS))
 import hidden_store  # noqa: E402
 from validate_submission import validate_submission_dir  # noqa: E402
 
-JUDGE_VERSION = "abench-oj-judge-v2.0"
+JUDGE_VERSION = "abench-oj-judge-v2.1"
 
 
 def _dependency_attestation() -> dict[str, Any]:
@@ -77,8 +88,37 @@ def _dependency_attestation() -> dict[str, Any]:
             "tools_attested": tools_attested}
 
 
+def _environment_check(case: str) -> dict[str, Any]:
+    """Compare the judge child's environment (interpreter + ABENCH_JUDGE_PYTHONPATH) with the lock of the case's profile
+    (spec/env/profiles.yaml, spec/env/lock/<profile>.json, written by tools/record_environment.py)."""
+    try:
+        profiles = yaml.safe_load((ROOT / "spec" / "env" / "profiles.yaml").read_text())
+    except Exception as e:  # noqa: BLE001
+        return {"profile": None, "matches": False, "reason": f"profiles.yaml unreadable: {e}"}
+    profile = (profiles.get("cases") or {}).get(case)
+    if not profile:
+        return {"profile": None, "matches": False, "reason": "case has no environment profile"}
+    lock = ROOT / "spec" / "env" / "lock" / f"{profile}.json"
+    if not lock.is_file():
+        return {"profile": profile, "matches": False, "reason": f"no lock recorded yet ({lock.relative_to(ROOT)})"}
+    env = dict(os.environ)
+    dep = _dependency_path()
+    if dep:
+        env["PYTHONPATH"] = dep
+    r = subprocess.run([sys.executable, str(TOOLS / "record_environment.py"), "--check", str(lock)],
+                       capture_output=True, text=True, env=env, timeout=120)
+    try:
+        out = json.loads(r.stdout)
+    except ValueError:
+        return {"profile": profile, "matches": False, "reason": f"environment check failed: {r.stderr[-500:]}"}
+    return {"profile": profile, "lock": str(lock.relative_to(ROOT)), "matches": bool(out.get("matches")),
+            "differences": out.get("differences", [])[:50]}
+
+
 def _dependency_path() -> str | None:
     attestation = _dependency_attestation()
+    if attestation.get("source") == "operator_user_site" and os.environ.get("ABENCH_JUDGE_CHILD_USER"):
+        return None                     # the child user cannot read the operator's home; it uses the interpreter's own
     paths = attestation.get("paths") or []
     return os.pathsep.join(paths) if paths else None
 
@@ -139,6 +179,90 @@ def roc_auc(y: np.ndarray, P: np.ndarray) -> float:
 METRICS = {"accuracy": accuracy, "log_loss": log_loss, "roc_auc": roc_auc}
 
 
+# ------------------------------------------------------------------ child isolation
+def _as_child(iso: dict[str, Any], argv: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(iso["prefix"] + argv, capture_output=True, timeout=30)
+
+
+def judge_isolation(key_file: Path | None, oj: dict[str, Any]) -> dict[str, Any] | None:
+    """The child launcher from ABENCH_JUDGE_CHILD_USER, after a preflight run as that user; None if unset."""
+    user = os.environ.get("ABENCH_JUDGE_CHILD_USER")
+    if not user:
+        return None
+    import pwd
+    try:
+        pw = pwd.getpwnam(user)
+    except KeyError:
+        raise SystemExit(f"ABENCH_JUDGE_CHILD_USER={user!r}: no such user")
+    if pw.pw_uid == 0:
+        raise SystemExit("ABENCH_JUDGE_CHILD_USER must be an unprivileged user")
+    if os.geteuid() != 0:
+        raise SystemExit("ABENCH_JUDGE_CHILD_USER needs the judge to run as root (it switches users with setpriv)")
+    netns = os.environ.get("ABENCH_JUDGE_CHILD_NETNS", "1") != "0"
+    prefix = (["unshare", "--net", "--"] if netns else []) + [
+        "setpriv", f"--reuid={pw.pw_uid}", f"--regid={pw.pw_gid}", "--clear-groups", "--"]
+    iso = {"user": user, "uid": pw.pw_uid, "gid": pw.pw_gid, "netns": netns, "prefix": prefix}
+    forbidden = [ROOT, ROOT / "sandbox" / "hidden"]
+    hid = (oj.get("data") or {}).get("hidden") or {}
+    if hid.get("path"):
+        forbidden.append(ROOT / hid["path"])
+    if key_file is not None:
+        kf = Path(key_file).expanduser().resolve()
+        forbidden += [kf, kf.parent]
+    checks = []
+    for f in forbidden:
+        flag = "-x" if f.is_dir() else "-r"
+        checks.append({"path": str(f), "test": flag, "reachable": _as_child(iso, ["test", flag, str(f)]).returncode == 0})
+    dep = _dependency_path()
+    dep_ok = all(_as_child(iso, ["test", "-r", d]).returncode == 0 for d in dep.split(os.pathsep)) if dep else True
+    running = subprocess.run(["pgrep", "-u", str(pw.pw_uid)], capture_output=True, text=True).stdout.split()
+    if netns:
+        probe = _as_child(iso, [sys.executable, "-I", "-c",
+                                "import socket\ntry:\n socket.create_connection(('1.1.1.1', 53), timeout=2)\n"
+                                " print('online')\nexcept OSError:\n print('offline')"])
+        iso["network_probe"] = probe.stdout.decode().strip() or probe.stderr.decode()[-200:]
+    iso["preflight"] = {"forbidden_paths": checks, "dependency_path_readable": dep_ok,
+                        "processes_before": len(running)}
+    bad = [c["path"] for c in checks if c["reachable"]]
+    if bad or not dep_ok or running or (netns and iso.get("network_probe") != "offline"):
+        raise SystemExit(f"judge child isolation preflight failed: reachable={bad} dependency_readable={dep_ok} "
+                         f"running={len(running)} network={iso.get('network_probe')}")
+    return iso
+
+
+def _share(path: Path, dirs_exec_only: bool = False) -> None:
+    """Make a tree the judge copied readable (not writable) by the child user."""
+    for dp, dns, fns in os.walk(path):
+        os.chmod(dp, 0o711 if dirs_exec_only else 0o755)
+        for f in fns:
+            fp = Path(dp) / f
+            if not fp.is_symlink():
+                os.chmod(fp, fp.stat().st_mode | 0o444)
+
+
+def _stage_copy(src: Path, dst: Path) -> Path:
+    """Copy of a frozen tree for the child user: hard links for world-readable files (no data copied), else a copy."""
+    def link_or_copy(a: str, b: str) -> None:
+        if os.stat(a).st_mode & 0o004:
+            try:
+                os.link(a, b)
+                return
+            except OSError:
+                pass
+        shutil.copy2(a, b)
+        os.chmod(b, 0o444)
+    shutil.copytree(src, dst, copy_function=link_or_copy, symlinks=True)
+    for dp, _, _ in os.walk(dst):
+        os.chmod(dp, 0o755)
+    return dst
+
+
+def _iso_record(iso: dict[str, Any] | None) -> str:
+    if not iso:
+        return "host_soft"
+    return "child_user_netns" if iso["netns"] else "child_user"
+
+
 # ------------------------------------------------------------------ child process
 def _limits(cpu_seconds: int | None, memory_mb: int | None):
     def fn():
@@ -155,7 +279,8 @@ def _limits(cpu_seconds: int | None, memory_mb: int | None):
     return fn
 
 
-def run_child(sub_copy: Path, x_path: Path, out_path: Path, oj: dict, workdir: Path) -> dict[str, Any]:
+def run_child(sub_copy: Path, x_path: Path, out_path: Path, oj: dict, workdir: Path,
+              iso: dict[str, Any] | None = None) -> dict[str, Any]:
     j = oj["judge"]
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(workdir), "TMPDIR": str(workdir),
            "LANG": "C.UTF-8", "OMP_NUM_THREADS": str(j.get("threads", 1)), "PYTHONHASHSEED": "0",
@@ -167,9 +292,16 @@ def run_child(sub_copy: Path, x_path: Path, out_path: Path, oj: dict, workdir: P
     # Do not use ``-E`` here: it would discard the narrowly scoped
     # PYTHONPATH above and hide the bundled numerical runtime when HOME is
     # replaced by the judge's temporary directory.
-    cmd = [sys.executable, str(TOOLS / "oj_predict_child.py"), "--submission", str(sub_copy),
+    child_py = TOOLS / "oj_predict_child.py"
+    if iso:
+        child_py = workdir / "oj_predict_child.py"
+        shutil.copyfile(TOOLS / "oj_predict_child.py", child_py)
+        child_py.chmod(0o444)
+    cmd = [sys.executable, str(child_py), "--submission", str(sub_copy),
            "--entry", oj["submission"]["entry"], "--checkpoint-dir", oj["submission"].get("checkpoint_dir", "checkpoint"),
            "--x", str(x_path), "--out", str(out_path)]
+    if iso:
+        cmd = iso["prefix"] + cmd
     t0 = time.perf_counter()
     try:
         r = subprocess.run(cmd, cwd=workdir, env=env, capture_output=True, timeout=j.get("timeout_sec", 300),
@@ -178,6 +310,8 @@ def run_child(sub_copy: Path, x_path: Path, out_path: Path, oj: dict, workdir: P
         out, err, code = r.stdout, r.stderr, r.returncode
     except subprocess.TimeoutExpired as e:
         status, out, err, code = "time_limit_exceeded", e.stdout or b"", e.stderr or b"", None
+    if iso:
+        subprocess.run(["pkill", "-KILL", "-u", str(iso["uid"])], capture_output=True)
     return {"status": status, "exit_code": code, "wall_seconds": round(time.perf_counter() - t0, 4),
             "stdout_tail": out[-2000:].decode("utf-8", "replace"), "stderr_tail": err[-4000:].decode("utf-8", "replace")}
 
@@ -202,6 +336,12 @@ def evaluate_timed(case: str, submission: Path, key_file: Path, oj: dict[str, An
     test images are given to the child without labels, and labels stay in this process's memory only.
     """
     j = oj["judge"]
+    if rec.pop("_iso", None):
+        rec["judge_isolation"] = "host_soft"
+        rec["judge_isolation_note"] = "timed_train_classification runs its children through the case runner, which has no child-user launcher yet"
+        if rec.get("scorable"):
+            rec["scorable"] = False
+            rec["scoreability_reason"] = "judge children ran as the operator"
     runner, runner_path = _load_case_runner(case, j["runner"])
     rec["judge_harness_sha256"] = {p.name: sha256_bytes(p.read_bytes())
                                    for p in (runner_path, Path(runner.HARNESS))}
@@ -279,13 +419,15 @@ def _verify_public(case: str, oj: dict[str, Any]) -> Path | None:
     return root
 
 
-def _verify_models(oj: dict[str, Any]) -> Path | None:
+def _verify_models(oj: dict[str, Any], kind: str = "models") -> Path | None:
+    """The frozen model directory (kind "models", also in the agent's sandbox) or the evaluator-only one (kind
+    "judge_models", e.g. a reward model; never mounted in a sandbox), after checking every tree hash."""
     data = oj.get("data") or {}
-    mdir = data.get("models_dir")
+    mdir = data.get(f"{kind}_dir")
     if not mdir:
         return None
     root = (ROOT / mdir).resolve()
-    for m in data.get("models") or []:
+    for m in data.get(kind) or []:
         p = ROOT / m["path"]
         if not p.is_dir() or tree_hash(p) != m["tree_sha256"]:
             raise SystemExit(f"frozen model tree hash mismatch: {m['path']}")
@@ -306,7 +448,30 @@ def _gates(gates: list[dict], m: dict[str, float]) -> dict[str, Any]:
     return out
 
 
+def _primary_ci(metrics, res: dict, reference: dict, params: dict) -> dict | None:
+    """Bootstrap 95% interval of the primary metric when the case declares RESAMPLE (examples of the held-out set)."""
+    groups = getattr(metrics, "RESAMPLE", None)
+    primary = (getattr(metrics, "PRIMARY", None) or {}).get("metric")
+    if not groups or not primary:
+        return None
+    import abench_metrics
+    try:
+        return abench_metrics.bootstrap_ci(metrics.score, res["outputs"], reference, params, res["seconds"], groups, primary)
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+
+
 def evaluate_harness(case: str, submission: Path, key_file: Path, oj: dict[str, Any], rec: dict[str, Any]) -> dict[str, Any]:
+    tmp = Path(tempfile.mkdtemp(prefix="abench-judge-"))
+    os.chmod(tmp, 0o711 if rec.get("_iso") else 0o700)
+    try:
+        return _evaluate_harness(case, submission, key_file, oj, rec, tmp)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _evaluate_harness(case: str, submission: Path, key_file: Path, oj: dict[str, Any], rec: dict[str, Any],
+                      tmp: Path) -> dict[str, Any]:
     """harness: run the case pipeline (harness/stages.py) through the shared stage runner, once per hidden seed.
 
     The held-out inputs are copied into a run directory only after the timed phase has ended; labels and reference
@@ -314,6 +479,7 @@ def evaluate_harness(case: str, submission: Path, key_file: Path, oj: dict[str, 
     submission, it is run first under identical conditions and relative metrics are added.
     """
     j = oj["judge"]
+    iso = rec.pop("_iso", None)
     cdir = ROOT / "cases" / case
     kit = cdir / "harness" / "abench_stage.py"
     stages_path = cdir / j.get("stages", "harness/stages.py")
@@ -321,15 +487,31 @@ def evaluate_harness(case: str, submission: Path, key_file: Path, oj: dict[str, 
     for p in (kit, stages_path, metrics_path):
         if not p.resolve().is_file() or not str(p.resolve()).startswith(str(cdir.resolve()) + os.sep):
             raise SystemExit(f"judge file not found inside case: {p}")
+    if iso:
+        # the child user cannot reach the repository: it runs the judge's copy of the case harness
+        hcopy = tmp / "harness"
+        shutil.copytree(kit.parent, hcopy, ignore=shutil.ignore_patterns("__pycache__"))
+        _share(hcopy)
+        kit = hcopy / "abench_stage.py"
+        stages_path = hcopy / stages_path.relative_to(cdir / "harness")
+        metrics_path = hcopy / metrics_path.relative_to(cdir / "harness")
     sys.path.insert(0, str(kit.parent))
-    import importlib
-    abench_stage = importlib.import_module("abench_stage") if "abench_stage" not in sys.modules else sys.modules["abench_stage"]
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("abench_stage", kit)
+    abench_stage = importlib.util.module_from_spec(spec)
+    sys.modules["abench_stage"] = abench_stage
+    spec.loader.exec_module(abench_stage)
     stages = abench_stage.load_module(stages_path, f"abench_stages_{case.replace('-', '_')}")
     metrics = abench_stage.load_module(metrics_path, f"abench_metrics_{case.replace('-', '_')}")
     rec["judge_harness_sha256"] = {p.name: sha256_bytes(p.read_bytes()) for p in
                                    (kit, stages_path, metrics_path, kit.parent / "abench_metrics.py")}
     public = _verify_public(case, oj)
     models = _verify_models(oj)
+    judge_models = _verify_models(oj, "judge_models")
+    if iso:
+        public = _stage_copy(public, tmp / "public") if public else None
+        models = _stage_copy(models, tmp / "models") if models else None
+        judge_models = _stage_copy(judge_models, tmp / "judge_models") if judge_models else None
     hid = oj["data"]["hidden"]
     plain = hidden_store.decrypt_bytes(hidden_store.read_key(key_file), (ROOT / hid["path"]).read_bytes())
     if sha256_bytes(plain) != hid["sha256_plain"]:
@@ -344,23 +526,35 @@ def evaluate_harness(case: str, submission: Path, key_file: Path, oj: dict[str, 
     reference = dict(hidden)                                     # stays in this process only
     make_inputs = getattr(stages, "held_out_inputs", None)     # optional: build model inputs in this process
     held_inputs = make_inputs(hidden) if make_inputs else {k: hidden[k] for k in in_keys}
-    tmp = Path(tempfile.mkdtemp(prefix="abench-judge-"))
-    os.chmod(tmp, 0o700)
+    pre_keys = list(getattr(stages, "HELD_OUT_PRE_KEYS", []))      # inputs a stage gets before its timed phase
+    if [k for k in pre_keys if k not in hidden]:
+        raise SystemExit(f"hidden split lacks pre-timed input keys {[k for k in pre_keys if k not in hidden]}")
+    pre_inputs = {k: hidden[k] for k in pre_keys}
     dep = _dependency_path()
+    device = os.environ.get("ABENCH_JUDGE_DEVICE") or j.get("device", "cuda")
     extra_env = {"PYTHONPATH": dep} if dep else None
     params = getattr(stages, "PARAMS", {})
 
     def run_all(sub: Path, tag: str) -> tuple[list[dict], list[dict], str | None]:
         sub_copy = tmp / f"{tag}_submission"
-        shutil.copytree(sub, sub_copy)
+        shutil.copytree(sub, sub_copy, ignore=shutil.ignore_patterns("__pycache__"))
+        if iso:
+            _share(sub_copy)
         held = tmp / "held_out_inputs.npz"
         if held_inputs and not held.exists():
             np.savez(held, **held_inputs)
+            held.chmod(0o600)                  # only the parent copies it into post/ after the timed phase
+        pre = tmp / "held_out_pre.npz"
+        if pre_inputs and not pre.exists():
+            np.savez(pre, **pre_inputs)
+            pre.chmod(0o600)
         runs, per_seed = [], []
         for i, seed in enumerate(j["seeds"]):
             res = abench_stage.run_pipeline(stages, stages_path, sub_copy, tmp / f"{tag}_run{i}", public=public,
                                             models=models, held_out=held if held_inputs else None, seed=int(seed),
-                                            device=j.get("device", "cuda"), extra_env=extra_env)
+                                            device=device, extra_env=extra_env,
+                                            held_pre=pre if pre_inputs else None, judge_models=judge_models,
+                                            **({"isolation": iso} if iso else {}))
             row = {"seed_index": i, "status": res["status"], "seconds": res["seconds"],
                    "stages": [{k: v for k, v in s.items() if k not in ("meta",)} | {"meta": s.get("meta")}
                               for s in res["stages"]]}
@@ -369,6 +563,9 @@ def evaluate_harness(case: str, submission: Path, key_file: Path, oj: dict[str, 
                     m = metrics.score(res["outputs"], reference, params, res["seconds"])
                     per_seed.append(m)
                     row["metrics"] = m
+                    ci = _primary_ci(metrics, res, reference, params)
+                    if ci:
+                        row["primary_ci95"] = ci
                 except metrics.OutputError as e:
                     row["status"], row["detail"] = "wrong_output_format", str(e)
             runs.append(row)
@@ -394,12 +591,18 @@ def evaluate_harness(case: str, submission: Path, key_file: Path, oj: dict[str, 
             rec.update(verdict=bad, metrics=None)
             return rec
         m = _aggregate(per_seed)
+        pm = (getattr(metrics, "PRIMARY", None) or {}).get("metric")
+        if pm and len(per_seed) > 1 and all(pm in r for r in per_seed):   # spread of the primary metric over runs
+            m[f"{pm}_sd_over_runs"] = round(float(np.std([r[pm] for r in per_seed], ddof=1)), 6)
         if base_agg is not None and hasattr(metrics, "relative"):
             m.update({k: round(float(v), 6) for k, v in metrics.relative(m, base_agg).items()})
         gates = _gates(list(getattr(metrics, "GATES", [])), m)
         m["valid"] = all(g["pass"] for g in gates.values())
+        cis = [r["primary_ci95"] for r in runs if r.get("primary_ci95")]
+        ci = ({"low": round(float(np.mean([c["low"] for c in cis])), 6), "high": round(float(np.mean([c["high"] for c in cis])), 6),
+               "level": 0.95, "method": "percentile bootstrap over held-out examples, mean over runs"} if cis else None)
         rec.update(verdict="evaluated", metrics=m, gates=gates, primary=getattr(metrics, "PRIMARY", None),
-                   n_seeds=len(per_seed))
+                   primary_ci95=ci, n_seeds=len(per_seed))
         return rec
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -426,6 +629,12 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
             "judge requires a frozen ABENCH_JUDGE_PYTHONPATH outside the operator user-site "
             "and a matching ABENCH_JUDGE_TOOLS_SHA256"
         )
+    if run_mode == "benchmark":
+        rec["environment"] = _environment_check(case)
+        if not rec["environment"].get("matches"):
+            rec["scorable"] = False
+            why = rec["environment"].get("reason") or "judge environment differs from the profile lock"
+            rec["scoreability_reason"] = "; ".join(x for x in (rec.get("scoreability_reason"), why) if x)
     errors = validate_submission_dir(submission, case)
     if errors:
         rec.update(verdict="submission_invalid", errors=errors, metrics=None)
@@ -463,6 +672,23 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
         if synthetic_ok:
             rec["synthetic_data"] = True
             rec["scoreability_reason"] = "plumbing run on SYNTHETIC data (ABENCH_ALLOW_SYNTHETIC=1); metrics are meaningless"
+    # submission code runs from here on: decide where it runs before anything is decrypted
+    iso = judge_isolation(key_file, oj)
+    rec["judge_isolation"] = _iso_record(iso)
+    if iso:
+        rec["judge_isolation_detail"] = {k: iso[k] for k in ("user", "uid", "netns", "preflight", "network_probe")
+                                         if k in iso}
+    elif rec.get("scorable"):
+        rec["scorable"] = False
+        rec["scoreability_reason"] = "; ".join(x for x in (rec.get("scoreability_reason"),
+                                                            "judge children ran as the operator (set ABENCH_JUDGE_CHILD_USER)") if x)
+    dev = os.environ.get("ABENCH_JUDGE_DEVICE")
+    if dev and dev != j.get("device", "cuda"):
+        rec["judge_device_override"] = {"oj_yaml": j.get("device", "cuda"), "used": dev}
+        rec["scorable"] = False
+        rec["scoreability_reason"] = "; ".join(x for x in (rec.get("scoreability_reason"),
+                                                            f"judge device overridden to {dev}") if x)
+    rec["_iso"] = iso
     if j["kind"] == "harness":
         if key_file is None:
             raise SystemExit("--hidden-key-file is required to evaluate on the hidden split")
@@ -475,6 +701,7 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
         raise SystemExit(f"unsupported judge kind {j['kind']!r}")
     if key_file is None:
         raise SystemExit("--hidden-key-file is required to evaluate on the hidden split")
+    iso = rec.pop("_iso", None)
 
     hid = oj["data"]["hidden"]
     blob = (ROOT / hid["path"]).read_bytes()
@@ -486,16 +713,27 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
     del plain
 
     tmp = Path(tempfile.mkdtemp(prefix="abench-judge-"))
-    os.chmod(tmp, 0o700)
+    os.chmod(tmp, 0o711 if iso else 0o700)
     try:
         sub_copy = tmp / "submission"
-        shutil.copytree(submission, sub_copy)
-        x_path, out_path = tmp / "x.npy", tmp / "pred.npy"
+        shutil.copytree(submission, sub_copy, ignore=shutil.ignore_patterns("__pycache__"))
+        x_path = tmp / "x.npy"
         np.save(x_path, X, allow_pickle=False)
-        child = run_child(sub_copy, x_path, out_path, oj, tmp)
+        work = tmp
+        if iso:
+            _share(sub_copy)
+            x_path.chmod(0o444)
+            work = tmp / "child"
+            work.mkdir()
+            os.chown(work, iso["uid"], iso["gid"])
+        out_path = work / "pred.npy"
+        child = run_child(sub_copy, x_path, out_path, oj, work, iso)
         rec["execution"] = child
         if child["status"] != "ok":
             rec.update(verdict=child["status"], metrics=None)
+            return rec
+        if out_path.is_symlink() or not out_path.is_file():
+            rec.update(verdict="wrong_output_format", metrics=None, detail="prediction is not a regular file")
             return rec
         P = np.load(out_path, allow_pickle=False)
         k = int(j.get("n_classes", int(y.max()) + 1))

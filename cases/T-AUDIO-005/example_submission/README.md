@@ -1,3 +1,3 @@
-# T-AUDIO-005 example submission
+# T-AUDIO-005 reference submission
 
-This directory only describes the submission interface and contains no checkpoint, audio, reference results or simulated scores. A real submission must have the harness produce `manifest.json`, `run.jsonl`, `metrics.json` and `artifacts.sha256`, and record the frozen encoder/processor/vocabulary hashes, audio preprocessing, speaker split, seed, resources and hardware signature.
+`model.py`: frozen wav2vec 2.0 base, a learned softmax-weighted sum of its hidden states and one linear CTC layer (22,314 trained parameters), greedy CTC decoding. `train.py` reproduces `checkpoint/states.pt`. Design report: `report/index.html`; references: `references.yaml`.

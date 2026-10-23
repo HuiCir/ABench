@@ -1,0 +1,41 @@
+schema: abench.references/v2
+references:
+- id: gupta2018shampoo
+  title: 'Shampoo: Preconditioned Stochastic Tensor Optimization'
+  authors: Vineet Gupta, Tomer Koren and Yoram Singer
+  year: 2018
+  venue: ICML
+  arxiv: '1802.09568'
+  used_for: 'Anchor: Kronecker-factored preconditioning (not used; exceeds the cap)'
+  code_location: null
+- id: shazeer2018adafactor
+  title: 'Adafactor: Adaptive Learning Rates with Sublinear Memory Cost'
+  authors: Noam Shazeer and Mitchell Stern
+  year: 2018
+  venue: ICML
+  arxiv: '1804.04235'
+  used_for: Factored second moments and update clipping
+  code_location: 'optimizer.py: Adafactor.update'
+- id: anil2019sm3
+  title: Memory-Efficient Adaptive Optimization
+  authors: Rohan Anil, Vineet Gupta, Tomer Koren and Yoram Singer
+  year: 2019
+  venue: NeurIPS
+  arxiv: '1901.11150'
+  used_for: Related work (sublinear-memory adaptive methods)
+  code_location: null
+- id: kingma2015adam
+  title: 'Adam: A Method for Stochastic Optimization'
+  authors: Diederik P. Kingma and Jimmy Ba
+  year: 2015
+  venue: ICLR
+  arxiv: '1412.6980'
+  used_for: Bias correction of the moment estimates
+  code_location: 'optimizer.py: Adafactor.update (bc)'
+- id: jordan2024muon
+  title: 'Muon: An optimizer for hidden layers in neural networks'
+  authors: Keller Jordan, Yuchen Jin, Vlado Boza, Jiacheng You, Franz Cesista, Laker Newhouse and Jeremy Bernstein
+  year: 2024
+  url: https://kellerjordan.github.io/posts/muon/
+  used_for: Related work (one-tensor orthogonalised momentum)
+  code_location: null

@@ -10,6 +10,8 @@ By default the dev documents (dev_idx) are left out so that selfcheck.py gives a
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +19,10 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.linear_model import SGDClassifier
 
 from model import vectorizer
+
+if os.environ.get("ABENCH_VIEW_DIR"):
+    sys.path.insert(0, str(Path(os.environ["ABENCH_VIEW_DIR"]) / "interface"))
+from textpack import unpack  # noqa: E402
 
 
 def main() -> None:
@@ -28,11 +34,11 @@ def main() -> None:
     ap.add_argument("--quick", action="store_true", help="few SGD epochs (smoke test)")
     a = ap.parse_args()
     with np.load(Path(a.data) / "train.npz", allow_pickle=False) as z:
-        text, y, dev = z["text"], z["y"], z["dev_idx"]
+        utf8, off, y, dev = z["text_utf8"], z["text_offsets"], z["y"], z["dev_idx"]
     keep = np.ones(len(y), bool)
     if not a.include_dev:
         keep[dev] = False
-    counts = vectorizer().transform([str(t) for t in text[keep]])
+    counts = vectorizer().transform(unpack(utf8, off, np.flatnonzero(keep)))
     tfidf = TfidfTransformer(sublinear_tf=True)
     x = tfidf.fit_transform(counts)
     clf = SGDClassifier(loss="modified_huber", alpha=2e-6, max_iter=3 if a.quick else 15, tol=None, average=True, random_state=a.seed)

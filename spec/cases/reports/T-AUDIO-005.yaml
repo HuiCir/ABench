@@ -1,0 +1,81 @@
+case: T-AUDIO-005
+title: 'A Weighted Layer Sum and a Linear CTC Layer on a Frozen Speech Encoder'
+abstract: >-
+  This submission is the probing baseline of the SUPERB benchmark [@yang2021superb] applied to the anchor's
+  pre-trained encoder [@baevski2020wav2vec2]: a softmax-weighted sum of the 13 hidden states of frozen wav2vec 2.0
+  base, layer-normalised, feeds one linear layer over 28 characters and a blank, trained with CTC [@graves2006ctc] on
+  the 10 hours of transcribed speech and decoded greedily. It trains 22,314 numbers and is meant as a floor. It has not
+  been run yet: it needs PyTorch and the encoder weights, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Self-supervised speech encoders learn representations from untranscribed audio; how much a small trained head can
+    extract from a frozen encoder with little transcribed speech, and how well it holds up for harder and noisy
+    speakers, measures what the representations contain.
+- title: Related Work
+  paras:
+  - >-
+    wav2vec 2.0 pre-trains a Transformer over quantised latent speech units [@baevski2020wav2vec2]; SUPERB evaluates
+    frozen encoders with light heads on weighted layer sums [@yang2021superb]; HuBERT predicts clustered targets
+    [@hsu2021hubert]; CTC trains alignment-free character outputs [@graves2006ctc]; adapters insert small trainable
+    blocks between frozen layers [@houlsby2019adapters].
+- title: Method
+  paras:
+  - >-
+    For an utterance, the encoder (frozen, eval mode) returns 13 hidden-state sequences; the head mixes them with
+    softmax(w), applies layer normalisation and a linear map to 29 outputs; CTC loss with AdamW (learning rate 2e-3,
+    20 epochs, batches of 16 length-sorted utterances); greedy decoding collapses repeats and drops blanks.
+- title: Design Rationale
+  paras:
+  - >-
+    Phonetic information peaks in middle layers of wav2vec 2.0, so a learned layer mix is better than the last layer;
+    a linear head keeps the trained parameters small and makes the encoder's representation the bottleneck.
+- title: Scope and Limitations
+  paras:
+  - >-
+    No context beyond the encoder's, no noise augmentation and no decoding beyond greedy; it has not been run yet.
+references:
+- id: baevski2020wav2vec2
+  title: 'wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations'
+  authors: Alexei Baevski, Henry Zhou, Abdelrahman Mohamed and Michael Auli
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11477'
+  used_for: 'Anchor: the frozen encoder'
+  code_location: 'model.py: encoder, features'
+- id: yang2021superb
+  title: 'SUPERB: Speech processing Universal PERformance Benchmark'
+  authors: Shu-wen Yang et al.
+  year: 2021
+  venue: Interspeech
+  arxiv: '2105.01051'
+  used_for: Weighted layer sum of a frozen encoder
+  code_location: 'model.py: Head'
+- id: graves2006ctc
+  title: 'Connectionist Temporal Classification: Labelling Unsegmented Sequence Data with Recurrent Neural Networks'
+  authors: Alex Graves, Santiago Fernández, Faustino Gomez and Jürgen Schmidhuber
+  year: 2006
+  venue: ICML
+  doi: 10.1145/1143844.1143891
+  used_for: Training objective and greedy decoding
+  code_location: 'train.py: main; model.py: transcribe'
+- id: hsu2021hubert
+  title: 'HuBERT: Self-Supervised Speech Representation Learning by Masked Prediction of Hidden Units'
+  authors: Wei-Ning Hsu, Benjamin Bolte, Yao-Hung Hubert Tsai, Kushal Lakhotia, Ruslan Salakhutdinov and Abdelrahman Mohamed
+  year: 2021
+  venue: IEEE/ACM TASLP
+  arxiv: '2106.07447'
+  used_for: Related work
+  code_location: null
+- id: houlsby2019adapters
+  title: Parameter-Efficient Transfer Learning for NLP
+  authors: Neil Houlsby et al.
+  year: 2019
+  venue: ICML
+  arxiv: '1902.00751'
+  used_for: Related work (adapters)
+  code_location: null
+changes:
+- text: A learned softmax weighting over all hidden states instead of the last layer, followed by layer normalisation.
+  code: 'model.py: Head.forward'

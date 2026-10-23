@@ -1,0 +1,89 @@
+case: X-DPO-006
+title: 'Direct Preference Optimisation of Low-Rank Updates'
+abstract: >-
+  This submission applies the anchor's objective unchanged [@rafailov2023dpo]: the log-sigmoid of β times the
+  difference of the chosen and rejected answers' log-ratios to the starting model, with β = 0.1, minimised over
+  rank-16 LoRA updates [@hu2022lora] of SmolLM2-360M-Instruct on 20,000 of the public UltraFeedback pairs
+  [@cui2024ultrafeedback]. It is the plain floor: no length control, no data filtering, one epoch. It has not been run
+  yet: it needs PyTorch and the SmolLM2 weights, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Offline preference optimisation trains on fixed pairs without a reward model. Its known failure modes are drift from
+    the starting model and longer answers that a judge rewards for their length; the case measures both next to the
+    win rate.
+- title: Related Work
+  paras:
+  - >-
+    DPO turns the RLHF objective into a classification loss on pairs [@rafailov2023dpo]; IPO bounds the implied margin
+    [@azar2024ipo]; SimPO drops the reference model and normalises by length [@meng2024simpo]; length-controlled win
+    rates correct judge preferences for length [@dubois2024lcae].
+- title: Method
+  paras:
+  - >-
+    For a pair (x, y_w, y_l): loss = −log σ(β[(log π(y_w|x) − log π_ref(y_w|x)) − (log π(y_l|x) − log π_ref(y_l|x))]),
+    with π_ref the starting model, log-probabilities summed over answer tokens in the evaluator's chat template,
+    answers cut at 512 tokens. AdamW (lr 5e-5), 8 pairs per step, gradient clipping at 1, one pass over 20,000 pairs.
+- title: Design Rationale
+  paras:
+  - >-
+    Low-rank updates limit drift by construction; using the evaluator's template in training avoids a mismatch between
+    the pairs and generation.
+- title: Scope and Limitations
+  paras:
+  - >-
+    DPO tends to lengthen answers and lowers the likelihood of both answers of a pair; nothing here counters either.
+    It has not been run yet.
+references:
+- id: rafailov2023dpo
+  title: 'Direct Preference Optimization: Your Language Model is Secretly a Reward Model'
+  authors: Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning and Chelsea Finn
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.18290'
+  used_for: 'Anchor: the objective'
+  code_location: 'train.py: main'
+- id: hu2022lora
+  title: 'LoRA: Low-Rank Adaptation of Large Language Models'
+  authors: Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang and Weizhu Chen
+  year: 2022
+  venue: ICLR
+  arxiv: '2106.09685'
+  used_for: Low-rank updates
+  code_location: 'src/lora.py'
+- id: cui2024ultrafeedback
+  title: 'UltraFeedback: Boosting Language Models with Scaled AI Feedback'
+  authors: Ganqu Cui et al.
+  year: 2024
+  venue: ICML
+  arxiv: '2310.01377'
+  used_for: The preference pairs
+  code_location: null
+- id: azar2024ipo
+  title: A General Theoretical Paradigm to Understand Learning from Human Preferences
+  authors: Mohammad Gheshlaghi Azar et al.
+  year: 2024
+  venue: AISTATS
+  arxiv: '2310.12036'
+  used_for: Related work
+  code_location: null
+- id: meng2024simpo
+  title: 'SimPO: Simple Preference Optimization with a Reference-Free Reward'
+  authors: Yu Meng, Mengzhou Xia and Danqi Chen
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2405.14734'
+  used_for: Related work
+  code_location: null
+- id: dubois2024lcae
+  title: 'Length-Controlled AlpacaEval: A Simple Way to Debias Automatic Evaluators'
+  authors: Yann Dubois, Balázs Galambosi, Percy Liang and Tatsunori B. Hashimoto
+  year: 2024
+  venue: COLM
+  arxiv: '2404.04475'
+  used_for: Length control
+  code_location: null
+changes:
+- text: The policy is restricted to rank-16 updates of all projections, which bounds drift from the reference.
+  code: 'train.py: main; src/lora.py: attach'

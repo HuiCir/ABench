@@ -260,8 +260,8 @@ def validate_layout(sub: Path, oj: Optional[Dict[str, Any]], errors: List[str]) 
             errors.append(f"code and configuration total {code_bytes} bytes, over the limit {s['code_max_bytes']}")
     if kind in ("code_only", "code_plus_checkpoint"):
         entry = s.get("entry")
-        if entry and not (sub / entry).is_file():
-            errors.append(f"entry file missing: {entry}")
+        if entry and not ((sub / entry).is_file() or (sub / entry).is_dir() and any((sub / entry).glob("*.py"))):
+            errors.append(f"entry missing: {entry} (a file, or a directory of .py files for cases with one file per problem)")
         for f in s.get("required_files") or []:          # e.g. train.py, the program that produced the checkpoint
             if not (sub / f).is_file():
                 errors.append(f"required file missing: {f}")

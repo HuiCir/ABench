@@ -1,0 +1,116 @@
+id: PRO-SRV-005
+title: "Serving Qwen3-8B on 4 × H100: the highest request rate under a latency SLO on replayed production traffic, with exact greedy outputs"
+template: PRO-SPD-004
+anchor: {authors: "Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, Ion Stoica", title: "Efficient Memory Management for Large Language Model Serving with PagedAttention", arxiv: "2309.06180"}
+baseline: "vLLM with tensor parallelism over the 4 GPUs, chunked prefill and prefix caching (the reference submission; its code is shown under `interface/baseline/`); the operator also runs a tuned SGLang configuration"
+reference_verification: "Partly executed: the streaming protocol, the trace replay, the latency statistics and the rate ladder were run in the build container against a stand-in server; trace windows and prompts were built from synthetic traces. vLLM, Qwen3-8B and the four GPUs were not available here: the operator runs the vLLM and SGLang references at activation."
+mode: no_training
+n_seeds: 2
+show_baseline: true
+kit_extra: [pro/serve_bench.py]
+task: |
+  Design a **serving system for Qwen3-8B** on one node with **4 × H100** — batching and scheduling, KV-cache management, prefill/decode splitting or disaggregation, parallelism (tensor, data, pipeline) and replica layout, kernels, CUDA graphs, admission and preemption — that sustains the **highest request rate** at which **90% of requests** meet a latency SLO (**time to first token ≤ 2 s, time per output token ≤ 100 ms**) on **replayed production traffic**, while producing the **greedy outputs of the model**.
+
+  - Within one 24-hour session you develop and deliver `serve.py`, which the evaluator starts on the node and loads with held-out windows of two production traces (conversation and code), replaying each window's arrival pattern at increasing rate factors until the SLO attainment falls below 90%. The whole evaluation is run twice and the median taken.
+  - Outputs must be greedy decoding of Qwen3-8B in bfloat16: a sample of answers is checked token by token against the evaluator's own forward pass, which rules out lossy quantisation, pruning or a different model. Speculative decoding with exact verification is allowed.
+  - Any open-source engine may be used and modified (vLLM, SGLang, TensorRT-LLM from the allowlisted mirror), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/dev.npz` (read-only): one window of 2,000 consecutive requests from each of the two Azure LLM inference traces of 2023 (Azure/AzurePublicDataset @79092101, CC-BY 4.0: arrival times, context and generated lengths), with prompts made of FineWeb training documents tokenised by Qwen3's tokenizer and cut to each request's context length (clipped to 16–8,192 tokens; generated lengths to 1–1,024): `<trace>_ids`, `<trace>_offsets`, `<trace>_arrival`, `<trace>_max_new`, and `check_idx`. `$ABENCH_MODELS_DIR/Qwen3-8B/` (@b968826d, Apache-2.0) holds the model.
+
+  The held-out set is one other window of 2,000 requests from each trace at a secret position, with prompts from FineWeb validation documents, and a secret sample of 100 requests per trace whose answers are checked.
+interface: "Deliver `serve.py`, started as `python3 serve.py --model MODEL_DIR --port PORT`; it must answer `GET /health` with 200 when ready and `POST /generate` with body `{input_ids, max_new_tokens, ignore_eos}` by streaming newline-delimited JSON `{\"ids\": [...]}` lines with the new token ids and a final `{\"done\": true}` (`interface/serve_bench.py`)."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Sustained rate** (primary) | For each trace, the trace's native request rate times the largest rate factor (1, 2, 4, 6, 8, 12, 16, 24, 32; interpolated linearly to the first factor that fails) at which at least 90% of requests have TTFT ≤ 2 s and TPOT ≤ 100 ms; mean of the two traces, median of the two evaluation runs; higher is better | — |
+  | Per trace | Largest rate factor, peak output tokens per second | reported |
+  | Greedy consistency | Share of checked answers (up to 256 tokens each) in which every token's logit is within 0.25 of the largest logit of the evaluator's forward pass | Threshold: ≥ 0.97 |
+  | Completeness | Checked requests answered with exactly the requested number of tokens | Threshold: all |
+  | Start-up | Seconds until `/health` answers | reported (limit 1,800 s) |
+
+  **Measurement and decision**
+
+  - The load generator runs on the same node (evaluator code); every request asks for exactly its trace length (`ignore_eos`). The evaluation is run twice from a cold start; the primary metric is the median.
+  - A submission is valid if the server becomes ready within 1,800 s in both runs, the replay finishes within 7,200 s and both thresholds hold in both runs; otherwise it is invalid.
+  - The two runs of each reference give the noise level: a lead counts only above two of their standard deviations.
+  - The final ABench score is driven mainly by the sustained rate, and also considers how different the system is from vLLM and SGLang defaults and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: pro
+  session_hours: 24
+  dev_budget: "96 H100-hours (24 hours of the 4-GPU node)"
+  software: "Python 3, PyTorch (CUDA, Triton), transformers, NumPy; vLLM, SGLang, FlashInfer and TensorRT-LLM from the allowlisted pip mirror"
+  notes: |
+    - `selfcheck.py` runs the full pipeline on the public dev windows (`--quick`: 200 requests per trace, 20 checked answers).
+    - The load generator uses up to 1,024 client threads; the server must accept that many concurrent connections.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── serve.py            # required: the server entry point
+    ├── src/                # optional: other modules, configurations and patches
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Files may only be `.py`, `.sh`, `.yaml`, `.yml`, `.json`, `.toml`, `.md`, `.txt`, `.cu`, `.cpp` and `.h`, at most 2,000,000 bytes in total; no model weights.
+rules: |
+  - The server must use the provided Qwen3-8B weights in bfloat16 (or a lossless re-layout of them); no other model except a draft model trained in the session for speculative decoding with exact verification.
+  - The server must not see the evaluation in advance: no cached answers, no special handling of the load generator, and no work carried over between the two evaluation runs (each starts with empty caches).
+interface_md: |
+  # PRO-SRV-005 interface
+
+  ## Entry point: `serve.py`
+
+  ```
+  python3 serve.py --model MODEL_DIR --port PORT
+  GET  /health    -> 200 when ready
+  POST /generate  {"input_ids": [...], "max_new_tokens": n, "ignore_eos": true}
+                  -> stream of {"ids": [...]}\n lines, then {"done": true}\n   (greedy decoding)
+  ```
+
+  ## Evaluator code you can read
+
+  `serve_bench.py` (protocol client, replay, latency statistics, greedy check), `stages.py` (rate ladder),
+  `metrics.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), transformers, NumPy; serving engines and kernels from the allowlisted mirror.
+oj:
+  agent_budget: {h100_hours: 96.0, session_hours: 24.0}
+  data:
+    public_dir: sandbox/data/PRO-SRV-005
+    public:
+      - {path: sandbox/data/PRO-SRV-005/dev.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/PRO-SRV-005/hidden.npz.enc, sha256_plain: pending, keys: "<trace>_ids, _offsets, _arrival, _max_new, check_idx (given after the server is ready)"}
+    models_dir: sandbox/models/PRO-SRV-005
+    models:
+      - {name: Qwen3-8B, path: sandbox/models/PRO-SRV-005/Qwen3-8B, tree_sha256: pending, revision: b968826d9c46dd6066d109eabc6255188de91218, license: Apache-2.0}
+    sources:
+      - name: "Azure LLM inference traces 2023 (conversation and code)"
+        url: https://github.com/Azure/AzurePublicDataset/blob/master/AzureLLMInferenceDataset2023.md
+        revision: 790921015d50dd6aae7f7e47f39ba0e235ad6b08
+        license: CC-BY-4.0
+        verified: "2026-10-23: file names, columns (TIMESTAMP, ContextTokens, GeneratedTokens) and the CC-BY licence from the dataset page; commit from the GitHub API"
+      - name: "Qwen3-8B (Qwen Team 2025)"
+        url: https://huggingface.co/Qwen/Qwen3-8B
+        revision: b968826d9c46dd6066d109eabc6255188de91218
+        license: Apache-2.0
+        verified: "2026-10-23: revision, licence and file list from the Hugging Face API"
+      - name: "FineWeb documents for prompt contents (kjj0/fineweb10B-gpt2) and the GPT-2 tokenizer"
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        license: "MIT on the token repository; FineWeb text ODC-BY; GPT-2 tokenizer MIT"
+        verified: "2026-10-19 (B-OPT-001): revision and licence from the Hugging Face API"
+  submission:
+    kind: code_only
+    entry: serve.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, serve.py, src, report, references.yaml]
+    code_suffixes: [.py, .sh, .yaml, .yml, .json, .toml, .md, .txt, .cu, .cpp, .h]
+    code_max_bytes: 2000000
+    max_bytes: 4000000
+  judge:
+    device: cuda
+    reference_hardware: "one node with 4 × H100 80GB SXM (NVLink); driver, CUDA, NCCL and torch versions frozen at activation"
+    seeds: [0, 1]
+    code_audit: "the operator inspects serve.py for cached answers or special handling of the load generator"

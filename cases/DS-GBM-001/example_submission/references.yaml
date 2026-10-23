@@ -1,0 +1,65 @@
+schema: abench.references/v2
+references:
+- id: chen2016xgboost
+  title: 'XGBoost: A Scalable Tree Boosting System'
+  authors: Tianqi Chen and Carlos Guestrin
+  year: 2016
+  venue: KDD
+  arxiv: '1603.02754'
+  used_for: 'Anchor: regularised gradient-boosted trees'
+  code_location: 'model.py: GRID (l2_regularization)'
+- id: ke2017lightgbm
+  title: 'LightGBM: A Highly Efficient Gradient Boosting Decision Tree'
+  authors: Guolin Ke, Qi Meng, Thomas Finley, Taifeng Wang, Wei Chen, Weidong Ma, Qiwei Ye and Tie-Yan Liu
+  year: 2017
+  venue: NeurIPS
+  url: https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree
+  used_for: Histogram split finding and leaf-wise growth
+  code_location: 'model.py: _model'
+- id: friedman2001gbm
+  title: 'Greedy function approximation: A gradient boosting machine'
+  authors: Jerome H. Friedman
+  year: 2001
+  venue: Annals of Statistics
+  doi: 10.1214/aos/1013203451
+  used_for: Gradient boosting with shrinkage
+  code_location: 'model.py: GRID (learning_rate)'
+- id: prechelt1998early
+  title: Early Stopping - But When?
+  authors: Lutz Prechelt
+  year: 1998
+  venue: 'Neural Networks: Tricks of the Trade'
+  doi: 10.1007/3-540-49430-8_3
+  used_for: Early stopping on a validation split
+  code_location: 'model.py: fit (early_stopping)'
+- id: grinsztajn2022tree
+  title: Why do tree-based models still outperform deep learning on tabular data?
+  authors: Léo Grinsztajn, Edouard Oyallon and Gaël Varoquaux
+  year: 2022
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2207.08815'
+  used_for: Benchmark suite of the datasets; trees as the model family
+  code_location: null
+- id: erickson2020autogluon
+  title: 'AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data'
+  authors: Nick Erickson, Jonas Mueller, Alexander Shirkov, Hang Zhang, Pedro Larroy, Mu Li and Alexander Smola
+  year: 2020
+  arxiv: '2003.06505'
+  used_for: Robust defaults and stacking (not used; gap for entries)
+  code_location: null
+- id: feurer2022autosklearn2
+  title: 'Auto-Sklearn 2.0: Hands-free AutoML via Meta-Learning'
+  authors: Matthias Feurer, Katharina Eggensperger, Stefan Falkner, Marius Lindauer and Frank Hutter
+  year: 2022
+  venue: JMLR
+  arxiv: '2007.04074'
+  used_for: Portfolios and budget-aware model selection (not used; gap for entries)
+  code_location: null
+- id: pedregosa2011sklearn
+  title: 'Scikit-learn: Machine Learning in Python'
+  authors: Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort and others
+  year: 2011
+  venue: JMLR
+  arxiv: '1201.0490'
+  used_for: Implementation
+  code_location: 'model.py: imports'

@@ -7,21 +7,50 @@ references:
   year: 2022
   venue: NeurIPS
   arxiv: '2203.15556'
-  used_for: 'Anchor: choosing the token budget for the model size'
-  code_location: 'train.py: STEPS'
+  used_for: 'Anchor: token budget versus model size (this recipe over-trains instead)'
+  code_location: 'train.py: main (--steps)'
 - id: jordan2024moddednanogpt
-  title: 'modded-nanogpt: speedrunning GPT-2 training'
+  title: 'modded-nanogpt: speedrunning GPT-2 training (GPT-2 Medium track record 17, 2025-11-12)'
   authors: Keller Jordan and contributors
+  year: 2025
+  url: https://github.com/KellerJordan/modded-nanogpt/tree/4ea6b937337a4889b8cfe3f38a93d120048d8f71/records/track_2_medium/2025-11-12_BlockMaskRedundantOp
+  used_for: 'The whole recipe: model, Muon, optimizer groups, schedules and data loader are copied from the record
+    (MIT licence)'
+  code_location: 'model.py: GPT; train.py: Muon, main'
+- id: jordan2024muon
+  title: 'Muon: An optimizer for hidden layers in neural networks'
+  authors: Keller Jordan, Yuchen Jin, Vlado Boza, Jiacheng You, Franz Cesista, Laker Newhouse and Jeremy Bernstein
   year: 2024
-  url: https://github.com/KellerJordan/modded-nanogpt
-  used_for: Task setting (data, validation tokens, GPT-2 Medium track target)
-  code_location: 'train.py: Loader'
+  url: https://kellerjordan.github.io/posts/muon/
+  used_for: Optimizer of the hidden matrices
+  code_location: 'train.py: zeropower_via_newtonschulz5, Muon'
+- id: dong2024flex
+  title: 'Flex Attention: A Programming Model for Generating Optimized Attention Kernels'
+  authors: Juechu Dong, Boyuan Feng, Driss Guessous, Yanbo Liang and Horace He
+  year: 2024
+  arxiv: '2412.05496'
+  used_for: Document-masked sliding-window attention
+  code_location: 'model.py: create_blockmasks, CausalSelfAttention.forward'
+- id: gemma2024gemma2
+  title: 'Gemma 2: Improving Open Language Models at a Practical Size'
+  authors: Gemma Team, Google DeepMind
+  year: 2024
+  arxiv: '2408.00118'
+  used_for: Alternating long and short attention windows
+  code_location: 'model.py: GPT.forward (block_masks)'
+- id: zhou2024valueresidual
+  title: Value Residual Learning
+  authors: Zhanchao Zhou, Tianyi Wu, Zhiyun Jiang, Fares Obeid and Zhenzhong Lan
+  year: 2024
+  arxiv: '2410.17897'
+  used_for: Value embeddings mixed into attention values
+  code_location: 'model.py: CausalSelfAttention.forward, GPT.forward'
 - id: su2021roformer
   title: 'RoFormer: Enhanced Transformer with Rotary Position Embedding'
   authors: Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen and Yunfeng Liu
   year: 2021
   arxiv: '2104.09864'
-  used_for: Rotary position embeddings
+  used_for: Rotary position embeddings (half-truncated)
   code_location: 'model.py: Rotary'
 - id: so2021primer
   title: 'Primer: Searching for Efficient Transformers for Language Modeling'
@@ -30,12 +59,12 @@ references:
   venue: NeurIPS
   arxiv: '2109.08668'
   used_for: Squared ReLU MLP
-  code_location: 'model.py: Block.forward'
+  code_location: 'model.py: MLP.forward'
 - id: loshchilov2019adamw
   title: Decoupled Weight Decay Regularization
   authors: Ilya Loshchilov and Frank Hutter
   year: 2019
   venue: ICLR
   arxiv: '1711.05101'
-  used_for: AdamW
-  code_location: 'train.py: main'
+  used_for: Adam(W) for embeddings, head and scalars
+  code_location: 'train.py: main (optimizer1)'

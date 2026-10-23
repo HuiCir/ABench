@@ -1,0 +1,123 @@
+id: X-SFT-005
+title: "Supervised fine-tuning of SmolLM2-360M for verifiable instruction following, with the cost in trained parameters and forgetting"
+template: X-LORA-004
+anchor: {authors: "Tim Dettmers, Artidoro Pagnoni, Ari Holtzman, Luke Zettlemoyer", title: "QLoRA: Efficient Finetuning of Quantized LLMs", arxiv: "2305.14314"}
+baseline: "LoRA of rank 16 on every attention and MLP projection, one epoch over 50,000 public conversations with the loss on assistant turns (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Not executed yet: the reference needs PyTorch, transformers and the SmolLM2 weights, which were not available where the case was built; the operator runs it at activation. The constraint checkers were tested in the container on hand-written positive and negative responses for every type, and the constraint generator (2,000 draws, all fourteen types, no conflicting pair) and the data preparation run on synthetic conversations."
+mode: checkpoint
+n_seeds: 1
+leak_allow: [pareto]
+show_baseline: true
+kit_extra: [lmpost/lmpost.py]
+extra_interface: [harness/ifcheck.py, harness/textpack.py]
+task: |
+  Design a **supervised fine-tuning recipe** — data selection and mixing from the provided conversations, synthetic constraint data built from them, loss masking, full or parameter-efficient updates, quantised training, schedules — that turns the base model **SmolLM2-360M** into an assistant that **follows verifiable formatting and content instructions** (word limits, bullet counts, JSON output, keywords, case, end phrases and more) on requests it has not seen, **without forgetting** its general language modelling and with **few trained parameters**.
+
+  - Submit a checkpoint, the code that turns it into a causal LM from the base model, and the training program. The evaluator formats every held-out prompt with a fixed chat template, decodes greedily, and checks each constraint with the code in `interface/ifcheck.py`; it never retrains.
+  - The result is a point on three axes: instruction following (primary), forgetting (the increase of held-out web-text loss over the base model) and the number of trained numbers stored in the checkpoint.
+  - You may build on any public work (LoRA and QLoRA, DoRA and other adapters, loss masking and packing, instruction-data synthesis and filtering, verifiable-constraint training), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/sft_public.npz` (read-only): `conv_*` — the first 100,000 conversations of smol-smoltalk (`HuggingFaceTB/smol-smoltalk` @f73fe857, Apache-2.0) as JSON lists of `{role, content}`, packed (`interface/textpack.py`); `dev_request_*` — 500 single-turn requests taken after them; `dev_tokens` — 1,048,577 FineWeb-Edu tokens (SmolLM2 tokenizer) for the self-check's forgetting estimate. `$ABENCH_MODELS_DIR/SmolLM2-360M/`: the base model and tokenizer (`HuggingFaceTB/SmolLM2-360M` @f8027fd0, Apache-2.0).
+
+  The held-out set is not in the sandbox: 600 single-turn requests from smol-smoltalk's test split, each followed by one to three compatible constraints of the fourteen types in `interface/ifcheck.py`, with parameters drawn from a secret seed, and 1,048,577 held-out FineWeb-Edu tokens. The self-check uses the dev requests with constraints from a public seed.
+interface: "Implement `load(checkpoint_dir, models_dir, device)` in `model.py`, returning a causal LM with the interface of a transformers model (`forward(input_ids, attention_mask)` returning `.logits`, and `generate()`) that uses the SmolLM2-360M tokenizer; write a `train.py` that produces the checkpoint."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Prompt-level accuracy** (primary) | Fraction of the 600 held-out prompts whose response satisfies every one of its constraints (strict checkers of `ifcheck.py`); higher is better | — |
+  | Constraint-level accuracy | Fraction of all constraints satisfied, overall and per type | reported |
+  | Forgetting | Mean next-token loss of your model on 1,048,577 held-out FineWeb-Edu tokens minus that of the base model (nats); lower is better | reported (Pareto axis) |
+  | Trained numbers | Numbers stored in the tensor files of `checkpoint/` (.safetensors, .pt, .bin); full fine-tuning counts all 362M | reported (Pareto axis) |
+  | Response length | Mean words per response | reported |
+
+  No threshold applies to any metric: a submission is valid if it loads, runs within the time limits and the code follows the rules (see below).
+
+  **Measurement and decision**
+
+  - Prompts are formatted as `<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n` and decoded greedily with at most 512 new tokens, stopping at `<|im_end|>` or `<|endoftext|>` (`interface/lmpost.py`); loading is killed at 600 s and the evaluation at 1,800 s, on one GPU.
+  - The primary metric is reported with a 95% bootstrap interval over prompts; submissions whose intervals overlap are tied on it. Valid submissions also form a Pareto front over the three axes.
+  - The final ABench score is driven mainly by prompt-level accuracy and the position on the front, and also considers how different the recipe is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "6 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), transformers, safetensors, NumPy"
+  notes: |
+    - `selfcheck.py` runs the evaluation on the 500 dev requests (`--quick`: 60) and prints the accuracies, forgetting and trained numbers.
+    - The constraint types are public; the held-out requests, combinations and parameters are not. Training on synthetic constraint data built from the public conversations is allowed.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load()
+    ├── train.py            # required: reproduces the checkpoint
+    ├── src/                # optional: other .py modules
+    ├── checkpoint/         # required: adapters or weights, at most 1 GB
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - Train only from the provided base model and conversations and from data you derive from them by program; no other datasets, pretrained models or model outputs from outside the sandbox.
+  - `load()` must build the model from `models_dir/SmolLM2-360M` and `checkpoint/`; everything trained must be in `checkpoint/`.
+interface_md: |
+  # X-SFT-005 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, models_dir: str, device: str):
+      """Return the fine-tuned causal LM (e.g. AutoModelForCausalLM from models_dir/SmolLM2-360M with your
+      checkpoint applied), on `device`, in eval mode."""
+  ```
+
+  - The evaluator calls `model.generate(input_ids, attention_mask, max_new_tokens=512, do_sample=False, eos_token_id=[<|im_end|>, <|endoftext|>])` on left-padded ChatML prompts and `model(input_ids=...)` for the held-out loss.
+
+  ## Evaluator code you can read
+
+  `ifcheck.py` (constraint types, wording, checkers, generator), `lmpost.py` (template, decoding, loss, trained-number
+  count), `stages.py`, `metrics.py`, `textpack.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the
+  reference submission's code under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), transformers, safetensors, NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/X-SFT-005
+    public:
+      - {path: sandbox/data/X-SFT-005/sft_public.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/X-SFT-005/hidden.npz.enc, sha256_plain: pending, keys: "prompt_utf8, prompt_offsets, tokens (given after the timed phase); constraints (evaluator only)"}
+    models_dir: sandbox/models/X-SFT-005
+    models:
+      - {name: SmolLM2-360M, path: sandbox/models/X-SFT-005/SmolLM2-360M, tree_sha256: pending, revision: f8027fd0eaeea54caa13c31d31b9fdc459c38b49, license: Apache-2.0}
+    sources:
+      - name: "smol-smoltalk (HuggingFaceTB)"
+        url: https://huggingface.co/datasets/HuggingFaceTB/smol-smoltalk
+        revision: f73fe857d519ff6ac5af2ea67c4d3834da7b8bcc
+        license: Apache-2.0
+        verified: "2026-10-22: revision, licence and file names from the Hugging Face API"
+      - name: "SmolLM2-360M (HuggingFaceTB)"
+        url: https://huggingface.co/HuggingFaceTB/SmolLM2-360M
+        revision: f8027fd0eaeea54caa13c31d31b9fdc459c38b49
+        license: Apache-2.0
+        verified: "2026-10-22: revision, licence and file list from the Hugging Face API"
+      - name: "FineWeb-Edu sample/10BT (HuggingFaceFW/fineweb-edu, as in prepare/smol_data.py)"
+        url: https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu
+        revision: 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9
+        license: ODC-BY
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 1073741824
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 1075741824
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [0]

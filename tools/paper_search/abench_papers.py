@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""ABench offline paper search (agent side): titles and abstracts of arXiv papers first submitted before the case cutoff.
+"""ABench offline paper search (agent side): fast search over titles and abstracts of the arXiv papers in the operator's
+snapshot (only those before the case cutoff, if a case declares one; current cases do not).
 
   python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "linear attention delta rule" [-n 10] [--category cs.LG]
   python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" show 2312.06635
   python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" info
 
 The index is a SQLite FTS5 database built by the operator with build_paper_index.py from the arXiv metadata snapshot
-(descriptive metadata, CC0 1.0 under the arXiv API terms of use). It holds only papers whose first version is dated
-before the cutoff, and every result is checked against the cutoff again here. There is no network access; full texts
-are not available.
+(descriptive metadata, CC0 1.0 under the arXiv API terms of use). It holds papers whose first version is dated
+before the snapshot's cutoff; with $ABENCH_CUTOFF set, every result is also checked against it. This tool itself works
+offline and has no full texts; read full papers online (the sandbox guide says what is reachable).
 
 Every call is appended to the retrieval log ($ABENCH_RETRIEVAL_LOG, default $ABENCH_WORKSPACE/.abench/retrieval_log.jsonl)
 with the query and the returned ids. Each line carries the SHA-256 of the previous line, so edits to the log are
@@ -143,7 +144,7 @@ def do_info(_: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Offline arXiv title/abstract search, filtered to the case cutoff.")
+    ap = argparse.ArgumentParser(description="Offline arXiv title/abstract search (filtered to the case cutoff if the case declares one).")
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("search", help="ranked full-text search over titles and abstracts (BM25)")
     s.add_argument("query")

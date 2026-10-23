@@ -1,0 +1,15 @@
+# Written by search.py: {"d1": "orth", "d2": "adam", "k": 0.5, "b1": 0.9, "b2": 0.995, "max_similarity": 0.7799, "closest": "lion_b0.8_0.99", "descent_cosine": 0.751, "kept": true}
+state:
+- m
+- v
+constants:
+  b1: 0.9
+  b2: 0.995
+  k: 0.5
+lr: 0.001
+program:
+- c = interp(m, g, b1)
+- m = interp(m, g, b2)
+- v = interp(v, square(g), b2)
+- update = add(mul(k, orth(c)), mul(sub(1, k), clip(div(c, add(sqrt(v), 1.0e-8)),
+  1)))

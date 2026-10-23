@@ -1,27 +1,37 @@
-# ABench Case X-SFT-005: On a fixed small base model and offline instruction data, design an SFT/LoRA/QLoRA/DoRA recipe that is Pareto-optimal over task quality, trainable parameters, memory, training time and retention of pretrained capability
+# ABench case X-SFT-005: Supervised fine-tuning of SmolLM2-360M for verifiable instruction following, with the cost in trained parameters and forgetting
 
-This case changes the target from single-point SOTA performance to an interpretable quality–parameter–memory–training-cost Pareto front, and requires reporting capability retention and forgetting constraints.
+Case built to task statement standard v2.1 from the template of X-LORA-004. Anchor: Tim Dettmers, Artidoro Pagnoni, Ari Holtzman, Luke Zettlemoyer, *QLoRA: Efficient Finetuning of Quantized LLMs*
+(arXiv:2305.14314).
 
-- Corpus cutoff: 2026-07-01.
-- Difficulty: **medium**; resource rating: **medium**; budget tier: **medium**.
-- Proxy: SURG, SUBSET; development about 4 GPU-h, per verification about 2 GPU-h, reference precompute about 20 GPU-h.
-- Resources: `case/resources.yaml`; all resources are mounted offline by the server, and network access at run time is forbidden.
-- Currently only a scaffold, with no real reference runs, hidden evaluation or simulated scores.
+## Status
 
-## Proxy setting
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Not executed yet: the reference needs PyTorch, transformers and the SmolLM2 weights, which were not available where the case was built; the operator runs it at activation. The constraint checkers were tested in the container on hand-written positive and negative responses for every type, and the constraint generator (2,000 draws, all fourteen types, no conflicting pair) and the data preparation run on synthetic conversations.
+- No number in the case files is a result: there are no training curves or reference scores.
 
-Fixed small base and offline instruction bundle, training ≤ 2 epochs; the server reviews on unseen capability families and measures cross-entropy degradation on a base probe.
+## Files
 
-## Metrics and scoring
+- `spec/cases/X-SFT-005.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case X-SFT-005`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/x_sft_005.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
 
-Metric definitions are in `case/eval_protocol.yaml`. This case uses `pareto_frontier`: quality metrics are maximized, cost metrics minimized, and constraint metrics must pass first; the output is the full non-dominated set and the hypervolume relative to the reference envelope.
+## Data sources (links only; nothing is downloaded in the repository)
 
-## Blockers before launch
+- smol-smoltalk (HuggingFaceTB): https://huggingface.co/datasets/HuggingFaceTB/smol-smoltalk — license: Apache-2.0 (verified 2026-10-22)
+- SmolLM2-360M (HuggingFaceTB): https://huggingface.co/HuggingFaceTB/SmolLM2-360M — license: Apache-2.0 (verified 2026-10-22)
+- FineWeb-Edu sample/10BT (HuggingFaceFW/fineweb-edu, as in prepare/smol_data.py): https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu — license: ODC-BY
 
-- `frozen_base_checkpoint_tokenizer_and_quantization_config`
-- `offline_instruction_mix_and_hidden_task_split`
-- `server_gpu_memory_and_wall_clock_measurement`
+## Activation (operator)
 
+```bash
+python3 tools/prepare/run.py --case X-SFT-005 --list-sources                 # what to download
+python3 tools/prepare/run.py --case X-SFT-005 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case X-SFT-005 --submission cases/X-SFT-005/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case X-SFT-005 --activate                     # after reviewing the calibration run
+```
 
-Protocol references: [`spec/pareto_protocol.md`](../../spec/pareto_protocol.md); [`spec/sandbox_profiles.md`](../../spec/sandbox_profiles.md).
-Resource profile: `posttrain_24gb`; objective mode: `objective_mode: pareto`.
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

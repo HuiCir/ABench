@@ -1,0 +1,28 @@
+schema: abench.references/v2
+references:
+- id: isensee2018nnunet
+  title: 'nnU-Net: Self-adapting Framework for U-Net-Based Medical Image Segmentation'
+  authors: Fabian Isensee, Jens Petersen, Andre Klein, David Zimmerer, Paul F. Jaeger, Simon Kohl, Jakob Wasserthal,
+    Gregor Koehler, Tobias Norajitra, Sebastian Wirkert and Klaus H. Maier-Hein
+  year: 2018
+  venue: arXiv
+  arxiv: '1809.10486'
+  used_for: 'Anchor: planning strides and kernels from the patch size and spacing; the U-Net layout'
+  code_location: 'network.py: plan'
+- id: isensee2024revisited
+  title: 'nnU-Net Revisited: A Call for Rigorous Validation in 3D Medical Image Segmentation'
+  authors: Fabian Isensee, Tassilo Wald, Constantin Ulrich, Michael Baumgartner, Saikat Roy, Klaus Maier-Hein and
+    Paul F. Jaeger
+  year: 2024
+  venue: MICCAI
+  arxiv: '2404.09556'
+  used_for: The residual-encoder layout with more blocks in deeper stages
+  code_location: 'network.py: BLOCKS, ResEncUNet'
+- id: he2016resnet
+  title: Deep Residual Learning for Image Recognition
+  authors: Kaiming He, Xiangyu Zhang, Shaoqing Ren and Jian Sun
+  year: 2016
+  venue: CVPR
+  arxiv: '1512.03385'
+  used_for: Residual blocks with projection shortcuts
+  code_location: 'network.py: Res'

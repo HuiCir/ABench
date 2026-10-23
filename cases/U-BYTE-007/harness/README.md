@@ -1,11 +1,37 @@
-# U-BYTE-007 harness contract
+# U-BYTE-007 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+U-BYTE-007 pipeline: the evaluator trains your tokenizer-free byte-level model with a fixed recipe and measures
+bits per byte on held-out text, with and without character-level noise (evaluator and self-check use this same file).
+
+One stage, "run" (imports model.py):
+  setup   map the training bytes (untimed)
+  timed   build() with the seed; train 3,000 steps of 32 windows of 4,096 bytes with the fixed recipe of lm_train.py
+          (AdamW lr 1e-3, warm-up and cosine decay, bf16, clipping 1.0), the loss being model.loss(x)
+  finish  bits per byte on the held-out bytes (windows of 4,096) and on the same bytes with 5% character-level noise
+          (byte_data.add_noise); forward FLOPs per byte on a held-out window and parameters, next to the baseline
+          (static 4-byte patches); causality check
+The evaluator runs the static-patch baseline (baselines/static4) through the same stage on the same seeds.
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baselines/static4/model.py`
+- `byte_blocks.py`
+- `byte_data.py`
+- `interface.md`
+- `lm_model.py`
+- `lm_train.py`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

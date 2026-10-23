@@ -94,7 +94,7 @@ def main() -> int:
             seed = 1000 + i
             res = run_pipeline(stages, stages_path, sub, d / f"run{i}", public=dev["public"],
                                models=Path(a.models) if a.models else None, held_out=dev["held_out"], seed=seed,
-                               device=a.device, scale=dev.get("time_scale", 1.0))
+                               device=a.device, scale=dev.get("time_scale", 1.0), held_pre=dev.get("held_pre"))
             for rec in res["stages"]:
                 line = f"seed {seed} stage {rec['stage']}: {rec['status']}"
                 if "timed_seconds" in rec:
@@ -111,6 +111,17 @@ def main() -> int:
                 print(f"✗ wrong output format: {e}")
                 return 1
             print(f"seed {seed} dev metrics: {json.dumps(m)}", flush=True)
+            groups, primary = getattr(metrics, "RESAMPLE", None), (getattr(metrics, "PRIMARY", None) or {}).get("metric")
+            if groups and primary:
+                from abench_metrics import bootstrap_ci
+                try:
+                    ci = bootstrap_ci(metrics.score, res["outputs"], dev["reference"], getattr(stages, "PARAMS", {}),
+                                      res["seconds"], groups, primary)
+                except (KeyError, IndexError, TypeError, ValueError):
+                    ci = None
+                if ci:
+                    print(f"seed {seed} {primary} 95% interval over dev examples: [{ci['low']:.4f}, {ci['high']:.4f}]"
+                          " (differences inside it are not meaningful)", flush=True)
             per_seed.append(m)
     print(json.dumps({"seeds": len(per_seed), "quick": a.quick, "dev_mean": aggregate(per_seed),
                       "submission_complete": not pending}))

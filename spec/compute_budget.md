@@ -22,14 +22,14 @@ Machine-readable protocols must write the two resource classes as separate field
 | medium | ≤ 4 GPU-h | ≤ 2 GPU-h | ≤ 30 GPU-h |
 | high | ≤ 8 GPU-h | ≤ 6 GPU-h | ≤ 80 GPU-h |
 
-high is the hard cap of the Budget edition; there is no higher tier. A case that does not fit in high has only three options: change the proxy, turn it into a judgment task (T7), or postpone it to v2; tasks that are genuinely industrial essentials go into the separately ranked Pro Set (resource tier pro, see `pro_set.md`).
+high is the hard cap of the Budget edition; there is no higher tier. A case that does not fit in high has only three options: change the proxy or postpone it to v2 (judgment tasks, T7, were retired on 2026-10-22); tasks that are genuinely industrial essentials go into the separately ranked Pro Set (resource tier pro, see `pro_set.md`).
 
 **Difficulty level** is independent of the resource tier:
 
 | Difficulty | Meaning |
 |---|---|
 | low | Entry level and calibration: mature anchor, clear strong baseline; a strong agent should score close to full marks |
-| medium | Main evaluation on mature anchors and T7 judgment tasks: requires retrieval, synthesis and beating tuned existing methods |
+| medium | Main evaluation on mature anchors: requires retrieval, synthesis and beating tuned existing methods |
 | high | Frontier anchors, non-mainstream paradigms, primitive search, stress/counterfactual, cross-domain transfer and the Pro Set |
 
 ## 3. Proxy toolbox
@@ -45,7 +45,7 @@ Each case chooses one or more verification methods from the table below and writ
 | INFER | Inference only: weights fixed; change only sampling, decoding, quantization or caching | Inference acceleration, diffusion sampling, diffusion-LLM decoding | C-SPEC-001, U-DLM-005 |
 | STREAM | Fixed-stream component test: unit-test a component on recorded gradient streams, activation streams or operator workloads | Optimizer behavioral probes, kernels | K-KB-001 |
 | SUBSET | Subsetting: a few subtasks, fewer folds, fewer epochs, lower resolution | Medical segmentation, PDEs, visual generation | MD-SEG-001 |
-| JUDGE | Judgment: given a published claim, judge whether it holds and design a minimal verification experiment | All T7 | B-T7-005 |
+| JUDGE | Judgment: given a published claim, judge whether it holds (retired 2026-10-22 with the T7 cases; claims are now tested through tuned baselines inside design cases) | — | — |
 
 ## 4. Proxy fidelity check (the precondition for trusting reduced-scale verification)
 
@@ -60,6 +60,7 @@ Fidelity results are published with each version, as a statement of how much "mi
 ## 5. Metering during agent development
 
 - During development only L0 checks and μ1/μ2-level proxies can be run; the tool layer deducts reference-card GPU-h from the budget and stops when it runs out.
+- Standard cases: `tools/sandbox_runner.py` meters GPU-busy time (nvidia-smi, 5 s samples) and the CPU time of the agent's processes, records both in `agent_run.json`, and marks a session that exceeds its `agent_budget` by more than 5% as not scorable. Single-GPU budgets never exceed the session length.
 - The benchmark operator's verification scales (μ3, hidden settings) are not available to the agent.
 - Each case allows only one final submission.
 

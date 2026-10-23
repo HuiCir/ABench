@@ -1,0 +1,52 @@
+schema: abench.references/v2
+references:
+- id: ainslie2023gqa
+  title: 'GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints'
+  authors: Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón and Sumit Sanghai
+  year: 2023
+  venue: EMNLP
+  arxiv: '2305.13245'
+  used_for: 'Anchor: grouped-query attention and uptraining (the baseline)'
+  code_location: null
+- id: shazeer2019mqa
+  title: 'Fast Transformer Decoding: One Write-Head is All You Need'
+  authors: Noam Shazeer
+  year: 2019
+  venue: arXiv
+  arxiv: '1911.02150'
+  used_for: Related work (multi-query attention)
+  code_location: null
+- id: brandon2024cla
+  title: Reducing Transformer Key-Value Cache Size with Cross-Layer Attention
+  authors: William Brandon, Mayank Mishra, Aniruddha Nrusimha, Rameswar Panda and Jonathan Ragan-Kelley
+  year: 2024
+  venue: arXiv
+  arxiv: '2405.12981'
+  used_for: Cross-layer key-value sharing
+  code_location: 'model.py: Producer, Consumer, build'
+- id: sun2024yoco
+  title: 'You Only Cache Once: Decoder-Decoder Architectures for Language Models'
+  authors: Yutao Sun, Li Dong, Yi Zhu, Shaohan Huang, Wenhui Wang, Shuming Ma, Quanlu Zhang, Jianyong Wang and Furu
+    Wei
+  year: 2024
+  venue: arXiv
+  arxiv: '2405.05254'
+  used_for: Related work
+  code_location: null
+- id: deepseek2024v2
+  title: 'DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model'
+  authors: DeepSeek-AI
+  year: 2024
+  venue: arXiv
+  arxiv: '2405.04434'
+  used_for: Related work (latent attention)
+  code_location: null
+- id: liu2024kivi
+  title: 'KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache'
+  authors: Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong, Zhaozhuo Xu, Vladimir Braverman, Beidi Chen and Xia
+    Hu
+  year: 2024
+  venue: ICML
+  arxiv: '2402.02750'
+  used_for: Related work (cache quantisation)
+  code_location: null

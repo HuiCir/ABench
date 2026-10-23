@@ -3,7 +3,6 @@ schema: abench.oj/v2
 case_id: TC-FT-001
 standard: true
 task_statement: v2.1
-knowledge_cutoff: '2026-07-01'
 mode: checkpoint
 agent_visible:
   task: case/agent/task.md
@@ -16,6 +15,7 @@ agent_visible:
   - harness/abench_metrics.py
   - harness/selfcheck.py
   - harness/submission_rules.json
+  - harness/textpack.py
   - harness/baseline/model.py
   - harness/baseline/train.py
   leak_allow:
@@ -34,25 +34,27 @@ data:
   public:
   - path: sandbox/data/TC-FT-001/train.npz
     sha256: pending
-    rows: 120000
+    rows: 650000
   hidden:
     path: sandbox/hidden/TC-FT-001/hidden.npz.enc
     sha256_plain: pending
-    rows: 7600
+    rows: 50000
     keys:
-    - text
+    - text_utf8
+    - text_offsets
     - y
   sources:
-  - name: AG News (Zhang, Zhao & LeCun 2015), Hugging Face fancyzhx/ag_news
-    url: https://huggingface.co/datasets/fancyzhx/ag_news
-    revision: eb185aade064a813bc0b7f42de02595523103ca4
+  - name: Yelp Review Full (Zhang, Zhao & LeCun 2015), Hugging Face Yelp/yelp_review_full
+    url: https://huggingface.co/datasets/Yelp/yelp_review_full
+    revision: c1f9ee939b7d05667af864ee1cb066393154bf85
     files:
-    - data/train-00000-of-00001.parquet
-    - data/test-00000-of-00001.parquet
-    license: unknown on the dataset card; the card describes the corpus as provided for research and non-commercial
-      use
-    verified: '2026-10-19: revision sha, file list and split sizes (train 120,000 / test 7,600) read from the Hugging
-      Face API'
+    - yelp_review_full/train-00000-of-00001.parquet
+    - yelp_review_full/test-00000-of-00001.parquet
+    license: 'other: the dataset card refers to the Yelp Dataset Agreement (academic, non-commercial use); to_verify
+      by the operator before release'
+    verified: '2026-10-21: revision sha, file list, split sizes (train 650,000 / test 50,000) and label names read
+      from the Hugging Face API and dataset card'
+    replaces: 'AG News (2026-10-21 audit: AG News without pretraining is within about one point of its ceiling)'
 submission:
   kind: code_plus_checkpoint
   entry: model.py

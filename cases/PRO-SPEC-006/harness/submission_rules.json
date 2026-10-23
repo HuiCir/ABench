@@ -1,0 +1,38 @@
+{
+  "required": [
+    "serve.py",
+    "report/index.html",
+    "references.yaml",
+    "train.py",
+    "checkpoint"
+  ],
+  "allowed_top_level": [
+    "README.md",
+    "serve.py",
+    "train.py",
+    "src",
+    "checkpoint",
+    "report",
+    "references.yaml"
+  ],
+  "code_suffixes": [
+    ".py",
+    ".sh",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".toml",
+    ".md",
+    ".txt",
+    ".cu",
+    ".cpp",
+    ".h"
+  ],
+  "code_max_bytes": 2000000,
+  "data_dirs": [
+    "checkpoint"
+  ],
+  "data_max_bytes": {
+    "checkpoint": 21474836480
+  }
+}

@@ -34,7 +34,8 @@ data:
       md5: c58f30108f718f92721af3b95e74349a
       license: to_verify
     - name: CIFAR-10.1 v6 (Recht et al. 2018, arXiv:1806.00451)
-      url: https://github.com/modestyachts/CIFAR-10.1/tree/master/datasets
+      url: https://github.com/modestyachts/CIFAR-10.1/tree/d9982abb0bfc4846b8d13a11e66b887d946205d0/datasets
+      pinned: "commit d9982abb0bfc4846b8d13a11e66b887d946205d0; sha256 of both files in tools/prepare_ic_spd.py (checked 2026-10-21)"
       license: "code MIT; images follow Tiny Images terms (to_verify)"
 submission:
   kind: code_only

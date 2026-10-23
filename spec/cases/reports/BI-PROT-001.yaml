@@ -1,0 +1,97 @@
+case: BI-PROT-001
+title: 'Per-Assay Ridge Combination of ESM-2 Wild-Type Marginals'
+abstract: >-
+  This submission scores each substitution by the anchor benchmark's standard zero-shot protein-language-model
+  method, the wild-type marginal of a frozen ESM-2 model [@meier2021esm1v; @lin2023esm2], computed with both the 150M and
+  the 650M model from one forward pass of the wild type. It then uses the 64 labelled mutants of each assay to combine
+  the two standardised scores by ridge regression shrunk towards equal weights, so that the sign and relative trust of
+  the models adapt to each assay [@hsu2022combining]. It has not been run yet: it needs the ESM-2 weights and PyTorch,
+  which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Protein language models assign higher likelihood to sequences that look natural, which correlates with fitness
+    across many deep mutational scans without any labels. A few labelled mutants per assay can correct for assays
+    whose measured property relates differently to naturalness.
+- title: Related Work
+  paras:
+  - >-
+    ProteinGym collects over two hundred deep mutational scans and compares zero-shot and supervised predictors
+    [@notin2023proteingym]. ESM-1v introduced masked- and wild-type-marginal scoring [@meier2021esm1v]; ESM-2 scaled the
+    models [@lin2023esm2]. Hsu et al. combined evolutionary density scores with a few labels in augmented regression
+    [@hsu2022combining]; MSA-based models such as EVE and alignment-free hybrids such as Tranception remain strong
+    zero-shot baselines [@frazer2021eve; @notin2022tranception].
+- title: Method
+  paras:
+  - >-
+    For each model, the log-probabilities of all amino acids at every position of the wild type come from one forward
+    pass; X{i}Y scores log p(Y at i) − log p(X at i). Both scores are standardised over the assay's mutants. With the 64
+    labelled mutants (standardised labels), the weights minimise ‖X_f w − y‖² + λ (64/2) ‖w − (½, ½)‖² with λ = 1, and
+    the query mutants are scored by X_q w.
+- title: Design Rationale
+  paras:
+  - >-
+    One forward pass per assay keeps the evaluation fast; two model sizes disagree in useful ways; shrinking towards
+    equal weights keeps 64 noisy labels from overfitting, while still flipping the sign for assays where higher
+    likelihood means lower measured score.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Wild-type marginals are weaker than masked marginals, nothing is learned from the 128 public assays, and the
+    reference has not been run yet.
+references:
+- id: notin2023proteingym
+  title: 'ProteinGym: Large-Scale Benchmarks for Protein Design and Fitness Prediction'
+  authors: Pascal Notin et al.
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2312.05451'
+  used_for: 'Anchor: assays, metric and aggregation'
+  code_location: null
+- id: meier2021esm1v
+  title: Language models enable zero-shot prediction of the effects of mutations on protein function
+  authors: Joshua Meier, Roshan Rao, Robert Verkuil, Jason Liu, Tom Sercu and Alexander Rives
+  year: 2021
+  venue: NeurIPS
+  doi: 10.1101/2021.07.09.450648
+  used_for: Wild-type-marginal scoring
+  code_location: 'model.py: wt_marginal_scores'
+- id: lin2023esm2
+  title: Evolutionary-scale prediction of atomic-level protein structure with a language model
+  authors: Zeming Lin et al.
+  year: 2023
+  venue: Science
+  doi: 10.1126/science.ade2574
+  used_for: The ESM-2 models
+  code_location: 'model.py: load'
+- id: hsu2022combining
+  title: Learning protein fitness models from evolutionary and assay-labeled data
+  authors: Chloe Hsu, Hunter Nisonoff, Clara Fannjiang and Jennifer Listgarten
+  year: 2022
+  venue: Nature Biotechnology
+  doi: 10.1038/s41587-021-01146-5
+  used_for: Combining density scores with few labels by regression
+  code_location: 'model.py: predict'
+- id: frazer2021eve
+  title: Disease variant prediction with deep generative models of evolutionary data
+  authors: Jonathan Frazer, Pascal Notin, Mafalda Dias, Aidan Gomez, Joseph K. Min, Kelly Brock, Yarin Gal and Debora S. Marks
+  year: 2021
+  venue: Nature
+  doi: 10.1038/s41586-021-04043-8
+  used_for: Related work
+  code_location: null
+- id: notin2022tranception
+  title: 'Tranception: protein fitness prediction with autoregressive transformers and inference-time retrieval'
+  authors: Pascal Notin, Mafalda Dias, Jonathan Frazer, Javier Marchena-Hurtado, Aidan Gomez, Debora S. Marks and Yarin Gal
+  year: 2022
+  venue: ICML
+  arxiv: '2205.13760'
+  used_for: Related work
+  code_location: null
+changes:
+- text: Scores of two ESM-2 sizes are combined instead of using one model.
+  code: 'model.py: predict'
+- text: The combination weights are fitted per assay on the 64 labelled mutants by ridge regression shrunk to equal
+    weights.
+  code: 'model.py: predict'

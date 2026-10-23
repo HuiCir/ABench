@@ -1,8 +1,0 @@
-case_id: B-OPT-003
-submission_id: "replace-with-immutable-id"
-entrypoint: "replace-with-entrypoint"
-provenance:
-  code_sha256: "fill-at-run-time"
-  config_sha256: "fill-at-run-time"
-  data_sha256: "fill-at-run-time"
-  runtime_sha256: "fill-at-run-time"

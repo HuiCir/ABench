@@ -1,0 +1,98 @@
+schema: abench.egress/v1
+description: >-
+  Network access of the agent during its session (runner --network egress, the default for user wrappers).
+  Research is part of the work: the agent may look up papers, code and documentation whenever its experiments raise
+  a question, so the sandbox is online. What it may not do is fetch the data the evaluation is drawn from or
+  pretrained models outside the case's frozen set. Every connection goes through the runner's proxy (operator side,
+  hash-chained log in the run record); the firewall rejects every other connection of the agent user, so the proxy
+  cannot be bypassed. The proxy sees host names only (TLS is not inspected), so policy is per host.
+
+  A host is allowed when it matches `literature` or `allow` (or `harness_allow` of the harness in use) and matches
+  neither `deny` nor the case's own deny list: the hosts of every URL in oj.yaml data.sources and data.models
+  (except literature hosts: a source that cites a paper must not cut the agent off from papers), plus
+  oj.yaml agent_network.deny; oj.yaml agent_network.allow adds hosts for one case. Matching: a pattern equals the
+  host or, written as ".example.org", any subdomain of it.
+ports: [80, 443]
+literature:
+  - arxiv.org
+  - .arxiv.org
+  - openreview.net
+  - .openreview.net
+  - aclanthology.org
+  - .semanticscholar.org
+  - dblp.org
+  - .dblp.org
+  - proceedings.mlr.press
+  - .neurips.cc
+  - papers.nips.cc
+  - openaccess.thecvf.com
+  - .ecva.net
+  - jmlr.org
+  - .jmlr.org
+  - ojs.aaai.org
+  - .ijcai.org
+  - dl.acm.org
+  - link.springer.com
+  - .biorxiv.org
+  - .medrxiv.org
+  - .nature.com
+  - .science.org
+  - .pnas.org
+  - .wikipedia.org
+  - .crossref.org
+  - doi.org
+  - .doi.org
+  - .paperswithcode.com
+  - scholar.archive.org
+  - .researchgate.net
+allow:
+  # code and documentation
+  - github.com
+  - .github.com
+  - .githubusercontent.com
+  - gist.github.com
+  - .readthedocs.io
+  - .readthedocs.org
+  - pytorch.org
+  - .pytorch.org
+  - numpy.org
+  - .numpy.org
+  - scipy.org
+  - .scipy.org
+  - scikit-learn.org
+  - .scikit-learn.org
+  - docs.python.org
+  - stackoverflow.com
+  - .stackexchange.com
+  # packages for development (the submission may still use only the software the task statement lists)
+  - pypi.org
+  - files.pythonhosted.org
+harness_allow:
+  claude: [api.anthropic.com]
+deny:
+  # dataset and model hubs: data and weights come only from $ABENCH_DATA_DIR / $ABENCH_MODELS_DIR
+  - huggingface.co
+  - .huggingface.co
+  - hf.co
+  - .hf.co
+  - kaggle.com
+  - .kaggle.com
+  - .kaggleusercontent.com
+  - openml.org
+  - .openml.org
+  - zenodo.org
+  - .zenodo.org
+  - figshare.com
+  - .figshare.com
+  - drive.google.com
+  - docs.google.com
+  - .googleusercontent.com
+  - storage.googleapis.com
+  - .dropbox.com
+  - .dropboxusercontent.com
+  - .amazonaws.com
+  - .blob.core.windows.net
+  - modelscope.cn
+  - .modelscope.cn
+  - download.pytorch.org
+  - .tensorflow.org

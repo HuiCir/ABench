@@ -1,0 +1,111 @@
+case: T-FM-001
+title: 'A Ten-Step Flow-Matching Action Head over Action Chunks'
+abstract: >-
+  This submission transfers conditional flow matching [@lipman2023flow] with the straight-line path of rectified flow
+  [@liu2023flow] to imitation learning on PushT. A small MLP predicts the velocity that carries Gaussian noise to a
+  chunk of 16 future actions, conditioned on the current keypoint observation; ten Euler steps produce a chunk, whose
+  first eight actions are executed before replanning, as in action-chunking policies [@zhao2023act;@chi2023diffusion].
+  Ten network evaluations per eight control steps keep act() far inside the latency budget. Distilling the head to one
+  or two steps [@prasad2024consistency] is left to entries.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Demonstrations of PushT are multimodal: the block can be pushed around either side. Generative action heads
+    capture this where regression averages the modes, but diffusion heads pay for it with many denoising steps per
+    decision. Flow matching learns a velocity field along straight paths, which can be integrated in far fewer steps.
+- title: Related Work
+  paras:
+  - >-
+    Diffusion Policy denoises action sequences conditioned on observations and established generative heads on PushT
+    [@chi2023diffusion]; ACT showed that predicting chunks of actions reduces compounding errors [@zhao2023act]. Flow
+    matching regresses a conditional velocity field along chosen probability paths [@lipman2023flow], and rectified flow
+    uses the straight interpolation between noise and data, which makes few-step integration accurate
+    [@liu2023flow]. Robot policies with flow-matching action experts followed [@black2024pi0], and consistency distillation
+    has been used to make diffusion policies one-step [@prasad2024consistency].
+  - >-
+    How few integration steps a flow-matching action head can afford before losing the modes of the demonstrations,
+    without a second distillation stage, is the gap.
+- title: Method
+  subsections:
+  - title: Head, training and sampling
+    paras:
+    - >-
+      Inputs are the standardised observation (end-effector position and eight block keypoints), the noisy standardised
+      chunk and a sinusoidal embedding of t; three hidden layers of 512 SiLU units output the velocity. Training draws
+      t uniformly in (0, 1), forms x_t = (1 − t) z + t a and regresses a − z, with AdamW and cosine decay for 30,000
+      steps of batch 256. Sampling integrates from noise at t = 0 to t = 1 with ten Euler steps.
+    algorithm_caption: One training step
+    algorithm:
+    - (o, a) ← batch of observations and their next 16 actions; z ~ N(0, I); t ~ U(0, 1)
+    - x_t ← (1 − t) z + t a
+    - loss ← ‖v_θ(x_t, t, o) − (a − z)‖²; AdamW step
+  - title: Complexity
+    paras:
+    - >-
+      Ten MLP evaluations per chunk, one chunk every eight control steps, so about 1.25 evaluations per step.
+- title: Design Rationale
+  paras:
+  - >-
+    The straight path makes the learned field nearly constant along each trajectory, so ten Euler steps lose little
+    accuracy; executing eight of sixteen predicted actions balances reactivity against the cost of replanning.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The MLP conditions only on the current observation, there is no temporal ensembling between chunks, and the
+    number of integration steps is fixed rather than reduced by distillation.
+references:
+- id: lipman2023flow
+  title: Flow Matching for Generative Modeling
+  authors: Yaron Lipman, Ricky T. Q. Chen, Heli Ben-Hamu, Maximilian Nickel and Matt Le
+  year: 2023
+  venue: ICLR
+  arxiv: '2210.02747'
+  used_for: 'Anchor: conditional flow-matching objective'
+  code_location: 'train.py: main (loss)'
+- id: liu2023flow
+  title: 'Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow'
+  authors: Xingchao Liu, Chengyue Gong and Qiang Liu
+  year: 2023
+  venue: ICLR
+  arxiv: '2209.03003'
+  used_for: Straight-line probability path
+  code_location: 'train.py: main (x_t)'
+- id: chi2023diffusion
+  title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'
+  authors: Cheng Chi, Zhenjia Xu, Siyuan Feng, Eric Cousineau, Yilun Du, Benjamin Burchfiel, Russ Tedrake and Shuran Song
+  year: 2023
+  venue: RSS
+  arxiv: '2303.04137'
+  used_for: Generative action heads and receding-horizon execution on PushT
+  code_location: 'policy.py: _Policy.act'
+- id: zhao2023act
+  title: Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware
+  authors: Tony Z. Zhao, Vikash Kumar, Sergey Levine and Chelsea Finn
+  year: 2023
+  venue: RSS
+  arxiv: '2304.13705'
+  used_for: Action chunking
+  code_location: 'policy.py: HORIZON, EXECUTE'
+- id: black2024pi0
+  title: 'π0: A Vision-Language-Action Flow Model for General Robot Control'
+  authors: Kevin Black, Noah Brown, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai and others
+  year: 2024
+  arxiv: '2410.24164'
+  used_for: Related work (flow-matching action experts)
+  code_location: null
+- id: prasad2024consistency
+  title: 'Consistency Policy: Accelerated Visuomotor Policies via Consistency Distillation'
+  authors: Aaditya Prasad, Kevin Lin, Jimmy Wu, Linqi Zhou and Jeannette Bohg
+  year: 2024
+  venue: RSS
+  arxiv: '2405.07503'
+  used_for: Related work (one-step policies by distillation)
+  code_location: null
+changes:
+- text: Diffusion Policy's denoising head is replaced by a flow-matching velocity field on the straight noise-to-data path.
+  code: 'policy.py: Velocity; train.py: main'
+- text: Ten Euler steps per chunk instead of about a hundred denoising steps.
+  code: 'policy.py: STEPS, sample_chunk'
+- text: An MLP on keypoints replaces the convolutional or transformer backbone of the anchor's robot experiments.
+  code: 'policy.py: Velocity'

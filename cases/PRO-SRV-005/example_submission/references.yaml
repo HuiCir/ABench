@@ -1,0 +1,28 @@
+schema: abench.references/v2
+references:
+- id: kwon2023vllm
+  title: Efficient Memory Management for Large Language Model Serving with PagedAttention
+  authors: Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao
+    Zhang and Ion Stoica
+  year: 2023
+  venue: SOSP
+  arxiv: '2309.06180'
+  used_for: 'Anchor: the vLLM engine with paged KV cache and continuous batching'
+  code_location: 'serve.py: main'
+- id: agrawal2024sarathi
+  title: Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve
+  authors: Amey Agrawal, Nitin Kedia, Ashish Panwar, Jayashree Mohan, Nipun Kwatra, Bhargav S. Gulavani, Alexey
+    Tumanov and Ramachandran Ramjee
+  year: 2024
+  venue: OSDI
+  arxiv: '2403.02310'
+  used_for: Chunked prefill mixed with decoding
+  code_location: 'serve.py: main (enable_chunked_prefill)'
+- id: zhong2024distserve
+  title: 'DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving'
+  authors: Yinmin Zhong, Shengyu Liu, Junda Chen, Jianbo Hu, Yibo Zhu, Xuanzhe Liu, Xin Jin and Hao Zhang
+  year: 2024
+  venue: OSDI
+  arxiv: '2401.09670'
+  used_for: Goodput under TTFT and TPOT SLOs as the target (not implemented here)
+  code_location: 'serve.py: main'

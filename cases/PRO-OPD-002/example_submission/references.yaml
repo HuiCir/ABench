@@ -1,0 +1,35 @@
+schema: abench.references/v2
+references:
+- id: agarwal2024gkd
+  title: 'On-Policy Distillation of Language Models: Learning from Self-Generated Mistakes'
+  authors: Rishabh Agarwal, Nino Vieillard, Yongchao Zhou, Piotr Stanczyk, Sabela Ramos, Matthieu Geist and Olivier
+    Bachem
+  year: 2024
+  venue: ICLR
+  arxiv: '2306.13649'
+  used_for: 'Anchor: training on student samples against the teacher'
+  code_location: 'train.py: main (phase 2)'
+- id: kim2016seqkd
+  title: Sequence-Level Knowledge Distillation
+  authors: Yoon Kim and Alexander M. Rush
+  year: 2016
+  venue: EMNLP
+  arxiv: '1606.07947'
+  used_for: Warm start on teacher-generated answers
+  code_location: 'train.py: main (phase 1)'
+- id: gu2024minillm
+  title: 'MiniLLM: Knowledge Distillation of Large Language Models'
+  authors: Yuxian Gu, Li Dong, Furu Wei and Minlie Huang
+  year: 2024
+  venue: ICLR
+  arxiv: '2306.08543'
+  used_for: Reverse KL optimised with policy gradients
+  code_location: 'train.py: main (phase 2)'
+- id: yang2025qwen3
+  title: Qwen3 Technical Report
+  authors: An Yang and others (Qwen Team)
+  year: 2025
+  venue: arXiv
+  arxiv: '2505.09388'
+  used_for: The student, the teacher and the chat template
+  code_location: 'train.py: main'

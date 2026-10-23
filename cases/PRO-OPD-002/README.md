@@ -1,37 +1,37 @@
-# ABench Case PRO-OPD-002: On-policy distillation: teacher ≤ 32B, student ≤ 2B; design the distillation objective and sampling strategy for math and code reasoning
+# ABench case PRO-OPD-002: Distilling a reasoning model on one node: Qwen3-8B into Qwen3-1.7B-Base for competition mathematics in 24 hours
 
-- Track: PRO · Industrial-scale essentials · pro
-- Anchor: On-Policy Distillation of Language Models (GKD) (arXiv: 2306.13649)
-- Subset: main; difficulty: high; resource tier: pro; status: **deferred**
-- Task: On-policy distillation: teacher ≤ 32B, student ≤ 2B; design the distillation objective and sampling strategy for math and code reasoning
-- Metrics: Student accuracy on new problems created after the cutoff; teacher and student tokens needed to reach the same accuracy; comparison with SFT+RL
-- Proxy: EVAL, AUDIT; plan: Teacher inference and student training share the 4 GPUs; evaluation about 4 H100-h + sampled resume; references are one off-policy KD and one SFT+RL run
+Case built to task statement standard v2.1 from the template of PRO-ARL-001. Anchor: Rishabh Agarwal, Nino Vieillard, Yongchao Zhou, Piotr Stanczyk, Sabela Ramos, Matthieu Geist, Olivier Bachem, *On-Policy Distillation of Language Models: Learning from Self-Generated Mistakes*
+(arXiv:2306.13649).
 
-## Current deliverables
+## Status
 
-This directory only sets up the bench contract scaffold: task card, evaluation protocol, resource registry, scoring contract and directory-level notes. There is no simulated training, no simulated reference run, no simulated score and no fabricated leaderboard result. Formal runs require the benchmark operator to inject real resources, reference runs, the hidden set and server-generated run records.
-
-## Blockers and reservations
-
-This case is held back from the formal leaderboard for now; only the protocol and interfaces are kept.
-
-Blocking inputs:
-
-- `4xH100_scheduler_and_network_sandbox`
-- `hidden_tasks_and_post_cutoff_eval`
-- `hash_chain_and_1h_resume_audit`
-- `pro_hardware_quota_and_resume_audit`
-- `specific_anchor_or_citation_verification`
-
-Until these inputs are frozen, only interfaces/contracts are added; no excessive environment setup or simulated substitutes.
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Partly executed: the audit kit (hash chain, traceability, sampled resume) was run end to end on a toy program and the answer check was run; the distillation recipe and the vLLM evaluation need four H100s, which were not available here: the operator runs the three recipes at activation.
+- No number in the case files is a result: there are no training curves or reference scores.
 
 ## Files
 
-- `case/anchor_card.yaml`: task anchor and acceptance boundary.
-- `case/task_prompt.md`: the task given to the agent under test.
-- `case/eval_protocol.yaml`: proxy ladder, budget, hidden evaluation and output constraints.
-- `case/resources.yaml`: registry of data, models, software, hardware and private resources.
-- `case/scoring_config.yaml`: metrics and thresholds pending calibration.
-- `harness/README.md`: execution interface conventions.
-- `scoring/README.md`: scoring input/output conventions.
-- `example_submission/README.md`: example submission directory conventions.
+- `spec/cases/PRO-OPD-002.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case PRO-OPD-002`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/pro_opd_002.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
+
+## Data sources (links only; nothing is downloaded in the repository)
+
+- DAPO-Math-17k (BytedTsinghua-SIA), as PRO-ARL-001: https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k — license: Apache-2.0 (verified 2026-10-23)
+- Qwen3-1.7B-Base and Qwen3-8B (Qwen Team 2025): https://huggingface.co/Qwen — license: Apache-2.0 (verified 2026-10-23)
+- AIME 2025 and AIME 2026 (MathArena), as PRO-ARL-001: https://huggingface.co/datasets/MathArena/aime_2026 — license: CC-BY-NC-SA-4.0 (verified 2026-10-23)
+
+## Activation (operator)
+
+```bash
+python3 tools/prepare/run.py --case PRO-OPD-002 --list-sources                 # what to download
+python3 tools/prepare/run.py --case PRO-OPD-002 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case PRO-OPD-002 --submission cases/PRO-OPD-002/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case PRO-OPD-002 --activate                     # after reviewing the calibration run
+```
+
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

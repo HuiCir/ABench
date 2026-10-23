@@ -6,7 +6,7 @@ import numpy as np
 from abench_metrics import OutputError, need  # noqa: F401
 
 NFES = (5, 10, 20)
-PRIMARY = {"metric": "fid_nfe10", "goal": "min"}
+PRIMARY = {"metric": "fid_mean_nfe5_10", "goal": "min"}     # 2026-10-21 audit: the spread is largest at low NFE
 GATES = [{"metric": "nfe_violations", "max": 0.0}]
 
 
@@ -32,9 +32,12 @@ def score(outputs: dict, reference: dict, params: dict, seconds: dict) -> dict:
         mu = need(outputs, "fid", f"mu_{n}", shape=(2048,))
         sg = need(outputs, "fid", f"sigma_{n}", shape=(2048, 2048))
         out[f"fid_nfe{n}"] = fid(mu, sg, np.asarray(reference["ref_mu"]), np.asarray(reference["ref_sigma"]))
+    out["fid_mean_nfe5_10"] = (out["fid_nfe5"] + out["fid_nfe10"]) / 2
     out["sampling_seconds"] = float(seconds.get("sample.finish", 0.0))
     return out
 
 
 def relative(sub: dict, base: dict) -> dict:
-    return {f"fid_nfe{n}_delta_vs_ddim": sub[f"fid_nfe{n}"] - base[f"fid_nfe{n}"] for n in NFES}
+    d = {f"fid_nfe{n}_delta_vs_ddim": sub[f"fid_nfe{n}"] - base[f"fid_nfe{n}"] for n in NFES}
+    d["fid_mean_nfe5_10_delta_vs_ddim"] = sub["fid_mean_nfe5_10"] - base["fid_mean_nfe5_10"]
+    return d

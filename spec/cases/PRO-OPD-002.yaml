@@ -1,0 +1,134 @@
+id: PRO-OPD-002
+title: "Distilling a reasoning model on one node: Qwen3-8B into Qwen3-1.7B-Base for competition mathematics in 24 hours"
+template: PRO-ARL-001
+anchor: {authors: "Rishabh Agarwal, Nino Vieillard, Yongchao Zhou, Piotr Stanczyk, Sabela Ramos, Matthieu Geist, Olivier Bachem", title: "On-Policy Distillation of Language Models: Learning from Self-Generated Mistakes", arxiv: "2306.13649"}
+baseline: "supervised fine-tuning on correct teacher answers for 100 steps, then on-policy distillation with the per-token reverse KL to Qwen3-8B on the student's own samples (the reference submission; its code is shown under `interface/baseline/`); the operator also runs off-policy distillation (SFT on teacher answers only) and SFT followed by GRPO"
+reference_verification: "Partly executed: the audit kit (hash chain, traceability, sampled resume) was run end to end on a toy program and the answer check was run; the distillation recipe and the vLLM evaluation need four H100s, which were not available here: the operator runs the three recipes at activation."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+kit_extra: [pro/pro_audit.py, pro/pro_stages.py, pro/math_tool.py]
+task: |
+  Design a **distillation method** — what the student learns from (teacher samples, its own samples scored by the teacher, logits, mixtures), the divergence and its estimator, curriculum and length control, combination with verifiable rewards, and the split of four GPUs between teacher inference and student training — that makes **Qwen3-1.7B-Base** the most accurate solver of **held-out competition problems**, with **Qwen3-8B** as the teacher.
+
+  - Within one 24-hour session on 4 × H100 you develop, train and deliver the student. Every training run that may lead to the delivery runs under the case's supervisor (`interface/pro_audit.py`), which registers a hash of a resumable checkpoint at least every 30 minutes; the delivered checkpoint must be one of them, reached from the student's starting weights.
+  - The evaluator samples 16 answers per held-out problem from your student with its own loop (`interface/math_tool.py`, no tools, at most 16,384 generated tokens) and checks the last `\boxed{}` answer; it then resumes your run from one registered checkpoint for an hour and compares the logged loss.
+  - Training prompts: DAPO-Math-17k (public, with answers). The teacher may be used in any way; no other model and no other data.
+  - You may build on any public work (knowledge distillation, sequence-level KD, GKD, MiniLLM, DistiLLM, on-policy distillation with reverse KL, speculative KD, GRPO), but the design report must state what you borrowed and what you changed and on which attempt the delivered checkpoint was obtained.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only): as in PRO-ARL-001, `dapo_math_17k.parquet` (BytedTsinghua-SIA/DAPO-Math-17k @65877096, Apache-2.0), `train.jsonl` with its unique problems as `{problem, answer}` and `dev.json` with 60 of them for the self-check. `$ABENCH_MODELS_DIR/` holds the student `Qwen3-1.7B-Base/` (@ea980cb0, Apache-2.0) and the teacher `Qwen3-8B/` (@b968826d, Apache-2.0).
+
+  The held-out set is the 30 problems of AIME 2025 and the 30 of AIME 2026 (as released by MathArena, CC-BY-NC-SA 4.0; integer answers), not reachable from the sandbox, with a secret sampling seed and a secret choice of the resumed checkpoint.
+interface: "Deliver `checkpoint/`: a Hugging Face model directory with the architecture of Qwen3-1.7B-Base (config fields compared by the evaluator) and a tokenizer whose chat template the evaluator uses, identical to `model/` of a checkpoint registered by the supervisor. Deliver the code of the registered run (its command is re-run from the submitted directory with `ABENCH_RESUME_FROM` set); the program prints `ABENCH step=<n> loss=<float>` lines."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Accuracy avg@16** (primary) | Share of correct answers among 16 sampled answers per problem, averaged over the 60 held-out problems; higher is better | — |
+  | Per competition | avg@16 on AIME 2025 and on AIME 2026 | reported |
+  | Length | Generated tokens per answer, answers without a boxed result | reported |
+  | Process integrity | Intact hash chain without gaps over 35 minutes; delivered checkpoint registered and traceable to the student's starting weights; submitted code equal to the run's | Threshold: all hold |
+  | Sampled resume | Mean logged loss of a one-hour resume from a randomly chosen registered checkpoint, against the original log over the same steps | Threshold: within max(5%, 3 standard errors) |
+  | Architecture | Delivered config equal to Qwen3-1.7B-Base's in the compared fields | Threshold: equal |
+
+  **Measurement and decision**
+
+  - One evaluation run (16 samples per problem with the secret seed); the evaluation takes about 2 hours on one GPU.
+  - A submission is valid if every threshold holds and the evaluation finishes within its time limit; otherwise it is invalid.
+  - The primary metric is reported with a 95% bootstrap interval over problems; submissions whose intervals overlap are tied on it, and a lead over the operator's distillation and SFT+GRPO runs counts only above two standard deviations of their seeds.
+  - The final ABench score is driven mainly by avg@16, and also considers how different the method is from GKD-style on-policy distillation and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: pro
+  session_hours: 24
+  dev_budget: "96 H100-hours (24 hours of the 4-GPU node), teacher inference, development and final training included"
+  software: "Python 3, PyTorch (CUDA), vLLM, transformers, safetensors, NumPy, pandas; verl, OpenRLHF and TRL from the allowlisted pip mirror"
+  notes: |
+    - Run training as `python3 interface/pro_audit.py run --name NAME --code DIR -- <command>`; write checkpoints to `$ABENCH_CKPT_DIR/step_<n>/` with `model/`, your resume state and a final `DONE` file, at least every 30 minutes, and keep them all.
+    - Teacher answers can be generated once and cached in the session's work directory; they count as derived data and stay inside the session.
+    - `selfcheck.py` runs the audit on your session, the evaluation on the 60 dev problems and a short resume (`--quick`: 8 problems).
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── checkpoint/         # required: Hugging Face model directory (= model/ of a registered checkpoint)
+    ├── train.py            # required: the registered run's program (and anything else it uses)
+    ├── src/                # optional: other modules
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report (states on which attempt the delivery was obtained)
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.sh`, `.yaml`, `.yml`, `.json`, `.toml`, `.md` and `.txt`, at most 1,000,000 bytes in total.
+rules: |
+  - Only the allowlisted student, teacher and data; no other model, and no evaluation problems may be sought.
+  - Every run that leads to the delivery must be supervised; checkpoints may not be modified after registration, and the session's audit directory is written only by the supervisor.
+  - Several attempts within the 24 hours are allowed; all are registered, and the report states on which one the delivered checkpoint was obtained.
+interface_md: |
+  # PRO-OPD-002 interface
+
+  ## Deliverable
+
+  - `checkpoint/`: Hugging Face model directory with the architecture of `Qwen3-1.7B-Base`, byte-identical to
+    `model/` of a registered checkpoint, with a tokenizer and chat template (the evaluator applies it with
+    thinking enabled when the template supports it). Loaded with vLLM (bfloat16).
+  - The code of the registered run; it must resume from `$ABENCH_RESUME_FROM` when that is set and print
+    `ABENCH step=<n> loss=<float>` lines.
+
+  ## Supervised runs (`pro_audit.py`)
+
+  ```
+  python3 pro_audit.py run --name NAME --code DIR -- torchrun --standalone --nproc_per_node=2 train.py
+  ```
+
+  Environment of the run: `ABENCH_DATA_DIR`, `ABENCH_MODELS_DIR` (student and teacher), `ABENCH_CKPT_DIR`,
+  `ABENCH_RESUME_FROM` (only when resuming).
+
+  ## Evaluator code you can read
+
+  `math_tool.py` (prompt, sampling, answer check), `pro_audit.py`, `pro_stages.py`, `stages.py`, `metrics.py`,
+  `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), vLLM, transformers, safetensors, NumPy, pandas; training frameworks from the allowlisted
+  mirror.
+oj:
+  agent_budget: {h100_hours: 96.0, session_hours: 24.0}
+  data:
+    public_dir: sandbox/data/PRO-OPD-002
+    public:
+      - {path: sandbox/data/PRO-OPD-002/dapo_math_17k.parquet, sha256: pending}
+      - {path: sandbox/data/PRO-OPD-002/train.jsonl, sha256: pending}
+      - {path: sandbox/data/PRO-OPD-002/dev.json, sha256: pending}
+    hidden: {path: sandbox/hidden/PRO-OPD-002/hidden.npz.enc, sha256_plain: pending, keys: "problem, resume_u, sample_seed (given after the timed phase); answer, set (evaluator only)"}
+    models_dir: sandbox/models/PRO-OPD-002
+    models:
+      - {name: Qwen3-1.7B-Base, path: sandbox/models/PRO-OPD-002/Qwen3-1.7B-Base, tree_sha256: pending, revision: ea980cb0a6c2ae4b936e82123acc929f1cec04c1, license: Apache-2.0}
+      - {name: Qwen3-8B, path: sandbox/models/PRO-OPD-002/Qwen3-8B, tree_sha256: pending, revision: b968826d9c46dd6066d109eabc6255188de91218, license: Apache-2.0}
+    sources:
+      - name: "DAPO-Math-17k (BytedTsinghua-SIA), as PRO-ARL-001"
+        url: https://huggingface.co/datasets/BytedTsinghua-SIA/DAPO-Math-17k
+        revision: 65877096c24ffa7abc4e4fa5edb95cf3413a5674
+        license: Apache-2.0
+        verified: "2026-10-23: revision, licence, columns (prompt, reward_model.ground_truth) and 1,791,700 rows from the Hugging Face API and dataset card"
+      - name: "Qwen3-1.7B-Base and Qwen3-8B (Qwen Team 2025)"
+        url: https://huggingface.co/Qwen
+        revision: "Qwen3-1.7B-Base @ea980cb0a6c2ae4b936e82123acc929f1cec04c1, Qwen3-8B @b968826d9c46dd6066d109eabc6255188de91218"
+        license: Apache-2.0
+        verified: "2026-10-23: revisions, licences and file lists from the Hugging Face API"
+      - name: "AIME 2025 and AIME 2026 (MathArena), as PRO-ARL-001"
+        url: https://huggingface.co/datasets/MathArena/aime_2026
+        revision: "aime_2025 @c94da77eb22bbd6439e62a323bec18493a421302, aime_2026 @d2de22f3c656b4f56cf8981212186377d1e23bc3"
+        license: CC-BY-NC-SA-4.0
+        verified: "2026-10-23: revisions, licence and 30 rows each from the Hugging Face API"
+  submission:
+    kind: code_plus_checkpoint
+    entry: train.py
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 10737418240
+    allowed_top_level: [README.md, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .sh, .yaml, .yml, .json, .toml, .md, .txt]
+    code_max_bytes: 1000000
+    max_bytes: 10738418240
+  judge:
+    device: cuda
+    reference_hardware: "one node with 4 × H100 80GB SXM (NVLink); driver, CUDA, torch and vLLM versions frozen at activation"
+    seeds: [0]
+    code_audit: "the operator checks that no model besides the student and the teacher is used and that every registered run is accounted for in the report"

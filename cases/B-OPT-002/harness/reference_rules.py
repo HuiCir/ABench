@@ -1,6 +1,6 @@
 """Functional update rules of the reference methods (for behavioral probes and code divergence).
 
-Real training uses the official implementations listed in reference_pool.yaml; these simplified versions only need to match them in "update direction".
+Real training uses the official implementations; these simplified versions only need to match them in "update direction".
 In the formal benchmark, SOAP, Sophia and Schedule-Free are wired into the probes by recording updates from their official implementations; they are not included in this file.
 """
 from __future__ import annotations

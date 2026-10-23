@@ -1,0 +1,127 @@
+id: T-SPEC-003
+title: "From speculative decoding to diffusion sampling: fewer sequential rounds with parallel evaluations"
+template: V-SMP-002
+anchor: {authors: "Yaniv Leviathan, Matan Kalman, Yossi Matias", title: "Fast Inference from Transformers via Speculative Decoding", arxiv: "2211.17192"}
+baseline: "deterministic DDIM with one evaluation per image per round, run by the evaluator under identical conditions (`interface/baselines/ddim/`)"
+baseline_run: "Under exactly the same conditions (model, seeds, number of samples, round budgets), the evaluator also runs the DDIM baseline in `interface/baselines/ddim/`, which uses one of the four parallel slots per round, and reports your FID relative to it."
+reference_verification: "Not executed yet: the stage code and reference submission need PyTorch, diffusers, pytorch-fid and a GPU, which were not available where the case was built; the operator runs them at activation. The reference's windowed Picard iteration was run in a NumPy mirror on a toy ε-model: it respects the round and parallelism budgets and lands within 2e-3 of 2R-step DDIM after R rounds (R-step DDIM differs from 2R-step DDIM by 0.47 there)."
+mode: no_training
+n_seeds: 3
+extra_interface: [harness/diffusion.py, harness/baselines/ddim/sampler.py]
+task: |
+  Transfer the **draft-and-verify** idea of speculative decoding — cheap guesses of several future steps, checked by the expensive model in parallel — to **diffusion sampling**: design a training-free sampler for a frozen ε-prediction DDPM on CIFAR-10 that produces the **best images (lowest FID) in only 5 or 10 sequential rounds**, where each round may evaluate the network on up to **4 inputs per image in one batched call**.
+
+  - Submit code only (`sampler.py`). At evaluation the evaluator runs your `sample()` with the frozen model at budgets of 5 and 10 rounds, 10,000 images each, once for each of 3 seed sets unknown to you, and computes FID against the CIFAR-10 training set. It runs the DDIM baseline the same way.
+  - What is scarce is sequential depth, not total compute: a round costs one network call whether it carries 1 or 4 inputs per image. How you use the parallel slots (drafts of future states, Picard or parallel-in-time iterations, multiple candidate step sizes verified together) is the design question.
+  - No training or fine-tuning of any network, no other networks (distilled students, classifiers, discriminators), no stored images; schedules or coefficients you tune in the sandbox may be written into the code.
+  - The report must trace which ideas you transferred from the speculative-decoding literature and how they map onto diffusion sampling, and what you borrowed from diffusion samplers; every borrowed component must have a cited source.
+data: |
+  `$ABENCH_MODELS_DIR/ddpm-cifar10-32/` holds the frozen model (Hugging Face `google/ddpm-cifar10-32`, Apache-2.0; the model of V-SMP-002): a diffusers `UNet2DModel` (Ho et al. 2020) trained with ε-prediction and a linear β schedule from 1e-4 to 0.02 over 1,000 steps; `interface/diffusion.py` gives ᾱ_t and the round-counting `ParallelDenoiser`. `$ABENCH_MODELS_DIR/inception/` holds the pytorch-fid Inception weights.
+
+  `$ABENCH_DATA_DIR/cifar10_train_inception_stats.npz` (read-only) holds `mu` (2048,) and `sigma` (2048, 2048), the Inception pool-3 statistics of the 50,000 CIFAR-10 training images, which are the FID reference at evaluation too. The held-out part of this case is only the evaluation seeds.
+interface: |
+  Implement `sample(denoiser, n, rounds, generator, device) -> torch.Tensor` in `sampler.py`: draw initial noise with `generator`, call `denoiser(x, t)` at most `rounds` times with at most 4·n rows per call, and return n images of shape (n, 3, 32, 32) in [-1, 1].
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean FID at 5 and 10 rounds** (primary) | Fréchet Inception distance between 10,000 samples and the CIFAR-10 training set (pytorch-fid Inception, pool-3 features), averaged over the two round budgets and over 3 seed sets; lower is better | — |
+  | FID at 5 and at 10 rounds | Each budget separately | reported |
+  | Evaluations per image | Network evaluations per image actually used (at most 4 × rounds) | reported |
+  | FID vs DDIM | Your FID minus the DDIM baseline's at each budget | reported |
+  | Budget violations | Rounds beyond the budget or more than 4 inputs per image in one round (a violation also fails the run) | Threshold: 0 |
+
+  **Timing and decision**
+
+  - Each seed set runs in a new process with empty caches (`interface/abench_stage.py`). Images are generated in batches of 250; batch b of a budget uses a generator seeded from that budget's held-out seed, the run's seed and b (`stages.py`). Generating all 20,000 images must finish within 1,200 s.
+  - A submission is valid only if no budget is exceeded; valid submissions are ranked by mean FID at 5 and 10 rounds.
+  - If any run crashes, exceeds a time limit, or returns images of the wrong shape or with non-finite values, the whole submission is invalid.
+  - The final ABench score is driven mainly by mean FID relative to the baseline, and also by the correctness and depth of the transferred ideas and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 4
+  dev_budget: "4 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, diffusers and pytorch-fid (versions frozen at activation; offline)"
+  notes: |
+    - The self-check computes FID from 2,000 samples per budget (500 with `--quick`); such FIDs are biased upwards, so compare dev values with each other, not with published numbers.
+    - The UNet runs in fp32; `t` may differ between rows of one call and may be fractional (the time embedding is continuous), but the network was trained on integer steps.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── sampler.py          # required: sample()
+    ├── src/                # optional: helper modules imported by sampler.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - Query the model only through the `denoiser` you are given; do not reach the underlying network by other means, load other networks or train anything.
+  - Initial noise and any other randomness must come from `generator`; samples must not be selected, filtered or re-ranked.
+interface_md: |
+  # T-SPEC-003 interface
+
+  ## Entry point: `sampler.py`
+
+  ```python
+  def sample(denoiser, n: int, rounds: int, generator: torch.Generator, device: str) -> torch.Tensor:
+      """Return n images, float tensor (n, 3, 32, 32) with values in [-1, 1].
+
+      denoiser(x, t) -> ε prediction, same shape as x; one call = one round
+          x float (k·n, 3, 32, 32), k = 1..4 (any states, e.g. k candidate points of each image's trajectory)
+          t a number, or a tensor () / (k·n,) of timesteps in [0, 999]
+      denoiser.alphas_cumprod   numpy float64 (1000,), ᾱ_t of the linear β schedule
+      denoiser.rounds, denoiser.evaluations   rounds used so far, evaluations per image so far
+      rounds                    5 or 10: maximum number of denoiser calls in this call of sample()
+      generator                 torch.Generator on `device`; draw all randomness from it
+      """
+  ```
+
+  - The forward process is x_t = sqrt(ᾱ_t) x₀ + sqrt(1 − ᾱ_t) ε with x₀ in [-1, 1]; t = 0 is the least noisy training step.
+  - The evaluator calls `sample` with n = 250, 40 times per budget, each time with a fresh `ParallelDenoiser`.
+
+  ## Evaluator code you can read
+
+  - `diffusion.py`: schedule and the round-counting `ParallelDenoiser`; `stages.py`: sampling loop, image conversion (round((x + 1) · 127.5)) and the Inception features.
+  - `baselines/ddim/sampler.py`: the DDIM baseline the evaluator runs alongside your sampler.
+  - `metrics.py` (FID), `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, diffusers, pytorch-fid (offline). Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 4.0, session_hours: 4.0}
+  data:
+    public_dir: sandbox/data/T-SPEC-003
+    public:
+      - {path: sandbox/data/T-SPEC-003/cifar10_train_inception_stats.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/T-SPEC-003/hidden.npz.enc, sha256_plain: pending, keys: [seeds, ref_mu, ref_sigma]}
+    models_dir: sandbox/models/T-SPEC-003
+    models:
+      - {name: ddpm-cifar10-32, path: sandbox/models/T-SPEC-003/ddpm-cifar10-32, tree_sha256: pending, revision: 267b167dc01f0e4e61923ea244e8b988f84deb80, license: Apache-2.0}
+      - {name: inception, path: sandbox/models/T-SPEC-003/inception, tree_sha256: pending, license: "Apache-2.0 (pytorch-fid)"}
+    sources:
+      - name: "google/ddpm-cifar10-32 (Ho et al. 2020, arXiv:2006.11239), as in V-SMP-002"
+        url: https://huggingface.co/google/ddpm-cifar10-32
+        revision: 267b167dc01f0e4e61923ea244e8b988f84deb80
+        license: Apache-2.0
+        verified: "2026-10-19 (V-SMP-002): revision, license and file list from the Hugging Face API"
+      - name: "pytorch-fid Inception weights (Seitzer 2020)"
+        url: https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth
+        license: Apache-2.0
+        verified: "2026-10-19 (V-SMP-002): FID_WEIGHTS_URL read from pytorch_fid/inception.py"
+      - name: CIFAR-10 training set (Krizhevsky 2009), for the reference statistics
+        url: https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz
+        license: "no explicit license on the dataset page (to_verify)"
+  submission:
+    kind: code_only
+    entry: sampler.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, sampler.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch, diffusers and pytorch-fid versions frozen at activation)"
+    seeds: [2211, 17192, 4]          # kept secret by the operator; combined with the held-out base seeds
+    baseline: harness/baselines/ddim

@@ -1,32 +1,28 @@
-# DS-GBM-001 submission interface
+# DS-GBM-001 interface
 
-## Data
-
-`$ABENCH_DATA_DIR/train.npz`: `x` is a float32 feature matrix of shape `[n, 12]`; `y` holds int64 class labels in `{0, 1}`.
-This is all the data you may use. If you need a validation set, split it off yourself.
-
-## Submission directory
-
-```
-submission/
-├── model.py          # required, interface below
-├── src/              # optional, other code model.py depends on
-├── checkpoint/       # required, trained parameters in a format of your choice
-├── report/index.html # required, design report (following the structure of templates/report_template.html)
-├── references.yaml   # required, reference registry
-└── manifest.yaml     # optional, dependencies and random seeds
-```
-
-## model.py interface
+## Entry point: `model.py`
 
 ```python
-def load(checkpoint_dir: str):
-    """Read parameters from checkpoint_dir and return a model object."""
+def fit(x: numpy.ndarray, y: numpy.ndarray, task: str, budget_seconds: float, seed: int):
+    """Train on one dataset and return a model (any Python object).
 
-def predict_proba(model, X: "numpy.ndarray") -> "numpy.ndarray":
-    """X has shape [n, 12]; return class probabilities of shape [n, 2], each row non-negative."""
+    x float32 (n, F), NaN allowed; y int64 0/1 (task == "classification") or float64 (task == "regression");
+    budget_seconds is advisory (the total over the 20 datasets is what counts); seed differs per dataset and run."""
+
+def predict(model, x: numpy.ndarray) -> numpy.ndarray:
+    """Return (n,) floats: the probability of class 1, or the predicted target."""
 ```
 
-- Runtime: Python 3 with numpy available; list any other dependency in `manifest.yaml`.
-- Loading and prediction run on CPU, single-threaded, without network, and must finish within 5 minutes.
-- `model.py` must not read files outside `checkpoint/`.
+- The evaluator calls `fit` once per held-out dataset inside the timed phase, then `predict` once per dataset after it.
+- `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+## Evaluator code you can read
+
+- `stages.py`: the stage (how training splits are given before the clock starts, the fit loop, the prediction step) and the dev setting of the self-check.
+- `metrics.py`, `abench_metrics.py`: per-dataset accuracy, AUC and R², the mean score, and the comparison with the baseline.
+- `baselines/hgb/model.py`: the HistGradientBoosting baseline trained alongside your learner; it is also a working starting point.
+- `abench_stage.py`, `selfcheck.py`.
+
+## Available software
+
+Python 3, NumPy, SciPy and scikit-learn, CPU only. Nothing can be installed.

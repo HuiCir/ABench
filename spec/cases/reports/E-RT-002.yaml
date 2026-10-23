@@ -1,0 +1,83 @@
+case: E-RT-002
+title: 'Behaviour-Cloned Action Chunks with Naive Asynchronous Execution'
+abstract: >-
+  This submission trains a small chunking policy by behaviour cloning [@zhao2023act] on the LIBERO-Spatial
+  demonstrations [@liu2023libero] and executes it asynchronously in the simplest way: the controller requests a new
+  16-step chunk every eight steps and, when the chunk arrives, starts from the action meant for the current step,
+  skipping those already overtaken by time. It is the naive asynchronous strategy that real-time chunking
+  [@black2025rtc] improves on, and it makes no attempt to keep consecutive chunks consistent.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    A policy that needs tens of milliseconds per plan cannot be queried every 50 ms control step without either
+    pausing the robot or acting on stale observations. Chunking amortises the cost; the question this case asks is
+    how to switch between chunks that were planned from observations several steps old.
+- title: Related Work
+  paras:
+  - >-
+    ACT predicts chunks of actions and averages overlapping chunks by temporal ensembling [@zhao2023act]; diffusion
+    policy executes part of each predicted sequence before replanning [@chi2023diffusion]; real-time chunking freezes
+    the actions that will run during inference and inpaints the rest of the new chunk to agree with them
+    [@black2025rtc].
+- title: Method
+  paras:
+  - >-
+    Each camera image passes through four stride-2 convolutions with group normalisation and global pooling; the two
+    image features, a learned embedding of the task's instruction and a projection of the 8 proprioceptive numbers
+    feed a three-layer MLP that outputs 16 actions through a tanh. Training uses L1 loss on action chunks (past an
+    episode's end, its last action is repeated), random shifts of up to 4 pixels, AdamW with cosine decay, 30,000
+    steps of batch 64.
+  - >-
+    The controller requests a plan every 8 steps with an empty request. A chunk planned at step t_issue is indexed so
+    that its k-th action is executed at step t_issue + k; past its end the last action is held.
+- title: Design Rationale
+  paras:
+  - >-
+    Skipping overtaken actions keeps the executed actions aligned with the times they were planned for; a chunk of 16
+    with replanning every 8 leaves room for up to 8 steps of delay before the controller runs out of actions.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Switching chunks causes jumps when consecutive plans disagree, the planner knows nothing about the actions
+    executed while it computes, and the policy is a single deterministic regressor that averages multimodal
+    demonstrations. Nothing here has been run on LIBERO in this build.
+references:
+- id: zhao2023act
+  title: Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware
+  authors: Tony Z. Zhao, Vikash Kumar, Sergey Levine and Chelsea Finn
+  year: 2023
+  venue: RSS
+  arxiv: '2304.13705'
+  used_for: 'Anchor: predicting chunks of future actions and training them with L1 loss'
+  code_location: 'src/net.py: ChunkPolicy; train.py'
+- id: liu2023libero
+  title: 'LIBERO: Benchmarking Knowledge Transfer for Lifelong Robot Learning'
+  authors: Bo Liu, Yifeng Zhu, Chongkai Gao, Yihao Feng, Qiang Liu, Yuke Zhu and Peter Stone
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2306.03310'
+  used_for: The tasks, demonstrations and their observation format
+  code_location: 'src/demos.py: load'
+- id: chi2023diffusion
+  title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'
+  authors: Cheng Chi, Siyuan Feng, Yilun Du, Zhenjia Xu, Eric Cousineau, Benjamin Burchfiel and Shuran Song
+  year: 2023
+  venue: RSS
+  arxiv: '2303.04137'
+  used_for: Executing part of each predicted sequence before replanning (receding horizon)
+  code_location: 'policy.py: Controller.request'
+- id: black2025rtc
+  title: Real-Time Execution of Action Chunking Flow Policies
+  authors: Kevin Black, Manuel Y. Galliker and Sergey Levine
+  year: 2025
+  venue: arXiv
+  arxiv: '2506.07339'
+  used_for: The naive asynchronous strategy (skip overtaken actions) that this submission implements as its baseline
+  code_location: 'policy.py: Controller.receive, Controller.act'
+changes:
+- text: Chunks are executed asynchronously with stale actions skipped instead of ACT's synchronous temporal
+    ensembling.
+  code: 'policy.py: Controller'
+- text: A small convolutional encoder and an MLP head replace ACT's ResNet backbones and transformer decoder.
+  code: 'src/net.py: ChunkPolicy'

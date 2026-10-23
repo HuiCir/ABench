@@ -1,0 +1,134 @@
+id: U-BYTE-007
+title: "A tokenizer-free byte-level language model with dynamic patching, scored in bits per byte at equal compute and under character noise"
+template: B-OPT-001
+anchor: {authors: "Artidoro Pagnoni, Ram Pasunuru, Pedro Rodriguez, John Nguyen, Benjamin Muller, Margaret Li, Chunting Zhou, Lili Yu, Jason Weston, Luke Zettlemoyer, Gargi Ghosh, Mike Lewis, Ari Holtzman, Srinivasan Iyer", title: "Byte Latent Transformer: Patches Scale Better Than Tokens", arxiv: "2412.09871"}
+baseline: "a local-global byte model with static 4-byte patches (MegaByte layout), run by the evaluator under identical conditions (`interface/baselines/static4/`)"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, recipe), the evaluator also trains the static-patch baseline in `interface/baselines/static4/` and reports your bits per byte and noise penalty relative to it; the compute and parameter gates are relative to it."
+reference_verification: "Not executed yet: the stage code, baseline and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The token-to-byte decoding of the prepare module (GPT-2 byte table, separator byte 0) and the noise function were checked in the container on test strings."
+mode: judge_trains
+n_seeds: 2
+kit_extra:
+  - microlm/lm_train.py
+extra_interface:
+  - harness/lm_model.py
+  - harness/byte_data.py
+  - harness/byte_blocks.py
+  - harness/baselines/static4/model.py
+task: |
+  Design a **tokenizer-free language model over raw bytes with a dynamic patching scheme** — how bytes are grouped into patches, how patches are encoded and decoded — that reaches the **lowest bits per byte** on held-out text at no more compute per byte than a static-patch baseline, and stays robust to character-level noise.
+
+  - Submit the model only (`model.py` with `build()`). At evaluation the evaluator trains it from scratch with a fixed recipe — 3,000 steps of 32 windows of 4,096 bytes of FineWeb text — once for each of 2 seeds unknown to you, then measures bits per byte on held-out text, and on the same text after 5% of its letters are replaced, re-cased or deleted. It trains the static 4-byte-patch baseline the same way.
+  - The evaluator measures the compute itself: forward FLOPs per byte on held-out text may exceed the baseline's by at most 5%, parameters by at most 10%.
+  - Patching must be causal: whether a patch ends at byte j may depend only on bytes up to j.
+  - Scaling claims (how patching compares with tokenisation at larger scales) are not measured here; this case scores one scale.
+  - You may build on any public work (byte-level and character-level models, local-global architectures, entropy- and space-based patching, hash n-gram embeddings), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only) holds FineWeb text as UTF-8 bytes: the first two training shards of the GPT-2-tokenised FineWeb-10B of B-OPT-001 (Hugging Face `kjj0/fineweb10B-gpt2`), decoded back to bytes.
+
+  | File | Contents |
+  |---|---|
+  | `bytes_train_000001.bin`, `bytes_train_000002.bin` | raw uint8 bytes (about 450 MB each, no header); document boundaries are the byte 0 |
+
+  Read them with `interface/byte_data.py`. The held-out set is the first 8,388,608 bytes of the decoded official FineWeb validation shard; it is not in the sandbox. The self-check holds out the last 8,388,608 bytes of the second file.
+interface: "Implement `build() -> nn.Module` in `model.py`. The module's `forward(x)` maps int64 bytes (B, T) to logits (B, T, 256), where `logits[:, j]` predicts byte j from the bytes before it, and `loss(x)` returns the mean cross-entropy over all positions. `interface/byte_blocks.py` provides windowed-attention transformer blocks and a segment-mean helper; the baseline shows a complete model."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Bits per byte** (primary) | Mean cross-entropy (bits) per byte on the 8,388,608 held-out bytes in windows of 4,096, mean over 2 seeds; lower is better | — |
+  | Bits per byte under noise | The same on the held-out bytes after character-level noise (5% of ASCII letters replaced by a random letter, re-cased or deleted, one third each; fixed seed) | reported |
+  | Noise penalty | Bits per byte under noise minus bits per byte | reported |
+  | Compute | Forward FLOPs per byte on a held-out window of 4,096 bytes (FlopCounterMode) relative to the baseline | Threshold: ≤ 1.05 |
+  | Parameters | Relative to the baseline | Threshold: ≤ 1.10 |
+  | Causality | Relative change of logits at positions ≤ 2,048 when bytes from 2,048 on change | Threshold: ≤ 1e-3 |
+  | Training time | Seconds of the 3,000 steps (parent clock) | Threshold: ≤ 1,800 s |
+  | Divergence | 1 if the training loss became non-finite or exceeded 20 | Threshold: 0 |
+
+  **Fixed training setting** (`interface/lm_train.py`, `interface/stages.py`): AdamW at 1e-3 (β = 0.9, 0.95; weight decay 0.1 on matrices), 150 warm-up steps then cosine decay to 0.1, clipping at 1.0, bf16 autocast with fp32 weights; the loss is your `model.loss(x)` on windows of 4,096 bytes.
+
+  **Decision**
+
+  - A submission is valid only if every threshold holds for the 2-seed means; valid submissions are ranked by bits per byte. Differences smaller than the spread over the two seeds are treated as ties.
+  - If any run crashes or exceeds a time limit (the stage is killed at 2,100 s), the whole submission is invalid.
+  - The final ABench score is driven mainly by bits per byte relative to the baseline, and also considers the noise penalty, how different the scheme is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 6
+  dev_budget: "6 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML"
+  notes: |
+    - `selfcheck.py --quick` trains 300 steps and evaluates 1,048,576 bytes with every check of the evaluation.
+    - The FLOP counter counts what runs: data-dependent patching is measured on real held-out text.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: build()
+    ├── src/                # optional: helper modules imported by model.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; no trained parameters, vocabularies or tokenizers.
+rules: |
+  - No tokenizer: the model must read raw bytes; no learned or stored vocabulary of byte sequences (a patching rule may use byte classes such as spaces, or quantities the model computes).
+  - All computation must use PyTorch operators that the FLOP counter sees (no custom Triton or CUDA kernels).
+  - The model must be causal and built from `build()` alone; no pretrained weights, files or network access.
+interface_md: |
+  # U-BYTE-007 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  import torch.nn as nn
+
+  def build() -> nn.Module:
+      """model(x) -> logits (B, T, 256), logits[:, j] predicting x[:, j] from x[:, :j]; model.loss(x) -> scalar."""
+  ```
+
+  - Training calls `model.loss(x)` on int64 (32, 4096) windows; evaluation calls it on (8, 4096) windows; the compute
+    and causality checks call `model(x)` on one window.
+  - `byte_blocks.Blocks(cfg, n, window)` builds pre-RMSNorm transformer blocks (from `lm_model.py`) with windowed or
+    full causal attention; `byte_blocks.segment_mean` pools byte states into patches.
+  - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Evaluator code you can read
+
+  `stages.py` (the run, bits per byte, noise, FLOPs, causality), `metrics.py`, `lm_train.py` (recipe), `byte_data.py`
+  (file format, noise), `byte_blocks.py`, `lm_model.py`, `baselines/static4/model.py`, `abench_metrics.py`,
+  `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 6}
+  data:
+    public_dir: sandbox/data/U-BYTE-007
+    public:
+      - {path: sandbox/data/U-BYTE-007/bytes_train_000001.bin, sha256: pending}
+      - {path: sandbox/data/U-BYTE-007/bytes_train_000002.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/U-BYTE-007/hidden.npz.enc, sha256_plain: pending, keys: [bytes]}
+    sources:
+      - name: FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (data of the modded-nanogpt speedrun)
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        files: [fineweb_train_000001.bin, fineweb_train_000002.bin, fineweb_val_000000.bin]
+        license: MIT on the token repository; the underlying FineWeb text is ODC-BY
+        verified: "2026-10-19: revision, license and file list from the Hugging Face API (shared with B-OPT-001)"
+      - name: GPT-2 byte-level vocabulary, Hugging Face openai-community/gpt2 vocab.json (used only to decode tokens to bytes)
+        url: https://huggingface.co/openai-community/gpt2/blob/607a30d783dfa663caf39e06633721c8d4cfcd7e/vocab.json
+        revision: 607a30d783dfa663caf39e06633721c8d4cfcd7e
+        license: MIT
+        verified: "2026-10-22: revision, licence (cardData) and the file's git blob sha1 1f1d9aac… (1,042,301 bytes) from the Hugging Face API; pinned in tools/prepare/u_byte_007.py"
+  submission:
+    kind: code_only
+    entry: model.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, model.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [2412, 9871]          # kept secret by the operator
+    baseline: harness/baselines/static4

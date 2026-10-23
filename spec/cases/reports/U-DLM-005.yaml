@@ -1,0 +1,74 @@
+case: U-DLM-005
+title: 'Confidence-Ordered Unmasking with a Cosine Schedule for MDLM'
+abstract: >-
+  This sampler replaces MDLM's ancestral sampling [@sahoo2024mdlm], which unmasks random positions, with the
+  confidence ordering of MaskGIT [@chang2022maskgit] and LLaDA's low-confidence remasking [@nie2025llada]: at every
+  step it samples all masked positions, commits the most probable draws, as many as a cosine schedule prescribes,
+  and leaves the rest masked. Sampling at temperature 1 keeps the diversity that greedy decoding would lose, which
+  matters because low-entropy text can game generative perplexity [@zheng2024masked].
+sections:
+- title: Introduction
+  paras:
+  - >-
+    A masked diffusion model needs many evaluations when it unmasks positions at random, because early draws ignore
+    each other. Committing confident tokens first lets later steps condition on them.
+- title: Related Work
+  paras:
+  - >-
+    MDLM trains a time-agnostic denoiser with a simplified bound and samples ancestrally [@sahoo2024mdlm]. MaskGIT
+    unmasks by confidence with a cosine schedule [@chang2022maskgit]; LLaDA remasks low-confidence predictions
+    [@nie2025llada]. Generative perplexity rewards low-entropy samples, and reduced-precision categorical sampling
+    lowers entropy unnoticed [@zheng2024masked].
+- title: Method
+  paras:
+  - >-
+    With n masked positions at the start and K evaluations, after step k round(n cos(pi/2 (k+1)/K)) positions
+    stay masked. At each step a token is drawn at every masked position from the denoiser's distribution; the draws
+    with the highest probability are committed, up to the schedule.
+- title: Design Rationale
+  paras:
+  - >-
+    The cosine schedule commits few tokens early, when the denoiser is least certain, and many late; ordering by
+    confidence puts the evaluations where they reduce uncertainty most.
+- title: Scope and Limitations
+  paras:
+  - >-
+    No remasking of committed tokens, no caching between steps, one schedule for all budgets. It has not been run
+    here.
+references:
+- id: nie2025llada
+  title: Large Language Diffusion Models
+  authors: Shen Nie, Fengqi Zhu, Zebin You, Xiaolu Zhang, Jingyang Ou, Jun Hu, Jun Zhou, Yankai Lin, Ji-Rong Wen and Chongxuan Li
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.09992'
+  used_for: 'Anchor: low-confidence remasking'
+  code_location: 'sampler.py: sample'
+- id: sahoo2024mdlm
+  title: Simple and Effective Masked Diffusion Language Models
+  authors: Subham Sekhar Sahoo, Marianne Arriola, Yair Schiff, Aaron Gokaslan, Edgar Marroquin, Justin T Chiu, Alexander Rush and Volodymyr Kuleshov
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.07524'
+  used_for: The frozen model and the ancestral sampler
+  code_location: null
+- id: chang2022maskgit
+  title: 'MaskGIT: Masked Generative Image Transformer'
+  authors: Huiwen Chang, Han Zhang, Lu Jiang, Ce Liu and William T. Freeman
+  year: 2022
+  venue: CVPR
+  arxiv: '2202.04200'
+  used_for: Confidence ordering and the cosine schedule
+  code_location: 'sampler.py: sample'
+- id: zheng2024masked
+  title: Masked Diffusion Models are Secretly Time-Agnostic Masked Models and Exploit Inaccurate Categorical Sampling
+  authors: Kaiwen Zheng, Yongxin Chen, Hanzi Mao, Ming-Yu Liu, Jun Zhu and Qinsheng Zhang
+  year: 2024
+  venue: arXiv
+  arxiv: '2409.02908'
+  used_for: Why the entropy floor and temperature-1 sampling
+  code_location: null
+changes:
+- text: Positions are committed in order of the probability of their sampled token, following a cosine schedule,
+    instead of uniformly at random with equal time steps.
+  code: 'sampler.py: sample'

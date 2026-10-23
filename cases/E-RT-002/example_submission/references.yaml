@@ -1,0 +1,34 @@
+schema: abench.references/v2
+references:
+- id: zhao2023act
+  title: Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware
+  authors: Tony Z. Zhao, Vikash Kumar, Sergey Levine and Chelsea Finn
+  year: 2023
+  venue: RSS
+  arxiv: '2304.13705'
+  used_for: 'Anchor: predicting chunks of future actions and training them with L1 loss'
+  code_location: 'src/net.py: ChunkPolicy; train.py'
+- id: liu2023libero
+  title: 'LIBERO: Benchmarking Knowledge Transfer for Lifelong Robot Learning'
+  authors: Bo Liu, Yifeng Zhu, Chongkai Gao, Yihao Feng, Qiang Liu, Yuke Zhu and Peter Stone
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2306.03310'
+  used_for: The tasks, demonstrations and their observation format
+  code_location: 'src/demos.py: load'
+- id: chi2023diffusion
+  title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'
+  authors: Cheng Chi, Siyuan Feng, Yilun Du, Zhenjia Xu, Eric Cousineau, Benjamin Burchfiel and Shuran Song
+  year: 2023
+  venue: RSS
+  arxiv: '2303.04137'
+  used_for: Executing part of each predicted sequence before replanning (receding horizon)
+  code_location: 'policy.py: Controller.request'
+- id: black2025rtc
+  title: Real-Time Execution of Action Chunking Flow Policies
+  authors: Kevin Black, Manuel Y. Galliker and Sergey Levine
+  year: 2025
+  venue: arXiv
+  arxiv: '2506.07339'
+  used_for: The naive asynchronous strategy (skip overtaken actions) that this submission implements as its baseline
+  code_location: 'policy.py: Controller.receive, Controller.act'

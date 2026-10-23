@@ -14,12 +14,14 @@ import numpy as np
 from prepare.common import Frozen, check
 
 REV = "ace8c161a68bc025c21a5f29f85b86a9a2c5e64b"
+SECRET_SEED_ENV = "ABENCH_E_ACT_SEED"          # escrowed by tools/prepare/run.py next to the hidden-set key
+
 SOURCES = [{"name": "data/chunk-000/file-000.parquet",
             "url": f"https://huggingface.co/datasets/lerobot/pusht_keypoints/resolve/{REV}/data/chunk-000/file-000.parquet",
             "license": "Apache-2.0"},
            {"name": "gym-pusht", "url": "https://github.com/huggingface/gym-pusht", "license": "Apache-2.0",
             "note": "installed in the sandbox and judge environments (pip package gym-pusht, version frozen at activation)"}]
-N_EPISODES = 50
+N_EPISODES = 150                 # 2026-10-21 audit: 50 episodes gave a standard error of about 0.03
 
 
 def _stack(col) -> np.ndarray:

@@ -1,0 +1,103 @@
+case: B-OPT-003
+title: 'Momentum-Free Factored Second Moments as a Memory-Capped Reference'
+abstract: >-
+  This submission gives a reference update rule that fits far inside the 1x optimizer-state cap: Adafactor without
+  momentum [@shazeer2018adafactor]. For every weight matrix it keeps only the row and column means of the squared
+  gradient, preconditions by their rank-1 reconstruction and clips the update to unit RMS. Its state is about 0.3% of
+  the parameter count. The anchor's Kronecker-factored preconditioners [@gupta2018shampoo] do not fit the cap for the
+  model's large matrices, which is the tension the case is built around.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Adaptive optimizers spend memory on statistics of past gradients: Adam keeps two tensors the size of the model
+    [@kingma2015adam], and full-matrix or Kronecker-factored preconditioners keep more. When optimizer memory is capped at
+    one number per parameter, the question is which statistics buy the most curvature information for that budget.
+- title: Related Work
+  paras:
+  - >-
+    Shampoo preconditions each weight matrix from the left and right with inverse roots of accumulated gradient
+    outer products [@gupta2018shampoo], which for an m × n matrix costs m² + n² numbers. Adafactor factors the
+    second-moment matrix into row and column statistics [@shazeer2018adafactor], and SM3 covers parameters with sets
+    whose maxima bound the second moments [@anil2019sm3]; both cost sublinear memory. Momentum orthogonalised by
+    Newton–Schulz iterations uses exactly one state tensor [@jordan2024muon].
+  - >-
+    Sublinear second-moment estimates leave almost the whole budget unused, while Kronecker factors exceed it for
+    the embedding matrix; designs that spend exactly the budget on the most informative statistics are the gap.
+- title: Method
+  subsections:
+  - title: Update rule
+    paras:
+    - >-
+      For a matrix parameter with gradient G, the rule keeps exponential averages (β₂ = 0.95) of the row means R and
+      column means C of G² + ε, corrects their bias, and forms V = R C / mean(R). The update U = G / √V is divided by
+      max(1, RMS(U)) so that its RMS never exceeds 1, then the step is −lr (U + 0.1 · P) with decoupled weight decay on
+      matrices. Vector parameters keep an unfactored second moment.
+    algorithm_caption: Update of one matrix parameter
+    algorithm:
+    - R ← β₂ R + (1 − β₂) rowmean(G² + ε); C ← β₂ C + (1 − β₂) colmean(G² + ε)
+    - V ← (R / (1 − β₂ᵗ)) (C / (1 − β₂ᵗ)) / mean(R / (1 − β₂ᵗ))
+    - U ← G / √V; U ← U / max(1, RMS(U))
+    - Δ ← −lr (U + wd · P)
+  - title: Complexity
+    paras:
+    - >-
+      State is m + n numbers per m × n matrix; each step costs O(mn) element-wise operations and no matrix products.
+- title: Design Rationale
+  paras:
+  - >-
+    Dropping the first moment is the simplest way to fit any adaptive method under the cap, and update clipping
+    replaces the stabilising effect that momentum would otherwise provide early in training.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Without momentum the updates are noisy, and the rank-1 second-moment estimate captures no correlation between
+    rows and columns; almost the whole memory budget is left unused.
+references:
+- id: gupta2018shampoo
+  title: 'Shampoo: Preconditioned Stochastic Tensor Optimization'
+  authors: Vineet Gupta, Tomer Koren and Yoram Singer
+  year: 2018
+  venue: ICML
+  arxiv: '1802.09568'
+  used_for: 'Anchor: Kronecker-factored preconditioning (not used; exceeds the cap)'
+  code_location: null
+- id: shazeer2018adafactor
+  title: 'Adafactor: Adaptive Learning Rates with Sublinear Memory Cost'
+  authors: Noam Shazeer and Mitchell Stern
+  year: 2018
+  venue: ICML
+  arxiv: '1804.04235'
+  used_for: Factored second moments and update clipping
+  code_location: 'optimizer.py: Adafactor.update'
+- id: anil2019sm3
+  title: Memory-Efficient Adaptive Optimization
+  authors: Rohan Anil, Vineet Gupta, Tomer Koren and Yoram Singer
+  year: 2019
+  venue: NeurIPS
+  arxiv: '1901.11150'
+  used_for: Related work (sublinear-memory adaptive methods)
+  code_location: null
+- id: kingma2015adam
+  title: 'Adam: A Method for Stochastic Optimization'
+  authors: Diederik P. Kingma and Jimmy Ba
+  year: 2015
+  venue: ICLR
+  arxiv: '1412.6980'
+  used_for: Bias correction of the moment estimates
+  code_location: 'optimizer.py: Adafactor.update (bc)'
+- id: jordan2024muon
+  title: 'Muon: An optimizer for hidden layers in neural networks'
+  authors: Keller Jordan, Yuchen Jin, Vlado Boza, Jiacheng You, Franz Cesista, Laker Newhouse and Jeremy Bernstein
+  year: 2024
+  url: https://kellerjordan.github.io/posts/muon/
+  used_for: Related work (one-tensor orthogonalised momentum)
+  code_location: null
+changes:
+- text: The anchor's left and right Kronecker preconditioners are replaced by row and column means of the squared
+    gradient, which fit the 1x cap.
+  code: 'optimizer.py: Adafactor.update'
+- text: No first moment; updates are clipped to unit RMS instead.
+  code: 'optimizer.py: Adafactor.update (clip)'
+- text: Decoupled weight decay on matrices only.
+  code: 'optimizer.py: Adafactor.update (wd)'

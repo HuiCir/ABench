@@ -1,11 +1,30 @@
-# E-ACT-001 harness contract
+# E-ACT-001 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+E-ACT-001 pipeline: imitation learning on PushT from keypoint observations (evaluator and self-check).
+
+The evaluator does not train. One stage, "rollout":
+  timed   import policy.py, load(checkpoint_dir, device) -> model                                 (load time, killed at 120 s)
+  finish  closed-loop rollouts in gym-pusht (obs_type "environment_state_agent_pos"), one episode per held-out
+          reset seed, at most 300 steps each; per episode the maximum reward (coverage / 0.95, clipped to 1) and
+          whether the block reached 95% coverage
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/policy.py`
+- `baseline/train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

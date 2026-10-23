@@ -3,7 +3,6 @@ schema: abench.oj/v2
 case_id: B-OPT-001
 standard: true
 task_statement: v2.1
-knowledge_cutoff: '2026-07-01'
 mode: judge_trains
 agent_visible:
   task: case/agent/task.md

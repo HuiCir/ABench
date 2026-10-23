@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=std21">
+<link rel="stylesheet" href="assets/style.css?v=std21b">
 <script>
   try { const t = localStorage.getItem("abench-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
@@ -17,14 +17,14 @@
   <div class="topbar-inner">
     <a class="wordmark" href="#top" aria-label="ABench home"><img src="assets/logo.png" alt="" aria-hidden="true"> <span>ABench</span><span class="ver">v2.1 · OJ</span></a>
     <nav class="nav" aria-label="Page navigation">
-      <a href="#flow">Build flow</a>
-      <a href="#oj">OJ evaluation</a>
+      <a href="#flow">Flow</a>
+      <a href="#oj">OJ</a>
       <a href="#standard">Standard cases</a>
-      <a href="#report">Design report</a>
-      <a href="#scoring">Evaluation modes</a>
-      <a href="#discovery">Local discovery</a>
-      <a href="#modes">Verification and resources</a>
-      <a href="#cases">Case</a>
+      <a href="#report">Report</a>
+      <a href="#scoring">Scoring</a>
+      <a href="#discovery">Discovery</a>
+      <a href="#modes">Verification</a>
+      <a href="#cases">Cases</a>
       <a href="#scale">Scale</a>
     </nav>
     <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle light/dark">
@@ -39,7 +39,7 @@
     <div class="hero-text">
       <h1 id="heroTitle"><span class="ln">It tests architecture design,</span><span class="ln">not paper reproduction</span></h1>
       <div class="hero-side">
-      <p class="lede">ABench asks an agent to start from a classic paper, retrieve research from before the cutoff, synthesize it, and design an architecture that is better than and different from existing ones. Evaluation works like an online judge: the agent gets only the task statement, interface and public training data, and submits code, weights and a design report that explains only principles; the test set stays outside the sandbox, the judge loads the submission to compute metrics, and the overall score combines SOTA margin, method divergence, reference quality and local discovery.</p>
+      <p class="lede">ABench asks an agent to start from a classic paper, research the literature throughout its session (the sandbox is online for papers and code; dataset and model hubs are blocked), synthesize it, and design an architecture that is better than and different from existing ones. Evaluation works like an online judge: the agent gets only the task statement, interface and public training data, and submits code, weights and a design report that explains only principles; the test set stays outside the sandbox, the judge loads the submission to compute metrics, and the overall score combines SOTA margin, method divergence, reference quality and local discovery.</p>
       <div class="hero-actions">
         <a class="btn primary" href="#flow">Watch one case run end to end</a>
         <a class="btn" href="#cases" id="heroCasesBtn">Browse all cases</a>
@@ -102,10 +102,26 @@
       <article class="panel"><h3>Run modes and isolation</h3>
         <table class="mini"><thead><tr><th>Run</th><th>Isolation</th><th>Result</th></tr></thead><tbody>
           <tr><td><span class="tag plain">smoke</span></td><td>host_soft: same system user, read-only view, environment-variable allowlist</td><td>Checks only process and format, never decrypts the hidden set, recorded as <span class="mono">smoke_unscored</span>, unscored</td></tr>
-          <tr><td><span class="tag">benchmark</span></td><td>wrapper: separate user or container, no network, only the view and workspace mounted</td><td>The judge runs, recorded as <span class="mono">judge_real</span>; only such records can be scored</td></tr>
-          <tr><td><span class="tag red">benchmark</span></td><td>no wrapper</td><td>The runner refuses to start</td></tr>
+          <tr><td><span class="tag">benchmark</span></td><td>dedicated user <span class="mono">abench-agent</span>, research egress (logging proxy + per-user firewall), or no network (netns / container); preflight proves the repository, hidden set and key are unreadable</td><td>The judge runs with its children as <span class="mono">abench-judge</span> in a network namespace; only such records can be scored</td></tr>
+          <tr><td><span class="tag red">benchmark</span></td><td>no wrapper, unrestricted network, or judge children as the operator</td><td>Refused to start, or recorded as not scorable</td></tr>
         </tbody></table>
-        <p class="panel-note">The key must be outside the repository, with permissions 0600, not a symlink, and never in the agent's environment variables.</p>
+        <p class="panel-note">The key must be outside the repository, with permissions 0600, not a symlink, and never in the agent's environment variables. At the deadline the agent's process group is killed; leftover processes and temporary files of the agent user are removed and recorded.</p>
+      </article>
+    </div>
+    <div class="oj-grid">
+      <article class="panel"><h3>Research egress <span class="tag green">online sandbox</span></h3>
+        <table class="mini"><thead><tr><th>Hosts</th><th>Policy</th></tr></thead><tbody>
+          <tr><td>arXiv, OpenReview, ACL Anthology, Semantic Scholar, proceedings, DOI</td><td><span class="tag green">allowed</span> at any point of the session</td></tr>
+          <tr><td>GitHub, Read the Docs, framework docs, Stack Overflow, PyPI</td><td><span class="tag green">allowed</span>, unless the case's data is distributed there</td></tr>
+          <tr><td>Hugging Face, Kaggle, OpenML, Zenodo, Figshare, cloud buckets</td><td><span class="tag red">blocked</span>: data and weights come only from the case's frozen directories</td></tr>
+          <tr><td>the case's own data sources</td><td><span class="tag red">blocked</span>, with their host family</td></tr>
+          <tr><td>anything else, direct connections, DNS</td><td><span class="tag red">rejected</span> by the per-user firewall</td></tr>
+        </tbody></table>
+        <p class="panel-note">Every connection is written by the runner to a hash-chained <span class="mono">egress_log.jsonl</span>; downloads over 20 MiB are listed for review. There is no literature cutoff: novelty is judged against the literature at session start. <span class="mono">spec/egress_policy.yaml</span></p>
+      </article>
+      <article class="panel"><h3>Calibration runs <span class="tag plain" id="calDate"></span></h3>
+        <table class="mini" id="calTable"></table>
+        <p class="panel-note" id="calNote"></p>
       </article>
     </div>
     <p class="provenance" id="ojProv"></p>
@@ -121,10 +137,10 @@
     <article class="panel">
       <header class="panel-head"><h3>Workflow required by every standard task statement</h3></header>
       <ol class="std-flow" id="stdFlow"></ol>
-      <p class="panel-note">The paper search is offline: titles and abstracts of arXiv papers first submitted before the cutoff (2026-07-01), from the CC0 arXiv metadata; every call is written to a hash-chained log that is kept with the run. A design report without the list <span class="mono">&lt;ol id="changes"&gt;</span>, or with a change that has no code location, fails the format check.</p>
+      <p class="panel-note">Research is not a phase: the agent returns to the literature whenever training raises a question. The sandbox is online for papers, code and documentation through the runner's logging proxy, and the offline paper search answers fast from CC0 arXiv metadata; both are logged with the run. A design report without the list <span class="mono">&lt;ol id="changes"&gt;</span>, or with a change that has no code location, fails the format check.</p>
     </article>
     <article class="panel">
-      <header class="panel-head"><h3>The 20 standard cases</h3><div class="seg" id="stdFilter" role="tablist" aria-label="Filter by evaluation mode"></div></header>
+      <header class="panel-head"><h3 id="stdCount">Standard cases</h3><div class="seg" id="stdFilter" role="tablist" aria-label="Filter by evaluation mode"></div></header>
       <div class="std-table-wrap"><table class="mini std-table" id="stdTable"></table></div>
       <p class="panel-note" id="stdNote"></p>
     </article>
@@ -226,7 +242,7 @@
         <table class="mini">
           <thead><tr><th>Situation</th><th>Classification</th><th>Credit</th></tr></thead>
           <tbody>
-            <tr><td>This use not found in the ML literature before the cutoff</td><td>local discovery</td><td>full</td></tr>
+            <tr><td>This use not found in the ML literature at session start</td><td>local discovery</td><td>full</td></tr>
             <tr><td>Used in ML, but for a different problem</td><td>transfer discovery</td><td>× 0.5</td></tr>
             <tr><td>Already used in ML for the same problem</td><td>retrieval reuse</td><td>counts only toward Q</td></tr>
             <tr><td>No significant difference in ablation</td><td>decorative import</td><td>0</td></tr>
@@ -258,8 +274,8 @@
         <svg id="proSvg" viewBox="0 0 360 222" role="img" aria-label="24-hour timeline, hash chain and sampled resume of the Pro Set"></svg>
       </article>
       <article class="panel mode">
-        <h3>Judgment: testing published claims</h3>
-        <p>T7 tasks give a published claim, and the agent submits a judgment report: whether the claim holds against strong baselines at equal compute, the reasons, and a minimal verification plan.</p>
+        <h3>Strong baselines at equal compute</h3>
+        <p>Published gains often vanish against a tuned baseline. Design cases therefore compare every submission with a tuned mainstream baseline trained or fitted by the evaluator at the same budget.</p>
         <div class="judge" id="judgeDemo"></div>
       </article>
     </div>
@@ -287,7 +303,7 @@
       <div class="fgroup" id="fGroup"><span class="flabel">Group</span></div>
       <div class="fgroup" id="fDiff"><span class="flabel">Difficulty</span></div>
       <div class="fgroup" id="fRes"><span class="flabel">Resources</span></div>
-      <div class="fgroup" id="fStatus"><span class="flabel">Status</span></div>
+      <div class="fgroup" id="fStatus"><span class="flabel">Reference run</span></div>
       <div class="fgroup" id="fKind"><span class="flabel">Submission</span></div>
       <input type="search" id="caseSearch" placeholder="Search anchor, arXiv ID, task" aria-label="Search cases">
       <span class="count" id="caseCount"></span>
@@ -317,7 +333,7 @@
   <p>Data comes from <span class="mono">index.yaml</span>, the standard-case specs in <span class="mono">spec/standard_cases/</span>, each case's <span class="mono">oj.yaml</span>, <span class="mono">harness/metrics.py</span> and <span class="mono">agent/task.md</span>, and the historical demo output of <span class="mono">cases/B-OPT-001</span>. After changes, run <span class="mono">python3 tools/build_site_data.py</span> to regenerate.</p>
 </footer>
 
-<script src="data/abench-data.js?v=std21"></script>
-<script src="assets/app.js?v=std21"></script>
+<script src="data/abench-data.js?v=std21b"></script>
+<script src="assets/app.js?v=std21b"></script>
 </body>
 </html>

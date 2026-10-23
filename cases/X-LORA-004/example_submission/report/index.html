@@ -126,7 +126,7 @@
 <li class="ltx_tocentry ltx_tocentry_section"><a href="#S5" class="ltx_ref"><span class="ltx_text ltx_ref_title"><span class="ltx_tag ltx_tag_ref">5 </span>Scope and Limitations</span></a></li>
 <li class="ltx_tocentry ltx_tocentry_section"><a href="#bib" class="ltx_ref"><span class="ltx_text ltx_ref_title">References</span></a></li>
 </ol></nav></nav>
-<div class="ltx_page_main"><div id="infobox" class="infobox"><div id="watermark-tr">ABench:X-LORA-004 reference submission · literature cutoff 2026-07-01</div></div>
+<div class="ltx_page_main"><div id="infobox" class="infobox"><div id="watermark-tr">ABench:X-LORA-004 reference submission</div></div>
 <div class="ltx_page_content"><article class="ltx_document ltx_authors_1line">
 <h1 class="ltx_title ltx_title_document">LoRA on Query and Value Projections: The Reference Parameter-Efficient Fine-Tuning for GLUE</h1>
 <div class="ltx_authors"><span class="ltx_creator ltx_role_author"><span class="ltx_personname">ABench reference submission</span><span class="ltx_contact ltx_role_affiliation">Standard reference for task statement standard v2.1</span></span></div>
@@ -150,7 +150,7 @@
 <section id="S3" class="ltx_section"><h2 class="ltx_title ltx_title_section"><span class="ltx_tag ltx_tag_section">3</span>Method</h2>
 
 <section id="S3.SS1" class="ltx_subsection"><h3 class="ltx_title ltx_title_subsection"><span class="ltx_tag ltx_tag_subsection">3.1</span>Parameterisation and training</h3>
-<div class="ltx_para"><p class="ltx_p">For W ∈ {W_q, W_v} of each layer, the forward pass computes Wx + (α/r)·B(Ax) with A ∈ R^{r×768} initialised with Kaiming-uniform values, B ∈ R^{768×r} initialised to zero, r = 8, α = 16. The head maps the &lt;s&gt; token through a 768 × 768 dense layer with tanh and a 768 × 2 output layer. Per task: AdamW (weight decay 0.1), batch 32, sequences truncated to 128 tokens, bf16 autocast, peak learning rate 5e-4 (4e-4 for CoLA), 10 epochs for RTE and MRPC, 8 for CoLA, 2 for SST-2.</p></div>
+<div class="ltx_para"><p class="ltx_p">For W ∈ {W_q, W_v} of each layer, the forward pass computes Wx + (α/r)·B(Ax) with A ∈ R^{r×768} initialised with Kaiming-uniform values, B ∈ R^{768×r} initialised to zero, r = 8, α = 16. The head maps the &lt;s&gt; token through a 768 × 768 dense layer with tanh and a 768 × 2 output layer. Per task: AdamW (weight decay 0.1), batch 32, sequences truncated to 128 tokens, bf16 autocast, peak learning rate 5e-4 (4e-4 for CoLA), 2 epochs for SST-2, 8 for CoLA, 1 for MNLI and 2 for QNLI.</p></div>
 <figure id="alg1" class="ltx_float ltx_float_algorithm ltx_framed ltx_framed_top"><figcaption class="ltx_caption"><span class="ltx_tag ltx_tag_float"><span class="ltx_text ltx_font_bold">Algorithm 1</span> </span>Training one task</figcaption><div class="ltx_listing ltx_framed_topbottom"><div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">1:</span>freeze roberta-base; wrap W_q, W_v of every layer with LoRA(r = 8, α = 16); add head</div>
 <div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">2:</span>for each epoch and batch: loss ← CE(head(encoder(x)), y); AdamW step on A, B and head</div>
 <div class="ltx_listingline"><span class="ltx_tag ltx_tag_listingline">3:</span>return {A, B for all wrapped layers, head parameters}</div></div></figure>
@@ -160,7 +160,7 @@
 </section>
 </section>
 <section id="S4" class="ltx_section"><h2 class="ltx_title ltx_title_section"><span class="ltx_tag ltx_tag_section">4</span>Design Rationale</h2>
-<div class="ltx_para"><p class="ltx_p">Zero-initialising B means the first forward pass reproduces the pretrained encoder, which keeps early training stable on small datasets such as RTE. The α/r scaling makes the effective learning rate of the update insensitive to the rank. Training the full head is the main use of the budget; the cap leaves about 113,000 parameters unused.</p></div>
+<div class="ltx_para"><p class="ltx_p">Zero-initialising B means the first forward pass reproduces the pretrained encoder, which keeps early training stable on small datasets such as CoLA. The α/r scaling makes the effective learning rate of the update insensitive to the rank. Training the full head is the main use of the budget; the cap leaves about 113,000 parameters unused.</p></div>
 </section>
 <section id="S5" class="ltx_section"><h2 class="ltx_title ltx_title_section"><span class="ltx_tag ltx_tag_section">5</span>Scope and Limitations</h2>
 <div class="ltx_para"><p class="ltx_p">Placement (only query and value), a uniform rank across layers and a large head are fixed choices, not optimised for the cap; allocating the budget across layers and modules, or reducing the head, are directions for entries.</p></div>

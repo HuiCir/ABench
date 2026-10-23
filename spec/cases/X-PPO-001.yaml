@@ -1,0 +1,122 @@
+id: X-PPO-001
+title: "A policy-optimisation algorithm for small continuous-control tasks at a fixed sample budget, trained by the evaluator over five seeds"
+template: E-ACT-001
+anchor: {authors: "John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, Oleg Klimov", title: "Proximal Policy Optimization Algorithms", arxiv: "1707.06347"}
+baseline: "PPO in the configuration of CleanRL's ppo_continuous_action (one environment, 2,048-step rollouts, 10 epochs, observation and reward normalisation), run by the evaluator on the same seeds (`interface/baselines/ppo/`)"
+baseline_run: "Under exactly the same conditions (tasks, sample budget, seeds, held-out initial states), the evaluator also trains the PPO baseline in `interface/baselines/ppo/` and reports your normalised returns relative to it."
+reference_verification: "Not executed yet: the reference submission and the baseline need PyTorch, which was not available where the case was built; the operator runs them at activation. The four environments were checked in the build container against the gymnasium 1.0.0 source (constants, update equations, resets, episode limits; commit 99389909) and with fixed controllers: uniformly random actions give mean returns of −1,232 (Pendulum, gymnasium reports about −1,200) and −33 (MountainCarContinuous); a PD controller started upright keeps the pendulum at a return of −0.3 to −0.7 and the cart-pole at 499.8 of 500; pumping with the velocity sign reaches the acrobot goal in about 87 steps. The pipeline (budgeted environments, stage runner, metrics) runs end to end with a NumPy agent in tests/test_standard_cases.py."
+mode: judge_trains
+n_seeds: 5
+extra_interface:
+  - harness/control_envs.py
+  - harness/baselines/ppo/agent.py
+task: |
+  Design a **policy-optimisation algorithm** that, given **200,000 environment steps** on each of four small continuous-control tasks, learns policies with the **highest mean normalised return** — and does so reliably: the evaluator trains it from scratch with five seeds and averages.
+
+  - Submit code only (`agent.py` with `train()`). At evaluation the evaluator calls `train()` once per task and seed; every environment step counts against the task's budget, and a step beyond it raises an error. The returned policy is then run deterministically for one episode from each of 20 held-out initial states per task.
+  - The four tasks are in `interface/control_envs.py`: Pendulum swing-up, continuous Mountain Car, cart-pole swing-up and continuous-torque Acrobot (gymnasium dynamics, vectorised in NumPy). Each has one action in [−1, 1].
+  - This is a calibration task with a mature anchor: a careful PPO already does well, and improvements must hold on all four tasks and across seeds. You may build on any public work (on-policy and off-policy actor-critic methods, trust regions, exploration, normalisation), but the design report must state what you borrowed and what you changed.
+data: |
+  There is no data directory: the agent learns only by interacting with the environments in `interface/control_envs.py`.
+
+  | Task | Observation | Episode | Reward |
+  |---|---|---|---|
+  | `pendulum` | cos θ, sin θ, θ̇ | 200 steps | −(θ² + 0.1 θ̇² + 0.001 u²), torque u = 2a |
+  | `mountain_car` | position, velocity | ends at the goal, at most 999 steps | 100 at the goal, −0.1 a² per step |
+  | `cartpole_swing` | x, ẋ, cos θ, sin θ, θ̇ (pole starts down) | ends off the track, at most 500 steps | (1 + cos θ) / 2 per step |
+  | `acrobot` | cos/sin of both joint angles, both velocities | ends when the tip passes the bar, at most 500 steps | −1 per step |
+
+  The 20 held-out initial states per task are drawn from each task's reset distribution with a secret seed; the self-check uses 20 drawn with a fixed development seed.
+interface: "Implement `train(make_env, spec, seed) -> policy` in `agent.py`. `make_env(n)` returns `n` parallel environments (`reset()`, `step(actions)`, auto-reset) that share the task's budget; `spec` gives the task name, dimensions, episode limit and budget. The returned object must have `act(obs) -> actions`, mapping a float32 (n, obs_dim) array to a (n, 1) array in [−1, 1]."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean normalised return** (primary) | Per task, (R − R_random) / (R_upper − R_random), where R is the policy's mean return over the 20 held-out episodes, R_random that of uniformly random actions from the same states and R_upper the task's bound (0, 100, 500 and 0); averaged over the four tasks and the 5 training seeds; higher is better | — |
+  | Normalised return per task | The same per task, mean over seeds | reported |
+  | Seed spread | Standard deviation of the per-run primary metric over the 5 seeds | reported |
+  | Samples used | Environment steps used per task divided by the budget | Threshold: ≤ 1.0 (enforced by the environments) |
+  | Training time | Seconds of the four `train()` calls in one run (parent clock) | Threshold: ≤ 2,400 s |
+
+  **Timing and decision**
+
+  - Each run is a new process with empty cache directories, 8 CPU threads and the reference GPU, timed by the evaluator's parent process (`interface/abench_stage.py`); importing `agent.py` and the four `train()` calls are timed. The held-out episodes run after the timed phase and must finish within 300 seconds.
+  - A submission is valid only if every threshold holds in every run; valid submissions are ranked by mean normalised return. Differences smaller than the spread over the five seeds are treated as ties.
+  - If any run crashes, exceeds a time limit or returns non-finite actions, the submission is invalid.
+  - The final ABench score is driven mainly by the mean normalised return relative to the baseline, and also considers how different the algorithm is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 4
+  dev_budget: "4 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, SciPy"
+  notes: |
+    - The environments run on the CPU in NumPy; for networks this small the CPU is usually faster than the GPU. The evaluation gives each run 8 CPU threads and the same GPU model.
+    - `selfcheck.py --quick` trains with a tenth of the budget on all four tasks; `--seeds 5` reproduces the evaluator's five-seed protocol on the development initial states.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── agent.py            # required: train()
+    ├── src/                # optional: other .py modules imported by agent.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total; no trained parameters, demonstrations or stored policies.
+rules: |
+  - The agent may learn only from the environments returned by `make_env`: it must not import, copy or re-implement the dynamics of `control_envs.py` (no model built from the source), create environments any other way, or change the environment objects.
+  - Hyperparameters may differ per task only through what `spec` shows (dimensions, episode limit, budget) or what the agent measures during training; no per-task constants keyed on the task name.
+  - `act()` must not learn or plan during the held-out episodes; it maps observations to actions.
+interface_md: |
+  # X-PPO-001 interface
+
+  ## Entry point: `agent.py`
+
+  ```python
+  def train(make_env, spec: dict, seed: int):
+      """spec = {"name", "obs_dim", "act_dim" (1), "max_episode_steps", "budget" (200000), "action_low" (-1.0),
+      "action_high" (1.0)}. Return an object with act(obs) -> actions."""
+
+      env = make_env(8)                # 8 parallel environments; at most 64 per task in total
+      obs = env.reset()                # float32 (8, obs_dim)
+      obs, reward, terminated, truncated = env.step(actions)   # actions (8, 1); each call uses 8 of the budget
+      env.final_obs                    # last observation of the episodes that just ended (auto-reset)
+  ```
+
+  - All environments made for a task share its budget of 200,000 steps; `step` raises `BudgetExceeded` beyond it.
+  - Finished environments reset automatically; `terminated` marks a true end, `truncated` the episode limit.
+  - After `train` returns, `act` is called on float32 arrays of 20 observations and must return a (20, 1) array.
+  - The evaluator calls `train` for `pendulum`, `mountain_car`, `cartpole_swing` and `acrobot` in that order, with seeds
+    `run_seed`, `run_seed + 1`, ...; `agent.py` may import modules under `src/` (the submission directory is on `sys.path`).
+
+  ## Evaluator code you can read
+
+  `control_envs.py` (the four tasks), `stages.py` (budget, the stage, the held-out rollouts), `metrics.py`,
+  `baselines/ppo/agent.py`, `abench_metrics.py`, `abench_stage.py` and `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, SciPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 4.0, session_hours: 4}
+  data:
+    public_dir: sandbox/data/X-PPO-001
+    public: []
+    hidden: {path: sandbox/hidden/X-PPO-001/hidden.npz.enc, sha256_plain: pending, keys: [init_pendulum, init_mountain_car, init_cartpole_swing, init_acrobot]}
+    sources:
+      - name: "Classic-control dynamics of gymnasium 1.0.0 (Pendulum-v1, MountainCarContinuous-v0, CartPole-v1, Acrobot-v1), re-implemented for batches in cases/X-PPO-001/harness/control_envs.py; held-out initial states drawn with a secret seed (ABENCH_X_PPO_SEED)"
+        url: https://github.com/Farama-Foundation/Gymnasium/tree/9938990977eb5e85ea4523ecf5cb2678c1708ba4/gymnasium/envs/classic_control
+        revision: 9938990977eb5e85ea4523ecf5cb2678c1708ba4
+        license: "MIT (gymnasium)"
+        verified: "2026-10-22: tag v1.0.0 cloned; constants, update equations, reset ranges and episode limits compared line by line with control_envs.py"
+  submission:
+    kind: code_only
+    entry: agent.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, agent.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [1707, 6347, 2017, 4242, 9090]          # kept secret by the operator
+    baseline: harness/baselines/ppo

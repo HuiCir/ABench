@@ -1,0 +1,44 @@
+schema: abench.references/v2
+references:
+- id: sahoo2024mdlm
+  title: Simple and Effective Masked Diffusion Language Models
+  authors: Subham Sekhar Sahoo, Marianne Arriola, Yair Schiff, Aaron Gokaslan, Edgar Marroquin, Justin T. Chiu,
+    Alexander Rush and Volodymyr Kuleshov
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.07524'
+  used_for: 'Anchor: the bound, its estimator and the denoiser setting'
+  code_location: 'recipe.py: loss'
+- id: shi2024md4
+  title: Simplified and Generalized Masked Diffusion for Discrete Data
+  authors: Jiaxin Shi, Kehang Han, Zhe Wang, Arnaud Doucet and Michalis K. Titsias
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.04329'
+  used_for: Validity of the bound for non-shared schedules
+  code_location: 'recipe.py: alpha'
+- id: lou2023sedd
+  title: Discrete Diffusion Modeling by Estimating the Ratios of the Data Distribution
+  authors: Aaron Lou, Chenlin Meng and Stefano Ermon
+  year: 2024
+  venue: ICML
+  arxiv: '2310.16834'
+  used_for: Related work (score entropy)
+  code_location: null
+- id: arriola2025block
+  title: 'Block Diffusion: Interpolating Between Autoregressive and Diffusion Language Models'
+  authors: Marianne Arriola, Aaron Gokaslan, Justin T. Chiu, Zhihan Yang, Zhixuan Qi, Jiaqi Han, Subham Sekhar Sahoo
+    and Volodymyr Kuleshov
+  year: 2025
+  venue: ICLR
+  arxiv: '2503.09573'
+  used_for: Interpolating between autoregression and diffusion
+  code_location: null
+- id: hoogeboom2022ardm
+  title: Autoregressive Diffusion Models
+  authors: Emiel Hoogeboom, Alexey A. Gritsenko, Jasmijn Bastings, Ben Poole, Rianne van den Berg and Tim Salimans
+  year: 2022
+  venue: ICLR
+  arxiv: '2110.02037'
+  used_for: Related work (orderings)
+  code_location: null

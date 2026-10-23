@@ -1,0 +1,68 @@
+schema: abench.references/v2
+references:
+- id: zhang2019rmsnorm
+  title: Root Mean Square Layer Normalization
+  authors: Biao Zhang and Rico Sennrich
+  year: 2019
+  venue: NeurIPS
+  arxiv: '1910.07467'
+  used_for: 'Anchor: RMSNorm'
+  code_location: 'norm.py: RMSNorm'
+- id: xiong2020prenorm
+  title: On Layer Normalization in the Transformer Architecture
+  authors: Ruibin Xiong, Yunchang Yang, Di He, Kai Zheng, Shuxin Zheng, Chen Xing, Huishuai Zhang, Yanyan Lan, Liwei
+    Wang and Tie-Yan Liu
+  year: 2020
+  venue: ICML
+  arxiv: '2002.04745'
+  used_for: Pre-normalisation layout
+  code_location: 'norm.py: PreRMSNormQK.layer_forward'
+- id: vaswani2017attention
+  title: Attention Is All You Need
+  authors: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser
+    and Illia Polosukhin
+  year: 2017
+  venue: NeurIPS
+  arxiv: '1706.03762'
+  used_for: Related work (post-normalisation)
+  code_location: null
+- id: wang2022deepnet
+  title: 'DeepNet: Scaling Transformers to 1,000 Layers'
+  authors: Hongyu Wang, Shuming Ma, Li Dong, Shaohan Huang, Dongdong Zhang and Furu Wei
+  year: 2022
+  venue: arXiv
+  arxiv: '2203.00555'
+  used_for: Related work (residual scaling)
+  code_location: null
+- id: bachlechner2021rezero
+  title: 'ReZero is All You Need: Fast Convergence at Large Depth'
+  authors: Thomas Bachlechner, Bodhisattwa Prasad Majumder, Huanru Henry Mao, Garrison W. Cottrell and Julian McAuley
+  year: 2021
+  venue: UAI
+  arxiv: '2003.04887'
+  used_for: Related work (gated residuals)
+  code_location: null
+- id: henry2020qknorm
+  title: Query-Key Normalization for Transformers
+  authors: Alex Henry, Prudhvi Raj Dachapally, Shubham Pawar and Yuxuan Chen
+  year: 2020
+  venue: Findings of EMNLP
+  arxiv: '2010.04245'
+  used_for: Query-key normalisation
+  code_location: 'norm.py: PreRMSNormQK.qk'
+- id: dehghani2023vit22b
+  title: Scaling Vision Transformers to 22 Billion Parameters
+  authors: Mostafa Dehghani et al.
+  year: 2023
+  venue: ICML
+  arxiv: '2302.05442'
+  used_for: Attention logit growth and QK normalisation
+  code_location: 'norm.py: PreRMSNormQK.qk'
+- id: wortsman2023proxies
+  title: Small-scale proxies for large-scale Transformer training instabilities
+  authors: Mitchell Wortsman et al.
+  year: 2024
+  venue: ICLR
+  arxiv: '2309.14322'
+  used_for: High-learning-rate instabilities in small models
+  code_location: null

@@ -1,0 +1,140 @@
+id: E-RT-002
+title: "Acting while the policy is still thinking: asynchronous chunked control of a LIBERO robot under 0–300 ms of inference latency"
+template: X-GRPO-002
+anchor: {authors: "Tony Z. Zhao, Vikash Kumar, Sergey Levine, Chelsea Finn", title: "Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware", arxiv: "2304.13705"}
+baseline: "a behaviour-cloned chunking policy (two small camera encoders, proprioception and a task embedding, 16 future actions, L1 loss) with naive asynchronous execution: a new chunk every 8 steps, and on arrival the actions already overtaken by time are skipped (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Partly executed: the asynchronous episode loop, the separate planner and controller processes and the delay accounting were run in the build container on a toy reaching task with a stand-in policy (success falls from 1 to 0 as the injected delay grows from 0 to 6 steps); the demonstration reader and chunk targets were run on synthetic arrays. LIBERO, MuJoCo and PyTorch were not available here: the operator runs the reference and draws the held-out initial states at activation."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+kit_extra: [libero/libero_eval.py]
+task: |
+  Design a **policy and its execution strategy for acting under inference latency** — what the policy predicts (action chunks, their length, their parameterisation), when to ask for a new plan, how to switch between or blend an old and a new chunk, and how a plan can take into account the actions that will be executed while it is computed (for example inpainting or guidance toward the committed prefix, bidirectional decoding, latency-conditioned training) — so that a robot trained by behaviour cloning on **LIBERO-Spatial** demonstrations keeps **succeeding when every plan arrives 0, 150 or 300 ms late**.
+
+  - Train the policy in the sandbox on the 500 public demonstrations and submit the checkpoint with the code. The policy is split in two parts that run in **separate processes**: a **planner** that sees an observation and returns a chunk of actions, and a **controller** that executes one action per control step (20 Hz) and only knows the chunks it has received.
+  - While the planner works, the robot keeps moving: a chunk planned from the observation at step t is delivered at step t + d, where d is the injected latency (0, 3 or 6 steps) plus the planner's measured time in 50 ms steps. The controller decides when to request a plan and may send the planner a request (for example the actions it will execute meanwhile).
+  - The policy is trained from scratch: no pretrained weights, no data other than the demonstrations; at most 100 million numbers in the checkpoint.
+  - You may build on any public work (action chunking and temporal ensembling, diffusion policy, real-time chunking, bidirectional decoding, SmolVLA's asynchronous inference, receding-horizon control), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/libero_spatial/` (read-only): the 10 LIBERO-Spatial demonstration files (`<instruction>_demo.hdf5`, 50 human demonstrations each; Liu et al. 2023, `yifengzhu-hf/LIBERO-datasets` @f13aa24a, Apache-2.0). Each `data/demo_i` holds `actions` (T, 7) and `obs/agentview_rgb`, `obs/eye_in_hand_rgb` (T, 128, 128, 3), `obs/ee_pos`, `obs/ee_ori`, `obs/gripper_states`, in the same orientation and units as the observations given to the policy (`interface/libero_eval.py`).
+
+  The LIBERO package (@8f1084e3, MIT) is installed: the ten tasks, their simulator and LIBERO's published initial states, which the self-check uses. The held-out set is 10 new initial states per task (object placements drawn from each task's own placement distribution with a secret seed, kept only if the scene is stable), each run once at each of the three latencies (300 episodes).
+interface: "Implement in `policy.py`: `load_planner(checkpoint_dir, device)` returning an object with `reset(instruction)` and `plan(obs, t, request) -> (H, 7) array`, and `make_controller(checkpoint_dir)` returning an object with `reset(instruction)`, `request(t) -> None or dict`, `receive(chunk, t_issue, t_now)` and `act(t) -> 7 numbers`. Write a `train.py` that produces `checkpoint/` from the public demonstrations."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean success** (primary) | Success rate over the held-out episodes, averaged over the injected latencies of 0, 3 and 6 control steps (0, 150, 300 ms) | — |
+  | Success per latency | Success rate at each latency; the drop from 0 to 6 steps | reported |
+  | Timing | Mean planning time, mean effective delay in steps, plans per episode, episode length | reported |
+  | Per task | Success rate of each of the ten tasks | reported |
+  | Size | Numbers stored in `checkpoint/` | Threshold: ≤ 100,000,000 |
+
+  **Measurement and decision**
+
+  - One run of all 300 episodes (one simulator seed); an episode succeeds when LIBERO's goal predicate holds within 220 control steps after 10 settling steps. Loading is limited to 600 s and the episodes to 5,400 s on one GPU.
+  - A submission is valid if both processes load, every action and chunk is finite and of the right shape, the episodes finish within the limits and the checkpoint holds at most 100,000,000 numbers; otherwise it is invalid.
+  - The primary metric is reported with a 95% bootstrap interval over initial states; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by mean success, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 10
+  dev_budget: "6 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), NumPy, h5py, safetensors, LIBERO with robosuite and MuJoCo (offscreen rendering)"
+  notes: |
+    - `selfcheck.py` runs your submission on LIBERO's published initial states (5 per task at the three latencies; `--quick`: 1 per task).
+    - The simulator steps at roughly 50–100 per second on one CPU core with rendering; the full self-check takes about 15 minutes.
+    - Planning time counts against you: a plan that takes 60 ms adds two control steps of delay.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── policy.py           # required: load_planner(), make_controller()
+    ├── train.py            # required: produces checkpoint/ from the public demonstrations
+    ├── checkpoint/         # required: trained weights, at most 500 MB
+    ├── src/                # optional: other .py modules
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The planner and the controller may communicate only through the requests and chunks passed by the episode loop; files, sockets, shared memory or any other channel between them make the submission invalid.
+  - The policy must act from the observations and the instruction alone: no tables of initial states, object positions or trajectories, and no access to the simulator's internal state.
+  - The checkpoint must be trained in the sandbox from the public demonstrations, with no pretrained weights.
+interface_md: |
+  # E-RT-002 interface
+
+  ## Entry point: `policy.py`
+
+  ```python
+  def load_planner(checkpoint_dir: str, device: str):
+      """Runs in its own process on the GPU. Methods:
+         reset(instruction: str) -> None
+         plan(obs: dict, t: int, request: dict) -> array (H, 7)   # chunk[k] is meant for step t + k"""
+
+  def make_controller(checkpoint_dir: str):
+      """Runs in its own process on the CPU. Methods:
+         reset(instruction: str) -> None
+         request(t: int) -> None | dict     # ask for a plan from the current observation (only when none is in flight)
+         receive(chunk, t_issue: int, t_now: int) -> None
+         act(t: int) -> 7 numbers           # executed at step t, clipped to [-1, 1]"""
+  ```
+
+  - `obs`: `agentview_rgb`, `eye_in_hand_rgb` (uint8, 128 x 128 x 3), `state` (8 numbers: end-effector position,
+    axis-angle orientation, gripper fingers) and `instruction`; see `libero_eval.py`.
+  - A chunk requested at step t arrives at step t + injected latency + ceil(planning ms / 50). The first chunk of an
+    episode is planned from the initial observation and delivered before step 0.
+  - `train.py --data "$ABENCH_DATA_DIR" --out checkpoint` must reproduce the checkpoint.
+
+  ## Evaluator code you can read
+
+  `libero_eval.py` (environment, observation, episode loops, process isolation), `stages.py`, `metrics.py`,
+  `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), NumPy, h5py, safetensors, LIBERO (robosuite, MuJoCo). Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 10}
+  data:
+    public_dir: sandbox/data/E-RT-002
+    public:
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate_demo.hdf5, sha256: ff6f26121653c77280eb40a38773a74141c11a8509f3466058cb56dd2cc60ead}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate_demo.hdf5, sha256: 75ede0cf5fbfc925093671b55032ad80f1b1f1cf35442ec6c663460d37d3e0b3}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate_demo.hdf5, sha256: 7ff1ee60447875c152d8c7819f499d23dbc0eb4d4bf045225d5d87a2cdad99bd}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate_demo.hdf5, sha256: 9d0b5435b313a8c0d7336b429b5f0f578be6f2a9f5f8a6dd67459ef388f3c74c}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate_demo.hdf5, sha256: 3961cb7126eaca47d0f5be29eb297bb62e7591e3c86172c9587c0bf670112f84}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate_demo.hdf5, sha256: bf1090dd4826eacb49eb052f17d04798e2a1eb2f74f8d024bc3b9c5d234c25f9}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate_demo.hdf5, sha256: 0c053db7317e584632549bddb963bee8a237661b4bd29f0581a245f715e8eb72}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate_demo.hdf5, sha256: d9b2da7399a88bea39024c8ef97713a20734e9b765e14b3399e2755890c828b7}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate_demo.hdf5, sha256: 1fcb3990cf9fd6185f56531cc9f6dec0a77a59bfa0c7f39dff95b7e43cf6aeaa}
+      - {path: sandbox/data/E-RT-002/libero_spatial/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate_demo.hdf5, sha256: 4d503d447028f437211880bea4ee1a7f6732113ea8560181fcca163251864794}
+    hidden: {path: sandbox/hidden/E-RT-002/hidden.npz.enc, sha256_plain: pending, keys: "init_states, init_len, task_id (given after the timed phase)"}
+    sources:
+      - name: "LIBERO-Spatial demonstrations (yifengzhu-hf/LIBERO-datasets)"
+        url: https://huggingface.co/datasets/yifengzhu-hf/LIBERO-datasets
+        revision: f13aa24a3da8c43c7225569f28c562979fa0e35a
+        license: Apache-2.0
+        verified: "2026-10-23: revision, licence, file names, sizes and LFS sha256 of the 10 files from the Hugging Face API"
+      - name: "LIBERO simulator, task definitions and published initial states (Liu et al. 2023)"
+        url: https://github.com/Lifelong-Robot-Learning/LIBERO
+        revision: 8f1084e3132a39270c3a13ebe37270a43ece2a01
+        license: MIT
+        verified: "2026-10-23: commit from the GitHub API; observation keys and units from scripts/create_dataset.py (no image flipping, 128 x 128, axis-angle orientation)"
+      - name: "Held-out initial states (libero_eval.sample_init_states, secret seed)"
+        url: null
+        license: "generated by ABench"
+  submission:
+    kind: code_plus_checkpoint
+    entry: policy.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 524288000
+    allowed_top_level: [README.md, policy.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 526288000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (driver, CUDA, torch, MuJoCo and robosuite versions frozen at activation)"
+    seeds: [7]
+    code_audit: "the operator checks that planner and controller share no channel besides the episode loop and that nothing in the checkpoint is a table of states or trajectories"

@@ -1,0 +1,39 @@
+schema: abench.references/v2
+references:
+- id: ohana2024well
+  title: 'The Well: a Large-Scale Collection of Diverse Physics Simulations for Machine Learning'
+  authors: Ruben Ohana, Michael McCabe, Lucas Meyer, Rudy Morel, Fruzsina J. Agocs, Miguel Beneitez, Marsha Berger,
+    Blakesley Burkhart, Keaton Burns, Stuart B. Dalziel, Drummond B. Fielding, Daniel Fortunato, Jared A. Goldberg,
+    Keiya Hirashima, Yan-Fei Jiang, Rich R. Kerswell, Suryanarayana Maddu, Jonah Miller, Payel Mukhopadhyay, Stefan
+    S. Nixon, Jeff Shen, Romain Watteaux, Bruno Régaldo-Saint Blancard, François Rozet, Liam H. Parker, Miles Cranmer
+    and Shirley Ho
+  year: 2024
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2412.00568'
+  used_for: 'Anchor: the systems, the four-frame input and the VRMSE measure'
+  code_location: train.py
+- id: li2021fno
+  title: Fourier Neural Operator for Parametric Partial Differential Equations
+  authors: Zongyi Li, Nikola Kovachki, Kamyar Azizzadenesheli, Burigede Liu, Kaushik Bhattacharya, Andrew Stuart
+    and Anima Anandkumar
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.08895'
+  used_for: Spectral convolution blocks
+  code_location: 'src/fno.py: SpectralConv, FNO'
+- id: perez2018film
+  title: 'FiLM: Visual Reasoning with a General Conditioning Layer'
+  authors: Ethan Perez, Florian Strub, Harm de Vries, Vincent Dumoulin and Aaron Courville
+  year: 2018
+  venue: AAAI
+  arxiv: '1709.07871'
+  used_for: Conditioning every block on the physical parameters
+  code_location: 'src/fno.py: FNO.film'
+- id: brandstetter2022mp
+  title: Message Passing Neural PDE Solvers
+  authors: Johannes Brandstetter, Daniel Worrall and Max Welling
+  year: 2022
+  venue: ICLR
+  arxiv: '2202.03376'
+  used_for: The pushforward trick (unrolled training without gradients through the first step)
+  code_location: 'train.py: main'

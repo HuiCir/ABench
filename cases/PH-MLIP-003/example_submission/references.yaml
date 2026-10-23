@@ -1,0 +1,61 @@
+schema: abench.references/v2
+references:
+- id: batatia2022mace
+  title: 'MACE: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields'
+  authors: Ilyes Batatia, Dávid Péter Kovács, Gregor N. C. Simm, Christoph Ortner and Gábor Csányi
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2206.07697'
+  used_for: Anchor (not reproduced by this reference)
+  code_location: null
+- id: rahimi2007rff
+  title: Random Features for Large-Scale Kernel Machines
+  authors: Ali Rahimi and Benjamin Recht
+  year: 2007
+  venue: NeurIPS
+  url: https://papers.nips.cc/paper/3182-random-features-for-large-scale-kernel-machines
+  used_for: Random Fourier features
+  code_location: 'ff.py: Model.features, fit'
+- id: chmiela2017gdml
+  title: Machine learning of accurate energy-conserving molecular force fields
+  authors: Stefan Chmiela, Alexandre Tkatchenko, Huziel E. Sauceda, Igor Poltavsky, Kristof T. Schütt and Klaus-Robert
+    Müller
+  year: 2017
+  venue: Science Advances
+  arxiv: '1611.04678'
+  used_for: Fitting to forces of an energy model
+  code_location: 'ff.py: fit'
+- id: drautz2019ace
+  title: Atomic cluster expansion for accurate and transferable interatomic potentials
+  authors: Ralf Drautz
+  year: 2019
+  venue: Physical Review B
+  doi: 10.1103/PhysRevB.99.014104
+  used_for: Related work
+  code_location: null
+- id: batzner2022nequip
+  title: E(3)-equivariant graph neural networks for data-efficient and accurate interatomic potentials
+  authors: Simon Batzner, Albert Musaelian, Lixin Sun, Mario Geiger, Jonathan P. Mailoa, Mordechai Kornbluth, Nicola
+    Molinari, Tess E. Smidt and Boris Kozinsky
+  year: 2022
+  venue: Nature Communications
+  arxiv: '2101.03164'
+  used_for: Related work
+  code_location: null
+- id: christensen2020rmd17
+  title: On the role of gradients for machine learning of molecular energies and forces
+  authors: Anders S. Christensen and O. Anatole von Lilienfeld
+  year: 2020
+  venue: Machine Learning Science and Technology
+  arxiv: '2007.09593'
+  used_for: The rMD17 data and splits
+  code_location: null
+- id: fu2022forces
+  title: 'Forces are not Enough: Benchmark and Critical Evaluation for Machine Learning Force Fields with Molecular
+    Simulations'
+  authors: Xiang Fu, Zhenghao Wu, Wujie Wang, Tian Xie, Sinan Keten, Rafael Gomez-Bombarelli and Tommi Jaakkola
+  year: 2022
+  venue: arXiv
+  arxiv: '2210.07237'
+  used_for: Stability criterion of the dynamics
+  code_location: null

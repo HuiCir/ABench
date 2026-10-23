@@ -16,7 +16,7 @@ task: |
 
   - Submit your model code (`quantize.py` with `load()`), the quantized artifact in `checkpoint/` and the program that produced it (`train.py`, which runs your quantization on the frozen bf16 model with the provided calibration tokens). The evaluator runs your `load()` on `checkpoint/` in a process **without access to the original weights** and measures perplexity on the held-out test text; it never re-quantizes.
   - No training on the held-out text, no other models, no extra data beyond the calibration tokens; fine-tuning the quantized weights on the calibration tokens is allowed.
-  - You may build on any public work from before the cutoff (GPTQ/OBQ, AWQ, SmoothQuant-style rescaling, incoherence processing, vector and non-uniform codebooks, mixed precision), but the design report must state what you borrowed and what you changed.
+  - You may build on any public work (GPTQ/OBQ, AWQ, SmoothQuant-style rescaling, incoherence processing, vector and non-uniform codebooks, mixed precision), but the design report must state what you borrowed and what you changed.
 data: |
   `$ABENCH_MODELS_DIR/Qwen2.5-0.5B/` holds the frozen model (Hugging Face `Qwen/Qwen2.5-0.5B`, Apache-2.0; 494,032,768 parameters in bf16, tied embedding). `$ABENCH_DATA_DIR/` (read-only) holds WikiText-2 raw (Salesforce/wikitext, CC BY-SA 3.0 / GFDL) tokenized with the model's tokenizer, each split's documents joined with "\n\n":
 

@@ -1,0 +1,81 @@
+case: X-SFT-005
+title: 'Low-Rank Supervised Fine-Tuning on General Conversations'
+abstract: >-
+  This submission is the plain parameter-efficient floor: low-rank adapters [@hu2022lora] of rank 16 on every
+  attention and MLP projection of SmolLM2-360M [@allal2025smollm2], trained for one epoch on 50,000 of the public
+  conversations with the loss on assistant turns only, and merged into the base weights at load time. It trains 8.7
+  million numbers, uses the evaluator's chat template, and adds no constraint-specific data, which is the gap entries
+  are expected to fill. It has not been run yet: it needs PyTorch and the SmolLM2 weights, which were not available
+  where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Small base models learn the format of a chat from a little supervised data, but precise instructions — exact
+    counts, case, output formats — need more than imitation of general conversations. The case scores instruction
+    following with verifiable checks [@zhou2023ifeval] and counts the cost in trained parameters and in forgetting.
+- title: Related Work
+  paras:
+  - >-
+    LoRA trains low-rank updates of frozen weights [@hu2022lora]; QLoRA does so on a 4-bit quantised base
+    [@dettmers2023qlora]; DoRA separates magnitude and direction [@liu2024dora]; IFEval defines verifiable instructions
+    [@zhou2023ifeval]; SmolLM2's own post-training mixes conversations with constraint data [@allal2025smollm2].
+- title: Method
+  paras:
+  - >-
+    Each conversation is rendered in ChatML; tokens of user turns and role headers are masked from the loss. Updates
+    W + 2·BA (rank 16, α = 32, B initialised at zero) on the seven projection types of all 32 layers; AdamW, learning
+    rate 2e-4 with cosine decay, batch 16, sequences cut at 1,024 tokens, gradient clipping at 1.
+- title: Design Rationale
+  paras:
+  - >-
+    Low-rank updates keep the base weights and therefore limit forgetting; masking user turns focuses the update on
+    the assistant's behaviour; merging at load time leaves inference as fast as the base model.
+- title: Scope and Limitations
+  paras:
+  - >-
+    No constraint data, no selection of conversations, one epoch; it has not been run yet.
+references:
+- id: dettmers2023qlora
+  title: 'QLoRA: Efficient Finetuning of Quantized LLMs'
+  authors: Tim Dettmers, Artidoro Pagnoni, Ari Holtzman and Luke Zettlemoyer
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.14314'
+  used_for: 'Anchor: parameter-efficient fine-tuning recipe'
+  code_location: null
+- id: hu2022lora
+  title: 'LoRA: Low-Rank Adaptation of Large Language Models'
+  authors: Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang and Weizhu Chen
+  year: 2022
+  venue: ICLR
+  arxiv: '2106.09685'
+  used_for: Low-rank adapters
+  code_location: 'src/lora.py: LoRALinear, merge'
+- id: liu2024dora
+  title: 'DoRA: Weight-Decomposed Low-Rank Adaptation'
+  authors: Shih-Yang Liu, Chien-Yi Wang, Hongxu Yin, Pavlo Molchanov, Yu-Chiang Frank Wang, Kwang-Ting Cheng and Min-Hung Chen
+  year: 2024
+  venue: ICML
+  arxiv: '2402.09353'
+  used_for: Related work
+  code_location: null
+- id: zhou2023ifeval
+  title: Instruction-Following Evaluation for Large Language Models
+  authors: Jeffrey Zhou, Tianjian Lu, Swaroop Mishra, Siddhartha Brahma, Sujoy Basu, Yi Luan, Denny Zhou and Le Hou
+  year: 2023
+  venue: arXiv
+  arxiv: '2311.07911'
+  used_for: Verifiable instructions
+  code_location: null
+- id: allal2025smollm2
+  title: 'SmolLM2: When Smol Goes Big -- Data-Centric Training of a Small Language Model'
+  authors: Loubna Ben Allal et al.
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.02737'
+  used_for: The base model and its post-training data
+  code_location: null
+changes:
+- text: The loss is restricted to assistant turns and the adapters cover all seven projection types, merged at load time.
+  code: 'train.py: encode; model.py: load'

@@ -1,0 +1,97 @@
+case: C-KV-002
+title: 'Per-Token Asymmetric Quantisation of the Key-Value Cache'
+abstract: >-
+  This submission compresses the cache by quantising every cached key and value vector — one head of one token, 128
+  numbers — with its own minimum and scale, the asymmetric scheme of the anchor KIVI [@liu2024kivi] simplified to
+  per-token groups for both keys and values. Codes are bit-packed into bytes and dequantised when a layer reads the
+  cache. The three budgets map to 4/4, 2/2 and 2/1 bits for keys/values, storing 4.25, 2.25 and 1.75 bits per element
+  including the fp16 minimum and scale. It has not been run yet: it needs PyTorch and the Qwen2.5 weights, which were not
+  available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    At 16k tokens the bf16 cache of Qwen2.5-1.5B takes about 460 MB per sequence, more than the model's activations and
+    a large share of the weights. Compressing it trades memory for retrieval accuracy; the case asks how much accuracy
+    survives at three budgets.
+- title: Related Work
+  paras:
+  - >-
+    KIVI quantises keys per channel and values per token to 2 bits with a full-precision window of recent tokens
+    [@liu2024kivi]; KVQuant adds non-uniform and outlier-aware quantisation [@hooper2024kvquant]. Eviction keeps the
+    tokens attention needs: heavy hitters [@zhang2023h2o], attention sinks plus a recent window [@xiao2024streaming], or
+    tokens selected by the attention of the prompt's end [@li2024snapkv]. RULER measures long-context retrieval beyond
+    needle-in-a-haystack tests [@hsieh2024ruler].
+- title: Method
+  paras:
+  - >-
+    For a vector x of 128 elements, lo = min x, s = (max x − lo)/(2^b − 1), q = round((x − lo)/s) ∈ [0, 2^b − 1]; 8/b
+    codes are packed per byte, lo and s are kept in fp16. On every update the new tokens of a layer are quantised and
+    appended, and the layer's whole cache is dequantised to bf16 for attention.
+- title: Design Rationale
+  paras:
+  - >-
+    Per-token groups make the stored size exactly proportional to the number of tokens, so the budget holds at every
+    context length without a full-precision window; values tolerate one bit less than keys at the tightest budget,
+    because attention averages values while keys decide which tokens are attended.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Keys have outlier channels that per-token groups spread over all elements, which KIVI avoids with per-channel key
+    groups; no tokens are evicted, so the 2-bit budgets rely on quantisation alone; and dequantising the whole cache at
+    every step is slow. The scheme has not been run yet.
+references:
+- id: liu2024kivi
+  title: 'KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache'
+  authors: Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong, Zhaozhuo Xu, Vladimir Braverman, Beidi Chen and Xia Hu
+  year: 2024
+  venue: ICML
+  arxiv: '2402.02750'
+  used_for: 'Anchor: asymmetric low-bit cache quantisation'
+  code_location: 'cache.py: quantize, dequantize, QuantCache'
+- id: hooper2024kvquant
+  title: 'KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization'
+  authors: Coleman Hooper, Sehoon Kim, Hiva Mohammadzadeh, Michael W. Mahoney, Yakun Sophia Shao, Kurt Keutzer and Amir Gholami
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2401.18079'
+  used_for: Related work
+  code_location: null
+- id: zhang2023h2o
+  title: 'H2O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models'
+  authors: Zhenyu Zhang et al.
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2306.14048'
+  used_for: Related work (eviction)
+  code_location: null
+- id: xiao2024streaming
+  title: Efficient Streaming Language Models with Attention Sinks
+  authors: Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song Han and Mike Lewis
+  year: 2024
+  venue: ICLR
+  arxiv: '2309.17453'
+  used_for: Related work
+  code_location: null
+- id: li2024snapkv
+  title: 'SnapKV: LLM Knows What You are Looking for Before Generation'
+  authors: Yuhong Li et al.
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2404.14469'
+  used_for: Related work
+  code_location: null
+- id: hsieh2024ruler
+  title: "RULER: What's the Real Context Size of Your Long-Context Language Models?"
+  authors: Cheng-Ping Hsieh, Simeng Sun, Samuel Kriman, Shantanu Acharya, Dima Rekesh, Fei Jia, Yang Zhang and Boris Ginsburg
+  year: 2024
+  venue: COLM
+  arxiv: '2404.06654'
+  used_for: The task design of the case
+  code_location: null
+changes:
+- text: Keys are quantised per token like values instead of per channel, and there is no full-precision window, so the
+    stored size is proportional to the context at every length.
+  code: 'cache.py: QuantCache.update'
+- text: At the tightest budget values use one bit and keys two.
+  code: 'cache.py: BITS'

@@ -8,7 +8,7 @@ from abench_metrics import OutputError, need  # noqa: F401
 PRIMARY = {"metric": "train_seconds", "goal": "min", "aggregate": "median over runs"}
 GATES = [
     {"metric": "val_loss", "max": 2.92},
-    {"metric": "n_params", "max": 450_000_000.0},
+    {"metric": "n_params", "max": 550_000_000.0},
     {"metric": "train_seconds", "max": 10800.0},
 ]
 

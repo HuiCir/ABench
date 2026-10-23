@@ -1,27 +1,36 @@
-# ABench Case T-AUDIO-005: Lightweight CTC/adapter ASR on a frozen audio encoder
+# ABench case T-AUDIO-005: Speech recognition from a frozen wav2vec 2.0 encoder with a light trained head: word error rate on clean, harder and noisy unseen speakers
 
-This is a low-cost, fully offline audio-model optimization case. It tests classic CTC/adapter designs on frozen wav2vec 2.0/HuBERT representations, aiming for Pareto optimality over WER, out-of-speaker generalization, trainable parameters, memory, real-time factor and compute cost.
+Case built to task statement standard v2.1 from the template of X-LORA-004. Anchor: Alexei Baevski, Henry Zhou, Abdelrahman Mohamed, Michael Auli, *wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations*
+(arXiv:2006.11477).
 
-- Corpus cutoff: 2026-07-01.
-- Difficulty: **medium**; resource rating: **medium**; budget tier: **medium**.
-- Proxy: FROZEN, SUBSET; development about 3 GPU-h, per verification about 1.5 GPU-h, reference precompute about 15 GPU-h.
-- Resources: `case/resources.yaml`; all resources are mounted offline by the server, and network access at run time is forbidden.
-- Currently only a scaffold, with no real reference runs, hidden evaluation or simulated scores.
+## Status
 
-## Proxy setting
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Not executed yet: the reference needs PyTorch, transformers and the wav2vec 2.0 weights, which were not available where the case was built; the operator runs it at activation. The word and character error rates (Levenshtein distance checked against a brute-force implementation on 300 random pairs), the babble mixing and the packing of audio were checked in the container; the data selection runs on synthetic audio.
+- No number in the case files is a result: there are no training curves or reference scores.
 
-Freeze a wav2vec 2.0/HuBERT audio encoder of ≤ 100M with fixed 16 kHz mono speech and CTC vocabulary, and train only a linear CTC layer, low-rank/bottleneck adapters or a lightweight pooling head. A public speaker-disjoint split is used for selection; hidden speakers, accents and noise conditions are used for review.
+## Files
 
-## Metrics and scoring
+- `spec/cases/T-AUDIO-005.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case T-AUDIO-005`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/t_audio_005.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
 
-Metric definitions are in `case/eval_protocol.yaml`. This case uses `pareto_frontier`: WER, CER and speaker-held-out WER are minimized, and parameter count, peak memory, real-time factor and GPU-h are minimized too; constraints must pass first, and the output is the full non-dominated set and the hypervolume relative to the reference envelope.
+## Data sources (links only; nothing is downloaded in the repository)
 
-## Blockers before launch
+- LibriSpeech ASR corpus (Panayotov et al. 2015), parquet export openslr/librispeech_asr: https://huggingface.co/datasets/openslr/librispeech_asr — license: CC BY 4.0 (verified 2026-10-22)
+- wav2vec 2.0 base, pre-trained only (facebook/wav2vec2-base): https://huggingface.co/facebook/wav2vec2-base — license: Apache-2.0 (verified 2026-10-22)
 
-- `frozen_audio_encoder_processor_and_vocab_hash`
-- `offline_16khz_speech_bundle_and_speaker_holdout`
-- `fixed_audio_preprocess_and_server_asr_evaluator`
-- `fixed_gpu_timer_and_peak_memory_probe`
+## Activation (operator)
 
-Protocol references: [`spec/pareto_protocol.md`](../../spec/pareto_protocol.md); [`spec/sandbox_profiles.md`](../../spec/sandbox_profiles.md).
-Resource profile: `single_gpu_24gb`; objective mode: `objective_mode: pareto`.
+```bash
+python3 tools/prepare/run.py --case T-AUDIO-005 --list-sources                 # what to download
+python3 tools/prepare/run.py --case T-AUDIO-005 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case T-AUDIO-005 --submission cases/T-AUDIO-005/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case T-AUDIO-005 --activate                     # after reviewing the calibration run
+```
+
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

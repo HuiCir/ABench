@@ -1,42 +1,182 @@
 # ABench
 
-ABench asks an agent to start from a classic paper, retrieve and synthesise prior work from before a knowledge cutoff
-(2026-07-01), and design a method that improves on it. Evaluation works like an online judge: the agent sees only the
-task statement, the interface, report templates and public training data; the test set never enters the sandbox.
+ABench asks a research agent to start from a classic paper, research related work throughout its session, and design
+a method that improves on it, under a fixed compute budget. Evaluation works like an online judge (OJ):
 
-- **98 cases in 20 tracks** (`index.yaml`); every track has at least one **standard case** built to task statement
-  v2.1 (`spec/task_statement_standard.md`, `spec/standard_cases/`).
-- **The agent trains, the evaluator only evaluates.** Checkpoint cases submit model code, `checkpoint/` and the
-  `train.py` that produced it; the evaluator only loads, infers and measures. Where the training program itself is
-  measured (time to target, optimizers) the evaluator trains from scratch; kernels and samplers are only measured.
-- **Workflow** required by every standard task: retrieve (offline arXiv search, `tools/paper_search/`), synthesise
-  (report Section 2, Related Work), design (changes relative to the anchor with code locations), develop and verify
-  with `selfcheck.py` (the evaluator's own pipeline on a dev split), submit.
+- **Sandbox.** The agent works in a sandbox. It sees only the task statement, the interface, report templates and
+  public training data.
+- **Network.** The sandbox is online for literature, code and documentation. Dataset and model hubs, and the case's
+  own data sources, are blocked.
+- **Submission.** The agent submits code, often a checkpoint it trained, and a design report.
+- **Judge.** The judge runs outside the sandbox and scores the submission on a held-out set that never enters the
+  sandbox.
+
+**Cases.** There are 73 cases in 20 tracks (`index.yaml`). Every case has a full task statement (task statement
+standard v2.1), an evaluator pipeline, a data-preparation module and a reference submission with its design report.
+
+**State.** `verify.csv` records how far each case has got. None is activated: every case waits for its data to be
+frozen by the operator, so no result is scorable yet.
 
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `index.yaml` | tracks and cases |
-| `cases/<ID>/` | `case/` (task statement, `oj.yaml`), `harness/` (interface, stage pipeline, metrics, self-check), `example_submission/` |
-| `spec/` | task statement standard, OJ contract, report profiles, standard-case specs and reference reports |
-| `tools/` | judge (`oj_eval.py`), sandbox runner, data preparation (`prepare/`), builders and validators, paper search |
-| `sandbox/` | report templates, the local launch script for TC-FT-001 and the plumbing agent |
-| `site/` | static demo site (`python3 tools/build_site_data.py` regenerates its data) |
-| `tests/` | unit and end-to-end tests (synthetic data only) |
+| `index.yaml` | tracks and cases (anchor paper, type, difficulty, resource tier) |
+| `verify.csv` | per case: design, data source, reference run and result, activation, review tier, blockers, next step (`tools/verify_registry.py --summary`) |
+| `cases/<ID>/case/` | `agent/task.md` (the statement the agent sees), `oj.yaml` (judge configuration), `data_lock.yaml` once frozen |
+| `cases/<ID>/harness/` | agent-visible interface: `interface.md`, `sandbox_guide.md`, `stages.py` (evaluator pipeline), `metrics.py`, `selfcheck.py`, the shared stage kit, baselines |
+| `cases/<ID>/example_submission/` | reference submission (`model.py` or `method.py`, `train.py`, `report/index.html`, `references.yaml`) |
+| `spec/` | contracts (`oj_contract.md`, `sandbox_runner.md`, `task_statement_standard.md`, `report_contract.md`, `pro_set.md`, `compute_budget.md`), policies (`egress_policy.yaml`, `wrapper_policy.yaml`), case sources (`standard_cases/`, `cases/`) |
+| `tools/` | `sandbox_runner.py`, `oj_eval.py`, `egress_proxy.py`, `prepare/` (data freezing), `build_standard_cases.py` (generates the case files from `spec/`), validators, `paper_search/` |
+| `sandbox/` | report templates, `calibration/` (code-only OJ calibration), the local launch script for TC-FT-001 |
+| `site/` | the static site (`python3 tools/build_site_data.py` regenerates its data) |
+| `tests/` | unit and end-to-end tests on synthetic data |
 
-## Quick start
+`cases/B-OPT-001` also keeps the earlier ABench-level scoring design and its simulated demo (`SCORING_DEMO.md`,
+`sim/`, `outputs/`, `scoring/`), which the site uses for its walkthrough; nothing in it is a real result.
 
-```bash
-python3 -m pip install --user numpy pyyaml scipy scikit-learn
-python3 -m unittest discover -s tests                 # ~1 minute, no data needed
-python3 tools/validate_task_statement.py              # conformance of every task statement
-bash sandbox/run_local_claude_tc_ft_001.sh preflight  # local agent run of a CPU case (see the script header)
+## How a run works
+
+```
+ agent stage (sandbox_runner.py)                          evaluation stage (oj_eval.py)
+ ─────────────────────────────────                        ─────────────────────────────
+ read-only view: task.md, interface/, templates/, data/   format check (validate_submission.py)
+ workspace owned by the user abench-agent                 decrypt the held-out set (key outside the repo)
+ network: research egress (proxy + per-user firewall)     run the submission's stages as abench-judge,
+ agent: claude -p                                           in a network namespace, timed by the parent
+ collect allow-listed files → runs/<case>/<run>/          metrics.py with the labels kept in the parent
+                                                           → runs/<case>/<run>/evaluation.json
 ```
 
-Data is not in the repository. Each standard case lists its verified sources (`python3 tools/prepare/run.py --case ID
---list-sources`); the operator downloads and freezes them, which writes the public files, the encrypted held-out split
-and `case/data_lock.yaml`. Hidden-set keys stay outside the repository.
+- **Isolation.** The runner refuses a benchmark run without an allow-listed wrapper (`spec/wrapper_policy.yaml`).
+  Before the agent starts, it proves as the agent user that the repository, the held-out set and the key cannot be
+  read. Every connection the agent makes is logged.
+- **Judge.** The judge decrypts nothing until it has checked, as the judge user, that its children cannot reach them
+  either. Details: `spec/sandbox_runner.md`, `spec/oj_contract.md`.
 
-No standard case is activated yet: all wait for the operator's frozen data and a calibration run, so no result is
-scorable. Cases needing PyTorch or a GPU have not been executed (see `spec/standard_cases/README.md`).
+## OJ calibration (code only)
+
+The judge is verified with code alone. No agent is involved. For a case, `sandbox/calibration/calibrate.sh`:
+
+1. freezes the case's data;
+2. trains the case's **reference submission** with its own `train.py`;
+3. judges that submission with `tools/oj_eval.py` on the held-out split, exactly as any submission is judged.
+
+The record (`runs/<case>/<run id>/evaluation.json`) gives two things:
+
+- **The base score of the case.** This is the reference every submission is compared with, together with its 95%
+  bootstrap interval and, with several seeds, its spread over seeds. An improvement over the base is meaningful only
+  outside that interval.
+  - Cases whose metric is relative to a baseline either have the judge run the baseline next to every submission
+    (`judge.baseline` in `oj.yaml`, 28 cases) or keep the reference values in the encrypted held-out set (9 cases).
+  - In both, the reference submission should score at the base: for example, a ratio of about 1.
+- **Proof that the evaluation path works on this host:**
+  - freezing and hash checks;
+  - decryption with the key;
+  - the stage protocol (held-out inputs only after the timed phase);
+  - the metrics;
+  - the isolation of the judge's children (user `abench-judge`, no network).
+
+A calibration record is never scorable: synthetic data, or a case awaiting activation.
+
+| Case | Role | What it exercises | Result on 2026-10-23 (Linux, CPU) |
+|---|---|---|---|
+| **TC-FT-001**: text classification on Yelp Review Full, CPU budget; reference: hashed n-gram tf-idf + linear SGD classifier | pipeline-calibration case (`scope: calibration` in `index.yaml`, not scored) | checkpoint path (the judge only loads and predicts), packed texts, throughput gate | synthetic data: accuracy 1.000 [1.000, 1.000] (the synthetic set is trivially separable: plumbing only) |
+| **DS-PIPE-002**: one tabular pipeline for six OpenML datasets; reference: histogram gradient-boosted trees | pipeline-calibration case (not scored) | several public files, per-dataset metrics and their mean, bootstrap interval | synthetic data: mean accuracy 0.904 [0.896, 0.911] |
+| **FN-LTSF-005**: long-horizon forecasting on ETT and electricity; reference: channel-shared ridge on the last values | scored case, used as the real-data calibration (small public files, no pretrained model) | real frozen data; ratio to the linear reference kept in the held-out set | real data: MSE ratio geomean 0.999 [0.993, 1.007], i.e. the reference scores at the base |
+
+`sandbox/calibration/cases.yaml` gives each case's final training flag; add a case there to calibrate it.
+
+The agent side (sandbox view, isolation, network egress, collection) is a separate concern. Its tests are
+`tests/test_isolation.py` and `tests/test_egress.py`, which need root on Linux.
+
+## Configuring the sandbox and the OJ, step by step
+
+Run on Linux, as root: the runner switches users and installs the egress firewall, and the judge runs submission code
+as a separate user. Python 3.9+ with numpy, scipy, scikit-learn and pyyaml is required.
+
+**1. Users and key** (once per host)
+
+```bash
+useradd --system --no-create-home --shell /usr/sbin/nologin abench-agent   # runs the agent
+useradd --system --no-create-home --shell /usr/sbin/nologin abench-judge   # runs submission code during judging
+python3 tools/hidden_store.py keygen ~/.abench/hidden.key                   # 0600; never inside the repository
+```
+
+**2. Check the host**
+
+```bash
+sudo python3 -m unittest tests.test_isolation tests.test_egress    # agent user, firewall, proxy, judge child user
+```
+
+**3. OJ calibration of a case** (synthetic data, about a minute)
+
+```bash
+sudo bash sandbox/calibration/calibrate.sh DS-PIPE-002
+```
+
+The script works in a copy of the repository that only root can read (`~/.abench/calibration/work/<case>`), so your
+checkout is never modified. It freezes the data, trains the reference checkpoint, runs the judge and prints the
+record.
+
+In the output, check that:
+- the judge preflight found every forbidden path unreachable and the network offline;
+- `judge_isolation` is `child_user_netns`;
+- the verdict is `evaluated`;
+- the primary metric has its interval.
+
+For real data, list the sources, download them, and point `DATA` at the raw directory. Sources are checked against
+the hashes their publishers record; offline, add `ALLOW_UNVERIFIED=1`, which is recorded.
+
+```bash
+python3 tools/prepare/run.py --case FN-LTSF-005 --list-sources
+sudo DATA=/path/to/raw bash sandbox/calibration/calibrate.sh FN-LTSF-005
+```
+
+**4. Freeze a case for real runs** in your checkout:
+
+```bash
+python3 tools/prepare/run.py --case TC-FT-001 --raw-dir RAW --key-file ~/.abench/hidden.key
+```
+
+After its OJ calibration, activate it with `tools/prepare/run.py --case TC-FT-001 --activate`.
+
+**5. Run an agent.** The runner builds the read-only view, runs the agent as `abench-agent`, and then calls the judge.
+- **Network.** The default is research egress (`spec/egress_policy.yaml`).
+- **Upstream proxy.** `ABENCH_EGRESS_UPSTREAM=http://host:port` is needed if this host reaches the internet through a
+  proxy.
+- **No network.** The wrapper `unshare --net -- sudo -u abench-agent --` gives an agent that needs no network.
+
+```bash
+export ABENCH_JUDGE_CHILD_USER=abench-judge
+export ABENCH_JUDGE_PYTHONPATH=<frozen site-packages of the judge>
+export ABENCH_JUDGE_TOOLS_SHA256=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import oj_eval; print(oj_eval.tree_hash(oj_eval.TOOLS))")
+sudo -E python3 tools/sandbox_runner.py --case TC-FT-001 --harness claude --pass-env ANTHROPIC_API_KEY \
+  --agent-wrapper 'sudo -u abench-agent --' --hidden-key-file ~/.abench/hidden.key
+python3 sandbox/calibration/summarize.py runs/TC-FT-001/<run id>
+```
+
+The repository must not be readable by `abench-agent`, or the preflight stops the run. For example, keep it under
+root's home or a 0700 directory. `agent_run.json` records the agent's isolation, every network connection and the
+compute it used.
+
+A record becomes scorable only when all of the following hold:
+- the case is activated;
+- the judge environment matches the case's profile lock (`tools/record_environment.py`);
+- the judge dependencies are attested;
+- the agent stayed within its budget.
+
+**6. On macOS** there is no user switch or egress firewall. Agent runs are smoke runs only:
+
+```bash
+bash sandbox/run_local_claude_tc_ft_001.sh
+```
+
+## Checks
+
+```bash
+python3 -m unittest discover -s tests                     # all tests; the isolation/egress ones need root on Linux
+python3 tools/validate_task_statement.py --strict         # every task statement conforms to v2.1
+python3 tools/build_standard_cases.py --check             # generated case files match spec/
+python3 tools/verify_registry.py --check                  # verify.csv is consistent with the specs
+```

@@ -1,7 +1,5 @@
 # B-OPT-001: An optimizer for small language-model pretraining
 
-Knowledge cutoff: **2026-07-01**. You may only rely on material that was public and verifiable before that date.
-
 Anchor: Diederik P. Kingma, Jimmy Ba, *Adam: A Method for Stochastic Optimization* (arXiv:1412.6980). Baseline used for comparison: AdamW (Loshchilov & Hutter 2019), run by the evaluator under identical conditions (`interface/baselines/adamw/`).
 
 ## Task
@@ -14,8 +12,8 @@ Design a new **update rule** (optimizer) that, used to pretrain a fixed 32M-para
 
 ### Workflow
 
-1. **Retrieve.** Study the anchor and find related work published before the cutoff with the offline paper search tool: `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` (titles and abstracts of arXiv papers up to the cutoff). Every call is logged automatically; the log is kept with your run.
-2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address. This is Section 2 (Related Work) of the design report.
+1. **Research (throughout).** Study the anchor and related work, and come back to the literature whenever your experiments raise a question (an unexpected failure, a bottleneck, a result you cannot explain). The sandbox is online for papers, code and documentation, and the offline paper search `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` answers quickly from arXiv titles and abstracts. Searches and connections are logged with your run.
+2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address, and keep this up to date as you learn. It becomes Section 2 (Related Work) of the design report.
 3. **Design.** Propose an improvement over the anchor and the baseline: at least one change you can state precisely and point to in your code. List every change, with its code location, in the report's "Changes relative to the anchor" list (`<ol id="changes">`); a report without it fails the format check.
 4. **Develop and verify.** Implement it and run the evaluator's own training pipeline on the dev split with `selfcheck.py`; use the results to iterate as your budget allows. The evaluator then runs your submission from scratch under the same pipeline.
 5. **Submit** the deliverables below. Submission is one-shot.
@@ -61,17 +59,18 @@ The full reference is `interface/interface.md`. `abench_stage.py`, `stages.py` a
 1. When your session ends, the sandbox collects only the allowed files from `ABENCH_SUBMISSION_DIR`; the workspace is deleted.
 2. The evaluator runs outside the sandbox: it checks the submission format, then runs your training program from scratch through the stages in `interface/stages.py`, once for each of 3 seeds unknown to you, on the evaluation hardware, because the training itself is what this case measures.
 3. Held-out inputs are copied into the run directory only after the timed phase has ended, and never with their labels or reference values; those stay in the evaluator process, which computes the metrics with `interface/metrics.py`.
-4. Under exactly the same conditions (hardware, seeds, data, schedule), the evaluator also trains the model with the AdamW baseline in `interface/baselines/adamw/` and reports your loss and step time relative to it.
+4. Under exactly the same conditions (hardware, seeds, data, schedule), the evaluator also trains the model with the AdamW baseline in `interface/baselines/adamw/` and reports your loss and step time relative to it. AdamW is tuned, not left at its defaults: before activation the operator sweeps its peak learning rate over {1e-3, 2e-3, 3e-3, 4.5e-3, 6e-3} and weight decay over {0.05, 0.1} with the same schedule on the self-check split and freezes the best pair in `interface/baselines/adamw/hparam_space.yaml`; until then the values shown there (3e-3, 0.1) are placeholders.
 5. You receive no evaluation results during your session.
 
 ## Sandbox Guide
 
 The full guide is `interface/sandbox_guide.md`. Key points:
 
-- One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model. No network and no package installation; available software: Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML.
-- The session lasts at most 8 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 8 GPU-hours.
+- One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model. Available software: Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML; your submission may depend only on it (packages you install while developing are not available to the evaluator).
+- Network: online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run.
+- The session lasts at most 8 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 8 GPU-hours; the runner meters it (GPU-busy time, CPU time of your processes) and a run that exceeds it is not scored.
 - Data is read-only under `$ABENCH_DATA_DIR`. Write code and run experiments in `$ABENCH_WORKSPACE`; put the final files in `$ABENCH_SUBMISSION_DIR`.
-- Paper search (offline, cutoff-filtered, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
+- Offline paper search (arXiv titles and abstracts, fast, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
 - Self-check: `python3 "$ABENCH_VIEW_DIR/interface/selfcheck.py" --quick` (interface, small slice), then without `--quick` on the full dev split.
 
 ## Deliverables

@@ -1,0 +1,135 @@
+id: FN-LTSF-005
+title: "A long-horizon forecasting architecture that beats a tuned linear model: five multivariate series, horizons 96 to 720"
+template: DS-PIPE-002
+anchor: {authors: "Ailing Zeng, Muxi Chen, Lei Zhang, Qiang Xu", title: "Are Transformers Effective for Time Series Forecasting?", arxiv: "2205.13504"}
+baseline: "a channel-shared ridge forecaster with last-value normalisation, lookback and penalty chosen on the validation rows for each dataset and horizon (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "The whole case ran on the real data in the build container (NumPy reference, CPU). Freezing fits the linear reference: its test MSE at horizon 96 is 0.354 (ETTh1), 0.239 (ETTh2), 0.294 (ETTm1), 0.156 (ETTm2) and 0.137 (electricity), in line with the published linear baselines. The reference submission (a lookback and penalty search over the same family, refitted on training and validation rows; training 4 minutes) was then run once against the frozen test windows as an operator calibration check: MSE ratio 0.999 (95% interval 0.993–1.007), better than the reference on 13 of 20 pairs, worst ratio 1.11 (ETTh2, 336); on the self-check split it scores 0.965. These are calibration checks of the case, not results."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+kit_extra: [ltsf/ltsf.py]
+task: |
+  Design a **forecasting architecture** for multivariate series that, trained in the sandbox, gives a **lower mean squared error than a well-tuned linear model** at horizons of 96, 192, 336 and 720 steps on five standard series — two hourly and two 15-minute transformer-station series (ETT) and an hourly electricity-load panel of 321 clients — measured as the **geometric mean over the 20 dataset-horizon pairs of your MSE divided by the reference's MSE**.
+
+  - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator gives your model the 720 standardised steps before each test origin and scores its forecasts; it never retrains.
+  - The comparison is the point of the case: published architectures often fail to beat a linear map from the recent past to the future once it is tuned. The reference is such a map, refitted on all public rows with its penalty chosen on validation; a ratio below 1 means your architecture beats it.
+  - Only the provided rows may be used: no pretrained forecasting models (foundation models such as Chronos, TimesFM or Moirai included) and no external data. `train.py` must apply the same procedure to every dataset; choices made from the data (for example on the validation rows) are fine, hand-set per-dataset settings are not.
+  - You may build on any public work (linear and decomposition models, patching and channel independence, reversible normalisation, MLP mixers, state-space and attention models, frequency-domain models), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/<dataset>.npz` (read-only), one per dataset, with `series` (T, C) float32 standardised by the training rows, `train_end` and `val_end` (row borders) and the training `mean` and `std`:
+
+  | Dataset | Source | Step | Channels | Public rows (train / validation) | Test rows |
+  |---|---|---|---|---|---|
+  | `etth1`, `etth2` | ETT (Zhou et al. 2021), CC BY-ND 4.0 | 1 hour | 7 | 8,640 / 2,880 | 2,880 |
+  | `ettm1`, `ettm2` | the same stations, 15 minutes | 15 minutes | 7 | 34,560 / 11,520 | 11,520 |
+  | `electricity` | UCI ElectricityLoadDiagrams20112014 (CC BY 4.0), 321 clients, hourly version of Lai et al. 2018 | 1 hour | 321 | 18,412 / 2,632 | 5,260 |
+
+  The splits are the ones used by most long-horizon papers (Informer, Autoformer, DLinear, PatchTST). The test rows follow the validation rows and are not in the sandbox. Test origins run from the first test row every 23 steps (ETTh), 95 steps (ETTm) or 167 steps (electricity) up to the last origin whose 720-step forecast ends inside the test rows: 94, 94, 114, 114 and 28 windows. These strides do not divide a day or a week, so the origins cover all hours and weekdays. `interface/ltsf.py` defines the splits, origins and the reference.
+interface: "Implement `load(checkpoint_dir, device)` and `predict(state, dataset, history, horizon)` in `model.py`. `dataset` is one of `\"etth1\"`, `\"etth2\"`, `\"ettm1\"`, `\"ettm2\"`, `\"electricity\"`; `history` is float32 (B, 720, C), the standardised steps before B forecast origins; `predict` returns float32 (B, horizon, C) for `horizon` in 96, 192, 336, 720; write a `train.py` that produces the checkpoint from the public data."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **MSE ratio** (primary) | Geometric mean over the 20 dataset-horizon pairs of (your MSE) / (reference MSE) on the test windows, MSE averaged over windows, steps and channels on the standardised scale; lower is better, 1 is the reference | — |
+  | Per pair | MSE, MAE and the ratio for each dataset and horizon; the ratio per dataset; the share of pairs below 1; the worst ratio | reported |
+  | Reference | The reference's MSE for each pair | reported |
+  | Cost | Load seconds, prediction seconds for all windows, checkpoint size | reported |
+
+  No threshold applies to any metric: a submission is valid if it loads, returns finite forecasts of the right shape within the time limits and the code follows the rules (see below).
+
+  **Measurement and decision**
+
+  - Loading runs in a new process on one GPU (killed at 300 s); `predict` is then called per dataset and horizon on batches of at most 64 windows, all within 900 s.
+  - The reference is `ltsf.ridge_fit` with lookback 336: penalty chosen on the validation rows after a fit on the training rows, then refitted on training and validation rows together. Its errors on the test windows are computed when the case is frozen.
+  - The primary metric is reported with a 95% bootstrap interval over windows (resampled per dataset, jointly over horizons); submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by the MSE ratio, and also considers how different the architecture is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 5
+  dev_budget: "3 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), NumPy, SciPy, scikit-learn"
+  notes: |
+    - `selfcheck.py` uses the validation rows as the test: it fits the reference on the training rows (penalty chosen on their last quarter) and scores your checkpoint on validation origins. Train on the training rows only for an unbiased estimate (the reference `train.py` without `--final`), then retrain with validation rows for the submission.
+    - The reference fit on electricity takes about half a minute on 8 CPU cores; its lookback-and-penalty search in the reference `train.py` takes a few minutes.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and predict()
+    ├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+    ├── checkpoint/         # required: trained parameters, at most 500 MB
+    ├── src/                # optional: other .py modules imported by model.py or train.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights and no external data.
+  - `predict` forecasts each window from its own history; it may not use other windows of the batch, keep state between calls or fit anything to the test histories.
+interface_md: |
+  # FN-LTSF-005 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, device: str):
+      """Load your trained models from checkpoint/ and return them (any Python object)."""
+
+  def predict(state, dataset: str, history: numpy.ndarray, horizon: int) -> numpy.ndarray:
+      """dataset in ("etth1", "etth2", "ettm1", "ettm2", "electricity"); history float32 (B, 720, C), standardised;
+      horizon in (96, 192, 336, 720). Return float32 (B, horizon, C) on the same standardised scale."""
+  ```
+
+  - Use as much of the 720-step history as you like; every horizon is asked for separately.
+  - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Training program: `train.py`
+
+  `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"` must reproduce the
+  checkpoint. The reference implementation under `interface/baseline/` (`model.py`, `train.py`, `src/linear.py`) is a
+  working starting point: it is the reference family with a lookback search.
+
+  ## Evaluator code you can read
+
+  `stages.py` (pipeline, self-check split, time limits), `metrics.py`, `ltsf.py` (splits, origins, the reference),
+  `abench_metrics.py`, `abench_stage.py` and `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), NumPy, SciPy and scikit-learn. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 3.0, session_hours: 5}
+  data:
+    public_dir: sandbox/data/FN-LTSF-005
+    public:
+      - {path: sandbox/data/FN-LTSF-005/etth1.npz, sha256: pending}
+      - {path: sandbox/data/FN-LTSF-005/etth2.npz, sha256: pending}
+      - {path: sandbox/data/FN-LTSF-005/ettm1.npz, sha256: pending}
+      - {path: sandbox/data/FN-LTSF-005/ettm2.npz, sha256: pending}
+      - {path: sandbox/data/FN-LTSF-005/electricity.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/FN-LTSF-005/hidden.npz.enc, sha256_plain: pending, keys: "x_<dataset> (given after the timed phase); y_<dataset>, ref_mse_<dataset>_<horizon>, origins_<dataset> (evaluator only)"}
+    sources:
+      - name: "ETT-small (ETTh1, ETTh2, ETTm1, ETTm2), Zhou et al. 2021"
+        url: https://github.com/zhouhaoyi/ETDataset
+        revision: 1d16c8f4f943005d613b5bc962e9eeb06058cf07
+        license: CC BY-ND 4.0
+        verified: "2026-10-22: commit, licence file, row counts and sha256 of the four files from a clone"
+        note: "No-derivatives licence: the frozen copy (rows split, values standardised) is an internal evaluation copy and is not published."
+      - name: "Electricity, 321 clients hourly (Lai et al. 2018) from UCI ElectricityLoadDiagrams20112014"
+        url: https://github.com/laiguokun/multivariate-time-series-data
+        revision: 7f402f185cc2435b5e66aed13a3b560ed142e023
+        license: "CC BY 4.0 (UCI ElectricityLoadDiagrams20112014); the repository states no licence of its own"
+        verified: "2026-10-22: commit, row and column counts and sha256 of electricity.txt.gz from a clone"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 524288000
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 526288000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA and torch versions frozen at activation)"
+    seeds: [0]

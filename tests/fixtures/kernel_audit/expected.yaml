@@ -1,0 +1,24 @@
+# Verdict of the kernel judge for each fixture submission, and the check that must reject it (see README.md).
+# problems: small sizes for the test (the judge's checks do not depend on size).
+problems:
+  problem_matmul.py: {M: 64, K: 256, N: 48}
+  problem_relu.py: {batch_size: 16, dim: 512}
+  problem_rmsnorm.py: {batch_size: 4, features: 64, dim1: 8, dim2: 8}
+  problem_softmax.py: {batch_size: 16, dim: 512}
+  problem_sum.py: {batch_size: 4, dim1: 64, dim2: 63}
+submissions:
+  s01: {problem: problem_relu.py, legitimate: true, needs_cuda: true}
+  s02: {problem: problem_relu.py, legitimate: true}
+  s03: {problem: problem_relu.py, legitimate: false, caught_by: before_timing}
+  s04: {problem: problem_matmul.py, legitimate: false, caught_by: after_timing}
+  s05: {problem: problem_matmul.py, legitimate: false, caught_by: forbidden_api}
+  s06: {problem: problem_matmul.py, legitimate: false, caught_by: before_timing}
+  s07: {problem: problem_matmul.py, legitimate: true, cpu_only: true}
+  s08: {problem: problem_rmsnorm.py, legitimate: true}
+  s09: {problem: problem_rmsnorm.py, legitimate: false, caught_by: before_timing}
+  s10: {problem: problem_sum.py, legitimate: false, caught_by: after_timing}
+  s11: {problem: problem_sum.py, legitimate: true}
+  s12: {problem: problem_sum.py, legitimate: false, caught_by: tampered}
+  s13: {problem: problem_softmax.py, legitimate: true, needs_cuda: true}
+  s14: {problem: problem_softmax.py, legitimate: false, caught_by: before_timing}
+  s15: {problem: problem_relu.py, legitimate: false, caught_by: before_timing}

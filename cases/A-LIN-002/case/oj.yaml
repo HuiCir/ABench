@@ -3,8 +3,7 @@ schema: abench.oj/v2
 case_id: A-LIN-002
 standard: true
 task_statement: v2.1
-knowledge_cutoff: '2026-07-01'
-mode: checkpoint
+mode: judge_trains
 agent_visible:
   task: case/agent/task.md
   interface:
@@ -19,8 +18,6 @@ agent_visible:
   - harness/mqar.py
   - harness/lin_model.py
   - harness/baselines/gla/mixer.py
-  - harness/baseline/mixer.py
-  - harness/baseline/train.py
   leak_allow:
   - hidden
   - evaluation
@@ -30,7 +27,7 @@ agent_visible:
   - evaluate
   - held-out
 agent_budget:
-  gpu_hours: 8.0
+  gpu_hours: 6.0
   session_hours: 6.0
 data:
   public_dir: sandbox/data/A-LIN-002
@@ -52,14 +49,12 @@ data:
     verified: '2026-10-19: title, authors and the MQAR task definition read from arxiv.org/abs/2312.04927 and its
       HTML version'
 submission:
-  kind: code_plus_checkpoint
+  kind: code_only
   entry: mixer.py
-  checkpoint_dir: checkpoint
+  checkpoint_dir: null
   allowed_top_level:
   - README.md
   - mixer.py
-  - train.py
-  - checkpoint
   - src
   - report
   - references.yaml
@@ -70,10 +65,7 @@ submission:
   - .md
   - .txt
   code_max_bytes: 200000
-  max_bytes: 106857600
-  checkpoint_max_bytes: 104857600
-  required_files:
-  - train.py
+  max_bytes: 2000000
   report_profile: design_report_v2
 judge:
   kind: harness
@@ -84,3 +76,5 @@ judge:
   reference_gpu: RTX 4090-class 24GB (model, driver, CUDA and torch versions frozen at activation)
   seeds:
   - 2312
+  - 6635
+  baseline: harness/baselines/gla

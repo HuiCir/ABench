@@ -1,0 +1,52 @@
+schema: abench.references/v2
+references:
+- id: notin2023proteingym
+  title: 'ProteinGym: Large-Scale Benchmarks for Protein Design and Fitness Prediction'
+  authors: Pascal Notin et al.
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2312.05451'
+  used_for: 'Anchor: assays, metric and aggregation'
+  code_location: null
+- id: meier2021esm1v
+  title: Language models enable zero-shot prediction of the effects of mutations on protein function
+  authors: Joshua Meier, Roshan Rao, Robert Verkuil, Jason Liu, Tom Sercu and Alexander Rives
+  year: 2021
+  venue: NeurIPS
+  doi: 10.1101/2021.07.09.450648
+  used_for: Wild-type-marginal scoring
+  code_location: 'model.py: wt_marginal_scores'
+- id: lin2023esm2
+  title: Evolutionary-scale prediction of atomic-level protein structure with a language model
+  authors: Zeming Lin et al.
+  year: 2023
+  venue: Science
+  doi: 10.1126/science.ade2574
+  used_for: The ESM-2 models
+  code_location: 'model.py: load'
+- id: hsu2022combining
+  title: Learning protein fitness models from evolutionary and assay-labeled data
+  authors: Chloe Hsu, Hunter Nisonoff, Clara Fannjiang and Jennifer Listgarten
+  year: 2022
+  venue: Nature Biotechnology
+  doi: 10.1038/s41587-021-01146-5
+  used_for: Combining density scores with few labels by regression
+  code_location: 'model.py: predict'
+- id: frazer2021eve
+  title: Disease variant prediction with deep generative models of evolutionary data
+  authors: Jonathan Frazer, Pascal Notin, Mafalda Dias, Aidan Gomez, Joseph K. Min, Kelly Brock, Yarin Gal and Debora
+    S. Marks
+  year: 2021
+  venue: Nature
+  doi: 10.1038/s41586-021-04043-8
+  used_for: Related work
+  code_location: null
+- id: notin2022tranception
+  title: 'Tranception: protein fitness prediction with autoregressive transformers and inference-time retrieval'
+  authors: Pascal Notin, Mafalda Dias, Jonathan Frazer, Javier Marchena-Hurtado, Aidan Gomez, Debora S. Marks and
+    Yarin Gal
+  year: 2022
+  venue: ICML
+  arxiv: '2205.13760'
+  used_for: Related work
+  code_location: null

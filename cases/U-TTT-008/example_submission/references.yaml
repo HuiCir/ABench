@@ -1,0 +1,50 @@
+schema: abench.references/v2
+references:
+- id: sun2024ttt
+  title: 'Learning to (Learn at Test Time): RNNs with Expressive Hidden States'
+  authors: Yu Sun et al.
+  year: 2024
+  venue: arXiv
+  arxiv: '2407.04620'
+  used_for: 'Anchor: TTT-Linear, mini-batch dual form'
+  code_location: 'src/ttt.py: TTTLinear'
+- id: katharopoulos2020linear
+  title: 'Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention'
+  authors: Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas and François Fleuret
+  year: 2020
+  venue: ICML
+  arxiv: '2006.16236'
+  used_for: Related work
+  code_location: null
+- id: schlag2021fastweights
+  title: Linear Transformers Are Secretly Fast Weight Programmers
+  authors: Imanol Schlag, Kazuki Irie and Jürgen Schmidhuber
+  year: 2021
+  venue: ICML
+  arxiv: '2102.11174'
+  used_for: Related work (fast weights, delta rule)
+  code_location: null
+- id: yang2024deltanet
+  title: Parallelizing Linear Transformers with the Delta Rule over Sequence Length
+  authors: Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen and Yoon Kim
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.06484'
+  used_for: Related work
+  code_location: null
+- id: behrouz2024titans
+  title: 'Titans: Learning to Memorize at Test Time'
+  authors: Ali Behrouz, Peilin Zhong and Vahab Mirrokni
+  year: 2024
+  venue: arXiv
+  arxiv: '2501.00663'
+  used_for: Related work
+  code_location: null
+- id: gu2023mamba
+  title: 'Mamba: Linear-Time Sequence Modeling with Selective State Spaces'
+  authors: Albert Gu and Tri Dao
+  year: 2023
+  venue: arXiv
+  arxiv: '2312.00752'
+  used_for: Related work
+  code_location: null

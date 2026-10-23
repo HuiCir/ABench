@@ -1,0 +1,126 @@
+id: U-LOOP-001
+title: "A recurrent-depth language model that turns more loops into lower loss at the parameter budget of a 4-layer transformer"
+template: B-OPT-001
+anchor: {authors: "Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit, Łukasz Kaiser", title: "Universal Transformers", arxiv: "1807.03819"}
+baseline: "the B-OPT-001 decoder with 4 layers of width 384 and no weight sharing (the same parameter budget), run by the evaluator under identical conditions (`interface/baselines/fourlayer/`)"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, recipe), the evaluator also trains the 4-layer baseline in `interface/baselines/fourlayer/` and reports your loss relative to it."
+reference_verification: "Not executed yet: the stage code, baseline and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The reference's parameter count (4 blocks plus a 2d × d adapter, about 1% above the baseline) and its compute at 8 loops (about 1.7 times the baseline's, with the tied output head included) were derived by hand and are checked by the stage at activation."
+mode: judge_trains
+n_seeds: 2
+kit_extra:
+  - microlm/lm_train.py
+extra_interface:
+  - harness/lm_model.py
+  - harness/token_data.py
+  - harness/baselines/fourlayer/model.py
+task: |
+  Design a **language model with recurrent (weight-shared) depth** that, at the parameter budget of a 4-layer transformer of width 384, reaches the **lowest held-out loss when run with 8 loops** — and whose loss keeps improving as the number of loops grows from 1 to 8.
+
+  - Submit the model only (`model.py` with `build(cfg)`). At evaluation the evaluator trains it from scratch with a fixed recipe (3,000 steps of 32 × 1,024 FineWeb tokens; how many loops to use in each training step is up to your model), once for each of 2 seeds unknown to you, then measures the held-out loss at 1, 2, 4 and 8 loops and, at 8 loops, on windows of 2,048 tokens (twice the training length). It trains the 4-layer baseline the same way.
+  - Parameters may exceed the baseline's by at most 2%; forward compute at 8 loops may be at most 3 times the baseline's. Equal parameters, not equal compute, is the comparison this case makes; the loop-count curve shows what extra compute buys.
+  - You may build on any public work (universal and looped transformers, adaptive computation, recurrent-depth models, input injection, deep-equilibrium models), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only) holds the first two training shards of FineWeb-10B pre-tokenized with the GPT-2 BPE (Hugging Face `kjj0/fineweb10B-gpt2`, the data of the modded-nanogpt speedrun):
+
+  | File | Contents |
+  |---|---|
+  | `fineweb_train_000001.bin`, `fineweb_train_000002.bin` | 256 int32 header (magic 20240520, version 1, token count), then about 100M uint16 tokens each |
+
+  Read them with `interface/token_data.py`. The held-out set is the first 2,097,152 tokens of the official FineWeb validation shard (`fineweb_val_000000.bin`); it is not in the sandbox. The self-check holds out the last 2,097,152 tokens of the second training shard.
+interface: "Implement `build(cfg) -> nn.Module` in `model.py`. `cfg` is `lm_model.Config(n_layers=4, max_seq=2048)` (width 384); the module's `forward(idx, loops)` returns logits (B, T, vocab) causally and `loss(idx, targets, loops=None)` the mean cross-entropy, where `loops=None` (training) lets the model choose."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Held-out loss at 8 loops** (primary) | Mean next-token cross-entropy (nats) on the 2,097,152 held-out tokens in windows of 1,024 with `loops=8`, mean over 2 seeds; lower is better | — |
+  | Loop-count curve | The same at 1, 2, 4 and 8 loops; gain from 1 to 8 loops; whether it is monotone | reported |
+  | Length extrapolation | Held-out loss at 8 loops on windows of 2,048 tokens, and its difference to 1,024 | reported |
+  | Loss vs 4-layer | Primary minus the baseline's held-out loss on the same seeds | reported |
+  | Parameters | Relative to the 4-layer baseline | Threshold: ≤ 1.02 |
+  | Compute at 8 loops | Forward FLOPs per token at T = 1,024 with `loops=8` (FlopCounterMode) relative to the baseline | Threshold: ≤ 3.0 |
+  | Causality | Relative change of outputs at positions < 512 when later tokens change (8 loops) | Threshold: ≤ 1e-3 |
+  | Training time | Seconds of the 3,000 steps (parent clock) | Threshold: ≤ 1,800 s |
+  | Divergence | 1 if the training loss became non-finite or exceeded 20 | Threshold: 0 |
+
+  **Fixed training setting** (`interface/lm_train.py`, `interface/stages.py`): AdamW at 1e-3 (β = 0.9, 0.95; weight decay 0.1 on matrices), 150 warm-up steps then cosine decay to 0.1, clipping at 1.0, bf16 autocast with fp32 weights; the loss is your `model.loss(x, y)`.
+
+  **Decision**
+
+  - A submission is valid only if every threshold holds for the 2-seed means; valid submissions are ranked by held-out loss at 8 loops. Differences smaller than the spread over the two seeds are treated as ties.
+  - If any run crashes or exceeds a time limit (the stage is killed at 2,100 s), the whole submission is invalid.
+  - The final ABench score is driven mainly by the primary metric relative to the baseline, and also considers how different the model is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 6
+  dev_budget: "6 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML"
+  notes: |
+    - `selfcheck.py --quick` trains 300 steps and runs every measurement of the evaluation.
+    - Training compute counts against the 1,800-second limit: sampling many loops per step makes each step slower.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: build(cfg)
+    ├── src/                # optional: helper modules imported by model.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; no trained parameters are submitted.
+rules: |
+  - The model must be built from `cfg` alone and trained by the evaluator; no pretrained weights, files, environment variables or network access.
+  - `loops` must control the amount of computation: the evaluator compares losses across loop counts, and the compute gate is measured at 8 loops.
+  - The model must be causal; the training loss may add terms (for example over several loop counts) but must stay a next-token objective on the given batch.
+interface_md: |
+  # U-LOOP-001 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  import torch.nn as nn
+  from lm_model import Config          # interface/lm_model.py is on sys.path
+
+  def build(cfg: Config) -> nn.Module:
+      """cfg = Config(n_layers=4, max_seq=2048): width 384, 6 heads, 2 key-value heads, MLP 1,024, vocabulary 50,304.
+      model(idx, loops=k) -> logits (B, T, vocab); model.loss(idx, targets, loops=None) -> scalar."""
+  ```
+
+  - Training calls `model.loss(x, y)` (loops=None) in train mode; evaluation calls `model.loss(x, y, loops=k)` and
+    `model(x, loops=k)` in eval mode for k in 1, 2, 4, 8.
+  - `lm_model.Block`, `RMSNorm`, `rope_cache` are the baseline's components; you may reuse them.
+
+  ## Evaluator code you can read
+
+  `stages.py` (the run, the loop-count evaluation, FLOP count, causality), `metrics.py`, `lm_train.py` (recipe),
+  `lm_model.py`, `token_data.py`, `baselines/fourlayer/model.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 6}
+  data:
+    public_dir: sandbox/data/U-LOOP-001
+    public:
+      - {path: sandbox/data/U-LOOP-001/fineweb_train_000001.bin, sha256: pending}
+      - {path: sandbox/data/U-LOOP-001/fineweb_train_000002.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/U-LOOP-001/hidden.npz.enc, sha256_plain: pending, keys: [tokens], tokens: 4194305}
+    sources:
+      - name: FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (data of the modded-nanogpt speedrun)
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        files: [fineweb_train_000001.bin, fineweb_train_000002.bin, fineweb_val_000000.bin]
+        license: MIT on the token repository; the underlying FineWeb text is ODC-BY
+        verified: "2026-10-19: revision, license and file list from the Hugging Face API (shared with B-OPT-001)"
+  submission:
+    kind: code_only
+    entry: model.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, model.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [1807, 3819]          # kept secret by the operator
+    baseline: harness/baselines/fourlayer

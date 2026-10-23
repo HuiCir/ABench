@@ -1,0 +1,131 @@
+id: X-GRPO-002
+title: "A reinforcement-learning objective for verifiable rewards: post-training Qwen2.5-0.5B-Instruct on Countdown and GSM8K"
+template: X-SFT-005
+anchor: {authors: "Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, Y.K. Li, Y. Wu, Daya Guo", title: "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models", arxiv: "2402.03300"}
+baseline: "GRPO with LoRA (rank 16): 8 sampled responses per prompt, group-standardised verifier rewards, one on-policy update per batch, 200 steps (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Partly executed: the Countdown generator (every instance checked solvable by exhaustive search, trivial instances excluded), the verifiers and the metrics were run in the build container; the pipeline runs on synthetic problems in tests/test_standard_cases.py with a stand-in model. Training and generation need PyTorch, transformers and the Qwen2.5 weights, which were not available here; the operator runs the reference at activation and records the base model's accuracy next to it."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+kit_extra: [lmpost/lmpost.py]
+extra_interface: [harness/verify_math.py, harness/textpack.py]
+leak_allow: [reward]
+task: |
+  Design a **reinforcement-learning method for verifiable rewards** — objective, advantage estimation, sampling and filtering of rollouts, curriculum, length control — that post-trains **Qwen2.5-0.5B-Instruct** in the sandbox to the **highest verified accuracy** on held-out **Countdown** equations and **GSM8K** word problems.
+
+  - Submit the trained model (a checkpoint, for example LoRA or full weights), the code that loads it and the training program that produced it. The evaluator formats every prompt, decodes greedily (at most 512 new tokens) and checks the single `<answer>` block of each response with the verifiers in `interface/verify_math.py`; it never retrains.
+  - Training data: generate as many Countdown instances as you like with the case's generator, and use the GSM8K training split; the held-out Countdown instances come from a secret seed, the held-out GSM8K problems are its test split.
+  - Rewards may only come from the provided verifiers or your own checks of the same answers; no other pretrained model (no reward model, no teacher), no external data.
+  - You may build on any public work (PPO, GRPO and its variants such as DAPO and Dr. GRPO, RLOO, rejection-sampling fine-tuning, expert iteration, length penalties, curricula), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only):
+
+  | File | Contents |
+  |---|---|
+  | `gsm8k_train.json` | 7,173 GSM8K training problems (Cobbe et al. 2021, `openai/gsm8k` main @740312ad, MIT): `question`, `solution`, `gold` |
+  | `dev.json` | Self-check problems: 500 Countdown instances from a public seed and 300 GSM8K training problems set aside |
+
+  `$ABENCH_MODELS_DIR/Qwen2.5-0.5B-Instruct/` holds the base model (Apache-2.0, revision 7ae55760). `interface/verify_math.py` has the Countdown generator, the two prompt formats, the answer extraction and the verifiers.
+
+  The held-out set is 1,000 Countdown instances drawn with a secret seed (none identical to a dev instance) and the 1,319 GSM8K test problems; only the prompts are given to the model, after the timed phase.
+interface: "Implement `load(checkpoint_dir, models_dir, device)` in `model.py`, returning a transformers-compatible causal LM (`forward(input_ids, attention_mask)` with `.logits`, and `generate()`); the evaluator uses the base model's tokenizer and the ChatML template of `interface/lmpost.py`. Write a `train.py` that produces the checkpoint from the public data and the base model."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean accuracy** (primary) | Mean of the verified accuracy on the 1,000 held-out Countdown instances and on the 1,319 GSM8K test problems | — |
+  | Accuracy per task | Countdown: the answer is an equation using at least two of the given numbers, each at most once, only + − × ÷ and parentheses, equal to the target; GSM8K: the answer equals the final number | reported |
+  | Format violations | Share of responses without exactly one `<answer>` block (they score 0) | Threshold: ≤ 0.5 |
+  | Reward-hacking signs | Responses with several answer blocks, truncated answers, mean response length | reported |
+  | Size | Numbers stored in the checkpoint | reported |
+
+  **Measurement and decision**
+
+  - One evaluation run (greedy decoding is deterministic); loading is killed at 600 s and all responses must be generated within 1,800 s on one GPU.
+  - A submission is valid if it loads, answers within the limits and its format-violation rate is at most 0.5; otherwise it is invalid.
+  - The primary metric is reported with a 95% bootstrap interval over problems; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by mean accuracy, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 10
+  dev_budget: "8 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), transformers, safetensors, NumPy"
+  notes: |
+    - `selfcheck.py` evaluates your checkpoint on the dev problems (`--quick`: 40 of each).
+    - Rollouts dominate the cost: with 8 GPU-hours, sampling length and group size are the main budget decisions.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load()
+    ├── train.py            # required: produces checkpoint/ from the public data and the base model
+    ├── checkpoint/         # required: trained weights or adapters, at most 2 GB
+    ├── src/                # optional: other .py modules
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The checkpoint must be trained from the provided base model in the sandbox; no other pretrained model, no external data, no network.
+  - The loaded model must answer from the prompt alone: no lookup tables of problems or answers inside the checkpoint or code.
+interface_md: |
+  # X-GRPO-002 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, models_dir: str, device: str):
+      """Return the trained causal LM (transformers interface); models_dir/Qwen2.5-0.5B-Instruct is the base model."""
+  ```
+
+  - The evaluator builds every prompt with `verify_math.countdown_prompt` or `verify_math.gsm8k_prompt`, wraps it in
+    the ChatML template (`lmpost.CHAT`) and decodes greedily with the base model's tokenizer.
+  - `train.py --data "$ABENCH_DATA_DIR" --out checkpoint` must reproduce the checkpoint.
+
+  ## Evaluator code you can read
+
+  `verify_math.py` (generator, prompts, verifiers), `lmpost.py` (template, decoding), `stages.py`, `metrics.py`,
+  `textpack.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), transformers, safetensors, NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 10}
+  data:
+    public_dir: sandbox/data/X-GRPO-002
+    public:
+      - {path: sandbox/data/X-GRPO-002/gsm8k_train.json, sha256: pending}
+      - {path: sandbox/data/X-GRPO-002/dev.json, sha256: pending}
+    hidden: {path: sandbox/hidden/X-GRPO-002/hidden.npz.enc, sha256_plain: pending, keys: "prompt_utf8, prompt_offsets (given after the timed phase); task, spec_json (evaluator only)"}
+    models_dir: sandbox/models/X-GRPO-002
+    models:
+      - {name: Qwen2.5-0.5B-Instruct, path: sandbox/models/X-GRPO-002/Qwen2.5-0.5B-Instruct, tree_sha256: pending, revision: 7ae557604adf67be50417f59c2c2f167def9a775, license: Apache-2.0}
+    sources:
+      - name: "GSM8K (openai/gsm8k main), train and test parquet files"
+        url: https://huggingface.co/datasets/openai/gsm8k
+        revision: 740312add88f781978c0658806c59bc2815b9866
+        license: MIT
+        verified: "2026-10-22: revision, licence and file paths from the Hugging Face API (C-SPEC-001)"
+      - name: "Countdown instances (harness/verify_math.make_countdown), held-out ones from a secret seed"
+        url: null
+        license: "generated by ABench"
+      - name: "Qwen2.5-0.5B-Instruct (Qwen Team 2024)"
+        url: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct
+        revision: 7ae557604adf67be50417f59c2c2f167def9a775
+        license: Apache-2.0
+        verified: "2026-10-22: revision, licence and file list from the Hugging Face API (C-SPEC-001)"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 2147483648
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2149483648
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [0]
+    code_audit: "the operator checks that the checkpoint holds no table of problems or answers"

@@ -1,0 +1,118 @@
+id: A-LCTX-006
+title: "Position encoding for context extension: a 32M language model trained at 1,024 tokens, used at up to 16,384"
+template: A-HYB-001
+anchor: {authors: "Bowen Peng, Jeffrey Quesnelle, Honglu Fan, Enrico Shippole", title: "YaRN: Efficient Context Window Extension of Large Language Models", arxiv: "2309.00071"}
+baseline: "rotary position embedding (base 10,000) with no change beyond the training length, trained by the evaluator under identical conditions (`interface/baselines/rope/`)"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, recipe, extension phase), the evaluator also trains the model with RoPE from `interface/baselines/rope/` and reports your losses relative to it; the short-context requirement is relative to it."
+reference_verification: "Partly executed: the data preparation (book windows, copy-test sequences) ran on synthetic tokens. The model, training and measurements need PyTorch and a GPU, which were not available here; the operator runs the RoPE baseline and the reference at activation."
+mode: judge_trains
+n_seeds: 2
+show_baseline: true
+extra_interface: [harness/ctx_model.py, harness/longctx.py, harness/lm_train.py, harness/token_data.py, harness/baselines/rope/positions.py]
+task: |
+  Design the **position mechanism** of a fixed decoder — how queries and keys carry position, and how that changes beyond the training length (rotary variants, frequency interpolation and extrapolation rules, attention temperature, learnable or data-dependent position signals) — so that a **32M-parameter language model trained at 1,024 tokens** and briefly extended at 4,096 **uses contexts of 4,096 to 16,384 tokens well**, without losing quality at 1,024.
+
+  - Submit code only: `positions.py` with `make_positions(head_dim, n_heads, n_kv_heads, train_len)` returning a module that maps (q, k) to (q, k) inside every attention layer; it sees the sequence length and may behave differently beyond `train_len`. At most 65,536 parameters.
+  - The evaluator trains the fixed model (B-OPT-001's μ2 decoder) from scratch with your module: 3,000 steps at 1,024 tokens, then 200 steps at 4,096 tokens (the extension phase), and measures loss on PG-19 books with 4,096, 8,192 and 16,384 tokens of context, retrieval of a repeated segment across 8,192 and 16,384 tokens, and loss at 1,024. It trains the RoPE baseline the same way.
+  - Attention stays exact and causal (scaled dot-product attention after your module); attention biases and changes to the rest of the model are out of scope.
+  - You may build on any public work (RoPE, position interpolation, NTK-aware and YaRN scaling, LongRoPE, ALiBi-like decay expressed through queries and keys, NoPE, xPos, attention temperature), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only): the B-OPT-001 training shards `fineweb_train_000001.bin` and `fineweb_train_000002.bin` (FineWeb-10B GPT-2 tokens, `kjj0/fineweb10B-gpt2` @889765ea, MIT; text ODC-BY), and `pg19_dev.npz` with `windows`: one 16,385-token window from each PG-19 validation book long enough (Rae et al. 2020, Apache-2.0; GPT-2 tokenizer).
+
+  The held-out set is 4,194,305 FineWeb validation tokens (short-context loss), one 16,385-token window from each of the 100 PG-19 test books (offsets from a secret seed), and copy-test sequences (64 of 8,192 and 32 of 16,384 tokens, `interface/longctx.py`) built from the FineWeb validation tokens with the same seed.
+interface: "Implement `make_positions(head_dim, n_heads, n_kv_heads, train_len) -> torch.nn.Module` in `positions.py`; the module's `forward(q, k)` takes q (B, n_heads, T, head_dim) and k (B, n_kv_heads, T, head_dim) and returns transformed q and k of the same shapes. One module is shared by all layers; its parameters (at most 65,536) are trained with the model."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Long-context loss** (primary) | Mean next-token loss on the last 1,024 tokens of the PG-19 windows when the model reads 4,096, 8,192 and 16,384 tokens, averaged over the three lengths and over the two training seeds; lower is better | — |
+  | Short-context loss | Held-out FineWeb loss at 1,024 tokens, minus the RoPE baseline's in the same run | Threshold: ≤ +0.02 |
+  | Copy test | Loss on a 64-token segment repeated about 3/4 of the context after its first occurrence, at 8,192 and 16,384 tokens | reported |
+  | Per length | Loss at each length; differences to RoPE | reported |
+  | Size and stability | Parameters of the positions module; divergence in either training phase | Threshold: ≤ 65,536; no divergence |
+
+  **Measurement and decision**
+
+  - A submission is valid if it trains without divergence within the time limit (2,100 s for both phases), keeps the short-context loss within 0.02 of RoPE's, and its module has at most 65,536 parameters; otherwise it is invalid.
+  - The primary metric is reported with a 95% bootstrap interval over windows; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by the long-context loss, and also considers how different the mechanism is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "4 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), NumPy"
+  notes: |
+    - `selfcheck.py` trains and measures on the dev split (`--quick`: 300 + 20 steps, 4 windows); one full run takes about 35 minutes on the reference GPU.
+    - Measuring at 16,384 tokens costs about 2 GB of memory for the logits at batch 1.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── positions.py        # required: make_positions()
+    ├── src/                # optional: helper modules, .py only
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - The module may only transform queries and keys from their values, positions and the sequence length; it must not look at token ids, change other parts of the model, or depend on anything outside its inputs.
+  - Causality must hold: no position may receive information from later positions.
+interface_md: |
+  # A-LCTX-006 interface
+
+  ## Entry point: `positions.py`
+
+  ```python
+  def make_positions(head_dim: int, n_heads: int, n_kv_heads: int, train_len: int) -> "torch.nn.Module":
+      """forward(q, k) -> (q, k); q: (B, n_heads, T, head_dim), k: (B, n_kv_heads, T, head_dim)."""
+  ```
+
+  The model (`ctx_model.py`) calls it in every attention layer right before scaled dot-product attention; head_dim
+  is 64, n_heads 6, n_kv_heads 2, train_len 1,024.
+
+  ## Evaluator code you can read
+
+  `ctx_model.py` (the model), `lm_train.py` (recipe), `longctx.py` (long-context loss and copy test), `stages.py`,
+  `metrics.py`, `token_data.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, the RoPE baseline under
+  `baselines/rope/` and the reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 4.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/A-LCTX-006
+    public:
+      - {path: sandbox/data/A-LCTX-006/fineweb_train_000001.bin, sha256: pending}
+      - {path: sandbox/data/A-LCTX-006/fineweb_train_000002.bin, sha256: pending}
+      - {path: sandbox/data/A-LCTX-006/pg19_dev.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/A-LCTX-006/hidden.npz.enc, sha256_plain: pending, keys: "tokens, pg19_windows, copy_x_<L>, copy_start_<L> (given after the timed phase)"}
+    sources:
+      - name: "FineWeb 10B pre-tokenized with GPT-2 BPE (kjj0/fineweb10B-gpt2), as B-OPT-001"
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        license: "MIT on the token repository; the underlying FineWeb text is ODC-BY"
+        verified: "2026-10-19: revision, licence and file list from the Hugging Face API (B-OPT-001)"
+      - name: "PG-19 (Rae et al. 2020), validation and test books from the deepmind-gutenberg bucket"
+        url: https://github.com/google-deepmind/pg19
+        revision: b0e1f2925359688af19f8784c23c3deeda52d3ea
+        license: Apache-2.0
+        verified: "2026-10-23: commit, licence file and the bucket location from a clone of the repository; the books are fetched by the operator"
+      - name: "GPT-2 tokenizer (openai-community/gpt2)"
+        url: https://huggingface.co/openai-community/gpt2
+        revision: 607a30d783dfa663caf39e06633721c8d4cfcd7e
+        license: MIT
+        verified: "2026-10-22: revision and licence from the Hugging Face API"
+  submission:
+    kind: code_only
+    entry: positions.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, positions.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA and torch versions frozen at activation)"
+    seeds: [2309, 71]
+    baseline: harness/baselines/rope

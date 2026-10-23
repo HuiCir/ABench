@@ -10,7 +10,7 @@ task: |
 
   - Submit code only: `kernel.py` with `attention(q, k, v, causal)`. At evaluation it is called on the held-out shapes with random inputs, checked against an fp32 reference, and timed against SDPA on the same GPU, once for each of 3 seeds (separate processes).
   - Triton and hand-written CUDA via PyTorch's inline extension loading are allowed; calling SDPA, FlashAttention, xFormers or any other attention library from your code is not.
-  - You may build on any public work from before the cutoff (FlashAttention 1–3, tiling and warp specialisation strategies, Triton tutorials), but the design report must state what you borrowed and what you changed. The task tests your understanding of the hardware: memory hierarchy, tiling, occupancy and numerics.
+  - You may build on any public work (FlashAttention 1–3, tiling and warp specialisation strategies, Triton tutorials), but the design report must state what you borrowed and what you changed. The task tests your understanding of the hardware: memory hierarchy, tiling, occupancy and numerics.
 data: |
   There is no data file. Inputs are random bf16 tensors of layout (B, H, T, D) drawn on the GPU from a seed.
 

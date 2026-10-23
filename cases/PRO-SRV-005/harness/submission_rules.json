@@ -1,0 +1,30 @@
+{
+  "required": [
+    "serve.py",
+    "report/index.html",
+    "references.yaml"
+  ],
+  "allowed_top_level": [
+    "README.md",
+    "serve.py",
+    "src",
+    "report",
+    "references.yaml"
+  ],
+  "code_suffixes": [
+    ".py",
+    ".sh",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".toml",
+    ".md",
+    ".txt",
+    ".cu",
+    ".cpp",
+    ".h"
+  ],
+  "code_max_bytes": 2000000,
+  "data_dirs": [],
+  "data_max_bytes": {}
+}

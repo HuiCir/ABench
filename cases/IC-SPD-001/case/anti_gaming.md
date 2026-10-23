@@ -1,1 +1,0 @@
-# Anti-gaming checklist\n\n1. Do not read hidden labels, test examples or evaluator state.\n2. All metrics must be server-generated from hashed inputs and logged runtime.\n3. Public examples validate interface only and carry no score.\n4. Fix hardware and timing window; include CIFAR-10.1/C holdout.\n5. Reject cached predictions, test-set augmentation and unreported data.\n

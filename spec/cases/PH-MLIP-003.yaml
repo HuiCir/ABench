@@ -1,0 +1,128 @@
+id: PH-MLIP-003
+title: "A machine-learned interatomic potential for small molecules from 1,000 DFT configurations: force accuracy and 10 ps of stable dynamics (rMD17)"
+template: GN-OGB-002
+anchor: {authors: "Ilyes Batatia, Dávid Péter Kovács, Gregor N. C. Simm, Christoph Ortner, Gábor Csányi", title: "MACE: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields", arxiv: "2206.07697"}
+baseline: "a random-feature force field on inverse distances fitted to energies and forces, in NumPy (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Not run on the real data: rMD17 could not be downloaded where the case was built (the operator does this at activation). The reference's analytic forces were checked against finite differences of its energy (agreement to 1e-9), and the reference and the whole pipeline (bond detection, Langevin dynamics, stability check, metrics) run end to end on a synthetic harmonic molecule in tests/test_standard_cases.py; there the reference reaches a force error of about 1% of the mean force magnitude and stays stable for 10 ps (without its quadratic pair terms its trajectories broke within 40 fs). The integrator and stability check were also checked on a harmonic triatomic (stable for 1 ps) and its sign-flipped version (breaks within 10 fs)."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+extra_interface:
+  - harness/md.py
+task: |
+  Design and train a **machine-learned interatomic potential** that, from 1,000 DFT-labelled configurations per molecule, predicts the **forces of five small organic molecules most accurately** and **keeps molecular dynamics stable** for 10 ps at 500 K.
+
+  - Submit the trained checkpoint and the code that loads it. The evaluator calls `predict()` on 1,000 held-out configurations per molecule (aspirin, ethanol, malonaldehyde, naphthalene, toluene; the rMD17 test split 01), then runs Langevin dynamics with your forces from 4 of them per molecule.
+  - A trajectory is unstable from the first check (every 10 fs) at which some bond length deviates from its training mean by more than 0.5 Å; at least 75% of the 20 trajectories must stay stable for the whole 10 ps.
+  - You may use one model per molecule or one for all; forces may be the gradient of an energy or predicted directly (the dynamics uses whatever `predict` returns).
+  - You may build on any public work (equivariant message passing, atomic cluster expansion, kernel and gradient-domain methods, descriptors), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/<molecule>.npz` for the five molecules (read-only): the training configurations of the official rMD17 split 01 (Christensen & von Lilienfeld 2020, figshare 10.6084/m9.figshare.12672038, CC0; DFT PBE/def2-SVP).
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `z` | (N,) | int64 | Atomic numbers (H, C, O); N = 21, 9, 9, 18, 15 |
+  | `pos` | (1000, N, 3) | float64 | Positions in Å |
+  | `energy` | (1000,) | float64 | Energies in kcal/mol |
+  | `forces` | (1000, N, 3) | float64 | Forces in kcal/mol/Å |
+
+  The 1,000 test configurations of split 01 (their energies and forces) are not in the sandbox. The self-check holds out 200 of each molecule's training configurations.
+interface: "Implement `load(checkpoint_dir, device)` and `predict(model, molecule, z, pos) -> (energy, forces)` in `model.py`: `pos` is a float64 (B, N, 3) array in Å (B ≤ 100), the result float arrays (B,) in kcal/mol and (B, N, 3) in kcal/mol/Å. The atom order is that of the training data."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean force MAE** (primary) | Mean absolute error of the force components on the 1,000 held-out configurations, in meV/Å (1 kcal/mol = 43.364 meV), averaged over the five molecules; lower is better | — |
+  | Energy and force MAE per molecule | meV and meV/Å | reported |
+  | Stable fraction | Fraction of the 20 trajectories (4 per molecule) stable for the whole 10 ps | Threshold: ≥ 0.75 |
+  | Mean stable time | Mean over trajectories of the time until instability (capped at 10 ps) | reported |
+  | Inference time | Milliseconds per configuration in batches of 100 | reported |
+  | Load time | Seconds from the start signal to the return of `load()` | reported (killed at 300 s) |
+
+  **Dynamics** (`interface/md.py`): Langevin dynamics with the BAOAB splitting, time step 0.5 fs, friction 0.01 fs⁻¹, 500 K, 20,000 steps, velocities drawn from the Maxwell–Boltzmann distribution with the evaluator's seed; bonds are atom pairs closer than 1.25 × the sum of covalent radii in the first training configuration.
+
+  **Timing and decision**
+
+  - Loading, prediction and the dynamics run in a new process with empty cache directories on the reference GPU and 8 CPU threads, timed by the evaluator's parent process (`interface/abench_stage.py`); prediction and the five dynamics runs must finish within 2,400 seconds.
+  - A submission is valid only if the stability threshold holds; valid submissions are ranked by mean force MAE. Differences inside the 95% interval over configurations reported with the score are treated as ties.
+  - If loading, prediction or the dynamics crashes, exceeds a time limit or returns arrays of the wrong shape, the submission is invalid.
+  - The final ABench score is driven mainly by the mean force MAE, and also considers how different the model is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 6
+  dev_budget: "6 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, SciPy"
+  notes: |
+    - No atomistic library (ASE, e3nn, MACE) is installed; the reference (`interface/baseline/`) is plain NumPy and trains in minutes on the CPU.
+    - Train your dev checkpoint on the self-check's 800-configuration split (`train.py --dev` in the reference), then retrain on all 1,000 for the submission. `selfcheck.py --quick` runs 1 ps of dynamics.
+    - The dynamics calls `predict` 20,000 times per molecule with batches of 4 configurations: keep its overhead small.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and predict()
+    ├── train.py            # required: reproduces the checkpoint from the public data
+    ├── src/                # optional: other .py modules
+    ├── checkpoint/         # required: trained parameters, at most 500 MB
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; the checkpoint may hold any files.
+rules: |
+  - The checkpoint must be produced by `train.py` from the public training configurations only; no external data, other DFT labels or pretrained potentials.
+  - `predict` must compute energies and forces from the positions with the trained model; it must not use the molecule's identity beyond selecting the model for it, or detect the dynamics to change its behaviour (for example by adding restraints).
+interface_md: |
+  # PH-MLIP-003 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, device: str):
+      """Return the trained model(s) (any Python object)."""
+
+  def predict(model, molecule: str, z: numpy.ndarray, pos: numpy.ndarray):
+      """molecule in ("aspirin", "ethanol", "malonaldehyde", "naphthalene", "toluene"); z: int64 (N,);
+      pos: float64 (B, N, 3) in Å. Return (energy (B,) in kcal/mol, forces (B, N, 3) in kcal/mol/Å)."""
+  ```
+
+  - Calls: batches of up to 100 held-out configurations, then 20,000 calls with batches of 4 during the dynamics.
+  - `model.py` may import modules under `src/` and next to it; the submission directory is on `sys.path`.
+
+  ## Evaluator code you can read
+
+  `md.py` (integrator, bonds, stability), `stages.py` (prediction and dynamics, the dev split), `metrics.py`,
+  `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the reference submission's code under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, SciPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 6}
+  data:
+    public_dir: sandbox/data/PH-MLIP-003
+    public:
+      - {path: sandbox/data/PH-MLIP-003/aspirin.npz, sha256: pending}
+      - {path: sandbox/data/PH-MLIP-003/ethanol.npz, sha256: pending}
+      - {path: sandbox/data/PH-MLIP-003/malonaldehyde.npz, sha256: pending}
+      - {path: sandbox/data/PH-MLIP-003/naphthalene.npz, sha256: pending}
+      - {path: sandbox/data/PH-MLIP-003/toluene.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/PH-MLIP-003/hidden.npz.enc, sha256_plain: pending, keys: "<molecule>_pos_test, _md_x0 (given after the timed phase); _energy, _forces (evaluator only)"}
+    sources:
+      - name: "Revised MD17 dataset (rMD17), figshare article 12672038 version 4: rmd17_<molecule>.npz and the split files index_train_01.csv / index_test_01.csv"
+        url: https://doi.org/10.6084/m9.figshare.12672038.v4
+        revision: "version 4 (2026-02-28); per-file md5 pinned in tools/prepare/ph_mlip_003.py"
+        license: CC0
+        verified: "2026-10-22: title, licence, version and per-file sizes and md5 read from the figshare API; the npz keys follow the dataset's readme (coords, energies, forces, nuclear_charges) and are asserted at freeze"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 524288000
+    allowed_top_level: [README.md, model.py, train.py, ff.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 526288000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [2206]

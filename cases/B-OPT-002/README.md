@@ -1,36 +1,36 @@
-# ABench Case B-OPT-002: Searching optimizers from symbolic primitives
+# ABench case B-OPT-002: An optimizer found by searching a primitive language: novel against known rules, trained on the fixed micro-LM
 
-This is the second bench specification after B-OPT-001. It reuses the same `FunctionalRule`, reference pool and final-evaluation scoring, but turns the task into **Lion-style primitive program search**: the agent may enumerate candidates only from frozen EMA states, symbolic operations and a finite set of constants, and must submit an auditable, replayable search trace.
+Case built to task statement standard v2.1 from the template of B-OPT-001. Anchor: Xiangning Chen, Chen Liang, Da Huang, Esteban Real, Kaiyuan Wang, Yao Liu, Hieu Pham, Xuanyi Dong, Thang Luong, Cho-Jui Hsieh, Yifeng Lu, Quoc V. Le, *Symbolic Discovery of Optimization Algorithms*
+(arXiv:2302.06675).
 
-- Corpus cutoff: 2026-07-01
-- Anchor: Lion / *Symbolic Discovery of Optimization Algorithms* (arXiv:2302.06675)
-- Subset: primitive; difficulty high; resource tier high
-- Development budget: fixed gradient stream + μ1, 8 GPU-h in total; submission verification about 5.5 GPU-h; reference precompute 0 (plans to reuse the real reference package of B-OPT-001)
+## Status
 
-## Relation to B-OPT-001
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Partly executed: the primitive language was checked against B-OPT-001's reference rules on NumPy (AdamW written in it matches to 2e-9, Lion exactly); the screen and the reference's search ran in the build container (120 candidates in 42 s; the chosen program's largest similarity to a known optimizer is 0.78 on the public stream and 0.77 on another seed). Training needs PyTorch and a GPU, which were not available here; the operator runs the reference and the tuned AdamW at activation.
+- No number in the case files is a result: there are no training curves or reference scores.
+- Baseline run by the judge alongside every submission: `harness/baselines/adamw`.
 
-B-OPT-001 asks for a new optimizer to be designed directly; B-OPT-002 turns "propose an update rule" into an auditable program-search problem. Final evaluation still uses the 4 settings, reference envelope, behavioral divergence and source-quality scoring of B-OPT-001. The added search layer checks grammar compliance, log continuity, deterministic replay, the fixed budget, and consistency between the candidate programs and the submitted rule.
+## Files
 
-## Current status
+- `spec/cases/B-OPT-002.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case B-OPT-002`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/b_opt_002.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
 
-This directory delivers only the bench specification, harness, example submission and scoring entry point, with no fabricated training curves, reference results or LLM judge results. `example_submission/search_log.jsonl` is a replayable search example on a frozen proxy and does not represent μ1/μ2 training results. Before formal runs, resource snapshots, real reference curves, a real gradient stream, the hidden set and hardware timing must be added.
+## Data sources (links only; nothing is downloaded in the repository)
 
-## Directory
+- FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (as B-OPT-001): https://huggingface.co/datasets/kjj0/fineweb10B-gpt2 — license: MIT on the token repository; the underlying FineWeb text is ODC-BY (verified 2026-10-19)
 
-- `case/`: Lion anchor card, frozen grammar, budget, anti-gaming rules and evaluation protocol.
-- `harness/`: numpy/torch functional interface compatible with B-OPT-001, and the safe candidate evaluator `primitive_search.py`.
-- `example_submission/`: RidgeSign example method, search spec, search log, arXiv HTML design report and source declarations.
-- `scoring/`: generic M/D/Q/X scoring, `primitive_score.py` search-trace verification and the real-result report entry point.
-
-Real evaluation runs once the benchmark operator provides the run-result files:
+## Activation (operator)
 
 ```bash
-cd cases/B-OPT-002
-python3 scoring/run_case.py \
-  --submission example_submission \
-  --runs /path/to/real_runs.json \
-  --judge /path/to/real_judge.json \
-  --out /path/to/report
+python3 tools/prepare/run.py --case B-OPT-002 --list-sources                 # what to download
+python3 tools/prepare/run.py --case B-OPT-002 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case B-OPT-002 --submission cases/B-OPT-002/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case B-OPT-002 --activate                     # after reviewing the calibration run
 ```
 
-There are currently no real scores. All conclusions should rest on real reference runs, hidden evaluation and reproduction audits.
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

@@ -1,0 +1,123 @@
+id: IC-AUG-003
+title: "Searching a data-augmentation policy from image-transformation primitives for a fixed CIFAR-10 recipe"
+template: IC-SPD-001
+anchor: {authors: "Ekin D. Cubuk, Barret Zoph, Dandelion Mane, Vijay Vasudevan, Quoc V. Le", title: "AutoAugment: Learning Augmentation Policies from Data", arxiv: "1805.09501"}
+baseline: "random horizontal flip and translation by up to 4 pixels, trained by the evaluator with the same recipe and seeds (`interface/baselines/flipcrop/`)"
+baseline_run: "Under exactly the same conditions (recipe, seeds, GPU), the evaluator also trains the network with the flip-and-translate baseline in `interface/baselines/flipcrop/` and reports your accuracy and training time relative to it."
+reference_verification: "Not executed yet: the training recipe needs PyTorch and a GPU, which were not available where the case was built; the operator runs it at activation. The recipe is the IC-SPD-001 reference network and optimiser; the policy check (AST scan) was run on the baseline, the reference policy and a violating example."
+mode: judge_trains
+n_seeds: 5
+extra_interface: [harness/aug_ops.py, harness/recipe.py, harness/baselines/flipcrop/policy.py]
+task: |
+  **Search for a data-augmentation policy** — which image transformations, how strong, how often, in what combinations and on what schedule over training — built **only from the primitives in `interface/aug_ops.py`**, that gives the **highest CIFAR-10 test accuracy** when the evaluator trains a fixed network with a fixed 40-epoch recipe using it.
+
+  - Submit code only (`policy.py` with `augment()`). At evaluation the evaluator trains the fixed recipe in `interface/recipe.py` from scratch with your policy, once for each of 5 seeds unknown to you, and measures accuracy on the CIFAR-10 test set and on CIFAR-10.1. It trains the flip-and-translate baseline the same way.
+  - The search space is the primitives, their magnitudes and probabilities and how you combine them; the network, optimiser, schedule and number of epochs are fixed. Use your development budget to run the search in the sandbox (for example with shortened runs, as the anchor did with a proxy task) and submit the best policy found.
+  - `policy.py` may not import anything but `math` and `typing`, nor touch torch, NumPy, files or the environment directly; it receives the primitives module and may use tensor indexing and arithmetic on what they return. Augmentation must not make training more than 1.5 times slower than the baseline's.
+  - You may build on any public work (AutoAugment, RandAugment, TrivialAugment, population-based augmentation, Fast AutoAugment, cutout, curricula of augmentation strength), but the design report must state what you borrowed and what you changed, and describe your search procedure.
+data: |
+  `$ABENCH_DATA_DIR/train.npz` (read-only): the CIFAR-10 training set (Krizhevsky 2009).
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `x` | (50000, 32, 32, 3) | uint8 | Images |
+  | `y` | (50000,) | int64 | Classes 0–9 |
+  | `dev_idx` | (5000,) | int64 | 500 images per class used as the self-check's test set (the self-check trains on the other 45,000) |
+
+  The held-out sets are the official CIFAR-10 test set (10,000 images) and CIFAR-10.1 v6 (2,000 images, Recht et al. 2018, a re-collected test set that measures robustness to distribution shift); neither is in the sandbox.
+interface: |
+  Implement `augment(x, ops, gen, epoch, n_epochs) -> x_aug` in `policy.py`. `x` is the whole training set as a float tensor (N, 3, 32, 32) in [0, 1] on the GPU, `ops` the module `aug_ops`, `gen` the torch.Generator for all random draws; return a tensor of the same shape. The recipe calls it once at the start of every epoch.
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **CIFAR-10 accuracy** (primary) | Test accuracy of the fixed recipe trained with your policy (mirror-averaged logits), mean over 5 seeds; higher is better | — |
+  | CIFAR-10.1 accuracy | The same models on CIFAR-10.1 v6 | reported |
+  | Relative to the baseline | Accuracy differences to the flip-and-translate baseline on both test sets | reported |
+  | Training time ratio | Seconds of the timed phase (import and training) divided by the baseline's, mean over seeds | Threshold: ≤ 1.5 |
+  | Policy check | `policy.py` imports only `math`/`typing` and names no torch, NumPy, file or reflection API | Threshold: must pass (a failure stops the run) |
+
+  **Timing and decision**
+
+  - Each seed runs in a new process with empty cache directories, timed by the evaluator's parent process (`interface/abench_stage.py`); loading the training images is not timed. Training must finish within 900 s; prediction of both test sets within 120 s.
+  - A submission is valid only if every threshold holds; valid submissions are ranked by CIFAR-10 accuracy. Differences inside the 95% interval reported with the score are treated as ties.
+  - If any seed crashes, exceeds a time limit, or `augment()` returns a tensor of the wrong shape or with non-finite values, the whole submission is invalid.
+  - The final ABench score is driven mainly by CIFAR-10 accuracy, and also considers how different the policy and the search procedure are from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 3
+  dev_budget: "3 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy"
+  notes: |
+    - One full run of the recipe takes about a minute on the reference GPU; the search should use shortened runs (`selfcheck.py --quick` trains 8 epochs) and confirm the final candidates with full runs.
+    - The self-check trains on 45,000 images and tests on the 5,000 dev images; its accuracy is a few tenths of a point below what the full training set gives.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── policy.py           # required: augment()
+    ├── src/                # optional: helper modules, under the same import restrictions
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report (including the search procedure)
+    └── references.yaml     # required: reference register
+  notes: |
+    - Files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total; no trained parameters.
+rules: |
+  - The submission is code only; the policy may not carry learned network weights, images or statistics of the test sets.
+  - Every transformation must be a composition of `aug_ops` primitives with tensor indexing and arithmetic; no other imports, no direct use of torch or NumPy, no file or environment access.
+  - Randomness must come from `gen`; the policy must not inspect labels (it does not receive them) or adapt to the evaluation seed.
+interface_md: |
+  # IC-AUG-003 interface
+
+  ## Entry point: `policy.py`
+
+  ```python
+  def augment(x, ops, gen, epoch: int, n_epochs: int):
+      """x: float tensor (N, 3, 32, 32) in [0, 1] on the GPU (the whole training set); ops: the aug_ops module;
+      gen: torch.Generator for every random draw. Return an augmented tensor of the same shape (values are clamped
+      to [0, 1] by the recipe)."""
+  ```
+
+  - The recipe calls `augment` once per epoch on all training images, then normalises them with the training-set channel statistics and trains one epoch on them.
+  - `policy.py` may import only `math` and `typing`; the evaluator checks this (and the absence of torch, NumPy, file and reflection names) before importing it.
+
+  ## Primitives: `aug_ops.py`
+
+  Flip, translation, rotation, shear, scaling, cutout, brightness, contrast, saturation, greyscale, solariser, posteriser, inversion and sharpness, plus `bernoulli`, `uniform`, `choice` and `where` to apply operations to random subsets with random magnitudes. Every function works on a whole batch and draws from `gen`; see the module docstring.
+
+  ## Evaluator code you can read
+
+  - `recipe.py`: the fixed network and training recipe; `stages.py`: the stage, the policy check and the dev split.
+  - `baselines/flipcrop/policy.py`: the baseline trained alongside your policy.
+  - `metrics.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy (for your search scripts; not inside `policy.py`). Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 3.0, session_hours: 3.0}
+  data:
+    public_dir: sandbox/data/IC-AUG-003
+    public:
+      - {path: sandbox/data/IC-AUG-003/train.npz, sha256: pending, rows: 50000}
+    hidden: {path: sandbox/hidden/IC-AUG-003/hidden.npz.enc, sha256_plain: pending, keys: [x_test, y_test, x_101, y_101]}
+    sources:
+      - name: CIFAR-10 (Krizhevsky 2009)
+        url: https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz
+        md5: c58f30108f718f92721af3b95e74349a
+        license: "no explicit license on the dataset page (to_verify), as in IC-SPD-001"
+      - name: CIFAR-10.1 v6 (Recht et al. 2018, arXiv:1806.00451)
+        url: https://github.com/modestyachts/CIFAR-10.1/tree/d9982abb0bfc4846b8d13a11e66b887d946205d0/datasets
+        pinned: "commit d9982abb0bfc4846b8d13a11e66b887d946205d0; sha256 of both files in tools/prepare_ic_spd.py (checked 2026-10-21)"
+        license: "code MIT; images follow Tiny Images terms (to_verify)"
+  submission:
+    kind: code_only
+    entry: policy.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, policy.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [1805, 9501, 2018, 7, 99]          # kept secret by the operator
+    baseline: harness/baselines/flipcrop

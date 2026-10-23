@@ -1,0 +1,128 @@
+id: A-KV-004
+title: "An attention and key-value cache structure for SmolLM2-135M that keeps quality at a third of the cache"
+template: X-LORA-004
+anchor: {authors: "Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, Sumit Sanghai", title: "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints", arxiv: "2305.13245"}
+baseline: "SmolLM2-135M converted to multi-query attention by mean-pooling its key-value heads (GQA uptraining), run by the evaluator under identical conditions (`interface/baselines/mqa/`)"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, recipe), the evaluator also continues the training of the multi-query baseline in `interface/baselines/mqa/` and reports your losses relative to it."
+reference_verification: "Not executed yet: the stage code, baseline and reference submission need PyTorch, safetensors and the SmolLM2 weights, which were not available where the case was built; the operator runs them at activation. The SmolLM2 configuration (30 layers, width 576, 9 query and 3 key-value heads of 64, rope theta 100,000, tied embeddings) was read from the model's config.json at the pinned revision, giving 23,040 cache bytes per token in bf16; the reference and the baseline both reach 7,680 by construction."
+mode: judge_trains
+n_seeds: 2
+kit_extra:
+  - microlm/lm_train.py
+  - smol/smol_lm.py
+extra_interface:
+  - harness/token_data.py
+  - harness/baselines/mqa/model.py
+task: |
+  Design an **attention and key-value cache structure** for the pretrained SmolLM2-135M that, after a short continued training, keeps the **lowest held-out loss** while its decoding cache holds **at most 7,680 bytes per token** — a third of the original model's 23,040.
+
+  - Submit code only (`model.py` with `build(base_dir, device)`). The evaluator loads the pretrained weights through your `build`, which replaces the model's attention mixers, then continues training the whole model on 30M FineWeb-Edu tokens with a fixed recipe, once for each of 2 seeds unknown to you. It trains the multi-query baseline the same way.
+  - The evaluator measures the cache itself: the bytes of every tensor your mixers keep in the decoding cache, as the context grows from 1,024 to 2,048 tokens under bf16 autocast. Step-by-step decoding from the cache must reproduce the full forward pass.
+  - Loss on 8,192-token windows (four times the training length) is reported, to show how the structure extrapolates in length.
+  - You may build on any public work (multi- and grouped-query attention, latent attention, cross-layer sharing, cache quantisation or eviction, sliding windows, hybrids), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/fwedu_train_000001.bin` (read-only): 120M tokens of FineWeb-Edu (Hugging Face `HuggingFaceFW/fineweb-edu`, sample/10BT, ODC-BY) tokenised with the SmolLM2 tokenizer, documents separated by token 0, in the llm.c shard format (`interface/token_data.py`). `$ABENCH_MODELS_DIR/SmolLM2-135M/`: the pretrained model (Apache-2.0).
+
+  The held-out set is the first 4,194,305 tokens of another FineWeb-Edu file (the first 2,097,152 are scored); it is not in the sandbox. The self-check holds out the last 2,097,153 training tokens.
+interface: "Implement `build(base_dir, device) -> smol_lm.SmolLM` in `model.py`: load the pretrained model with `smol_lm.load_base(base_dir, device)` and replace `model.layers[i].mixer` by modules with the mixer interface of `interface/smol_lm.py` (`forward(x, pos0, cache) -> (y, cache)`). Anything else in the model may be changed too, but it is trained by the evaluator's recipe."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Held-out loss** (primary) | Mean next-token cross-entropy (nats) on 2,097,152 held-out tokens in windows of 2,048 after continued training, mean over 2 seeds; lower is better | — |
+  | Cache size | Growth of the decoding cache in bytes per token of context between 1,024 and 2,048 tokens (bf16 autocast, `smol_lm.kv_bytes_per_token`) | Threshold: ≤ 7,680 |
+  | Decoding consistency | Largest relative difference between logits of prefill + 64 single-token steps and of the full forward (fp32) | Threshold: ≤ 0.01 |
+  | Length extrapolation | Held-out loss on windows of 8,192 tokens, and its difference to 2,048 | reported |
+  | Loss vs multi-query | Differences to the baseline | reported |
+  | Training time | Seconds of the continued training (parent clock) | Threshold: ≤ 3,000 s |
+  | Divergence | 1 if the training loss became non-finite or exceeded 20 | Threshold: 0 |
+
+  **Fixed training setting** (`interface/lm_train.py`, `interface/stages.py`): 915 steps of 16 windows of 2,048 tokens (two micro-batches of 8; about 30M tokens), AdamW at a peak of 3e-4 (β = 0.9, 0.95; weight decay 0.1 on matrices), 50 warm-up steps then cosine decay to 0.1, clipping at 1.0, bf16 autocast with fp32 weights.
+
+  **Decision**
+
+  - A submission is valid only if every threshold holds for the 2-seed means; valid submissions are ranked by held-out loss. Differences smaller than the spread over the two seeds are treated as ties.
+  - If any run crashes or exceeds a time limit (the stage is killed at 3,300 s), the whole submission is invalid.
+  - The final ABench score is driven mainly by the held-out loss relative to the baseline, and also considers how different the structure is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 6
+  dev_budget: "6 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), safetensors, NumPy, PyYAML"
+  notes: |
+    - `selfcheck.py --quick` runs 60 training steps and every check of the evaluation; one full run takes about a quarter of a GPU-hour.
+    - The cache is measured as stored: a structure that keeps keys and values in 8 bits counts half the bytes of bf16.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: build(base_dir, device)
+    ├── src/                # optional: helper modules imported by model.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; no trained parameters.
+rules: |
+  - Start from the pretrained weights in `base_dir` only; no other pretrained models, data or network access; the evaluator does all training.
+  - Everything a mixer needs to continue a sequence must be in the cache it returns (no hidden state kept elsewhere across calls, except values recomputed within one forward pass, such as keys shared between layers).
+  - The model must stay causal and must not change the loss, the optimiser or the data.
+interface_md: |
+  # A-KV-004 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  import smol_lm                       # interface/smol_lm.py is on sys.path
+
+  def build(base_dir: str, device: str) -> smol_lm.SmolLM:
+      model = smol_lm.load_base(base_dir, device)        # pretrained SmolLM2-135M, fp32 weights
+      for i, layer in enumerate(model.layers):
+          layer.mixer = MyMixer(layer.mixer)              # forward(x, pos0, cache) -> (y, new_cache)
+      return model
+  ```
+
+  - `x` is the normalised input (B, T, 576); `pos0` the position of `x[:, 0]`; `cache` None (full forward or prefill)
+    or what the mixer returned for the previous tokens. Decoding calls `model.step` with one token per sequence.
+  - The default mixer `smol_lm.GQAttention` caches keys and values of shape (B, 3, T, 64) per layer.
+
+  ## Evaluator code you can read
+
+  `smol_lm.py` (model, cache size, decoding check), `stages.py`, `metrics.py`, `lm_train.py` (recipe),
+  `token_data.py`, `baselines/mqa/model.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), safetensors, NumPy, PyYAML. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 6}
+  data:
+    public_dir: sandbox/data/A-KV-004
+    public:
+      - {path: sandbox/data/A-KV-004/fwedu_train_000001.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/A-KV-004/hidden.npz.enc, sha256_plain: pending, keys: [tokens], tokens: 4194305}
+    models_dir: sandbox/models/A-KV-004
+    models:
+      - {name: SmolLM2-135M, path: sandbox/models/A-KV-004/SmolLM2-135M, tree_sha256: pending, revision: 93efa2f097d58c2a74874c7e644dbc9b0cee75a2, license: Apache-2.0}
+    sources:
+      - name: "FineWeb-Edu sample/10BT, Hugging Face HuggingFaceFW/fineweb-edu: 000_00000.parquet (training) and 013_00000.parquet (held out)"
+        url: https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu
+        revision: 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9
+        license: ODC-BY
+        verified: "2026-10-22: revision, licence and the sample/10BT file list (14 parquet files, LFS sha256 of 000_00000.parquet pinned) from the Hugging Face API"
+      - name: "SmolLM2-135M, Hugging Face HuggingFaceTB/SmolLM2-135M"
+        url: https://huggingface.co/HuggingFaceTB/SmolLM2-135M
+        revision: 93efa2f097d58c2a74874c7e644dbc9b0cee75a2
+        license: Apache-2.0
+        verified: "2026-10-22: revision, licence, file list and config.json (architecture) from the Hugging Face API"
+  submission:
+    kind: code_only
+    entry: model.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, model.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [2305, 13245]          # kept secret by the operator
+    baseline: harness/baselines/mqa

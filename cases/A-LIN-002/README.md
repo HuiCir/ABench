@@ -7,8 +7,9 @@ Standard (reference) case of its track, built to task statement standard v2.1. A
 
 - Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
   freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
-- Reference submission (`example_submission/`): Not executed yet: the stage code, `train.py` and the reference mixer need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The chunkwise GLA computation was checked against the token-by-token recurrence in a NumPy transcription (max difference 1e-14); the PyTorch code itself has not run.
+- Reference submission (`example_submission/`): Not executed yet: the stage code and the reference mixer need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The chunkwise GLA computation was checked against the token-by-token recurrence in a NumPy transcription (max difference 1e-14); the PyTorch code itself has not run.
 - No number in the standard-case files is a result: there are no training curves or reference scores.
+- Baseline run by the judge alongside every submission: `harness/baselines/gla`.
 
 ## Files
 

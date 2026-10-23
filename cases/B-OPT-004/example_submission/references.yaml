@@ -1,0 +1,49 @@
+schema: abench.references/v2
+references:
+- id: you2020lamb
+  title: 'Large Batch Optimization for Deep Learning: Training BERT in 76 minutes'
+  authors: Yang You, Jing Li, Sashank Reddi, Jonathan Hseu, Sanjiv Kumar, Srinadh Bhojanapalli, Xiaodan Song, James
+    Demmel, Kurt Keutzer and Cho-Jui Hsieh
+  year: 2020
+  venue: ICLR
+  arxiv: '1904.00962'
+  used_for: 'Anchor: the LAMB update and square-root learning-rate scaling'
+  code_location: 'optimizer.py: LAMB.update; hparam_space.yaml: lr_batch_exponent'
+- id: you2017lars
+  title: Large Batch Training of Convolutional Networks
+  authors: Yang You, Igor Gitman and Boris Ginsburg
+  year: 2017
+  arxiv: '1708.03888'
+  used_for: Layer-wise trust ratio
+  code_location: 'optimizer.py: LAMB.update (trust)'
+- id: goyal2017accurate
+  title: 'Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour'
+  authors: Priya Goyal, Piotr Dollár, Ross Girshick, Pieter Noordhuis, Lukasz Wesolowski, Aapo Kyrola, Andrew Tulloch,
+    Yangqing Jia and Kaiming He
+  year: 2017
+  arxiv: '1706.02677'
+  used_for: Related work (learning-rate scaling with warm-up)
+  code_location: null
+- id: mccandlish2018empirical
+  title: An Empirical Model of Large-Batch Training
+  authors: Sam McCandlish, Jared Kaplan, Dario Amodei and OpenAI Dota Team
+  year: 2018
+  arxiv: '1812.06162'
+  used_for: Related work (critical batch size, gradient noise scale)
+  code_location: null
+- id: kingma2015adam
+  title: 'Adam: A Method for Stochastic Optimization'
+  authors: Diederik P. Kingma and Jimmy Ba
+  year: 2015
+  venue: ICLR
+  arxiv: '1412.6980'
+  used_for: Moment estimates with bias correction
+  code_location: 'optimizer.py: LAMB.update'
+- id: loshchilov2019adamw
+  title: Decoupled Weight Decay Regularization
+  authors: Ilya Loshchilov and Frank Hutter
+  year: 2019
+  venue: ICLR
+  arxiv: '1711.05101'
+  used_for: Decoupled weight decay inside the trust-ratio direction
+  code_location: 'optimizer.py: LAMB.update (wd)'

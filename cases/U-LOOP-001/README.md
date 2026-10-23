@@ -1,36 +1,36 @@
-# ABench Case U-LOOP-001: Design a language model with recurrent (weight-shared) depth that trades more loops for lower loss at the same parameter count
+# ABench case U-LOOP-001: A recurrent-depth language model that turns more loops into lower loss at the parameter budget of a 4-layer transformer
 
-- Track: U · Non-mainstream paradigms · frontier
-- Anchor: Universal Transformers (arXiv: 1807.03819)
-- Subset: main; difficulty: high; resource tier: high; status: **scaffold**
-- Task: Design a language model with recurrent (weight-shared) depth that trades more loops for lower loss at the same parameter count
-- Metrics: Loss at equal parameters / equal FLOPs; length extrapolation; loop count–performance curve
-- Proxy: MICRO, SYN; plan: Equal-parameter comparison at μ1–μ2 with ≤ 8 loops; only 1 hidden point at μ3
+Case built to task statement standard v2.1 from the template of B-OPT-001. Anchor: Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit, Łukasz Kaiser, *Universal Transformers*
+(arXiv:1807.03819).
 
-## Current deliverables
+## Status
 
-This directory only sets up the bench contract scaffold: task card, evaluation protocol, resource registry, scoring contract and directory-level notes. There is no simulated training, no simulated reference run, no simulated score and no fabricated leaderboard result. Formal runs require the benchmark operator to inject real resources, reference runs, the hidden set and server-generated run records.
-
-## Blockers and reservations
-
-This case can enter the next implementation batch of the shared runner, but real scores still cannot be published on this basis.
-
-Blocking inputs:
-
-- `frozen_checkpoint_or_synthetic_task_suite`
-- `long_context_and_compute_calibration`
-- `reference_runs`
-- `specific_anchor_or_citation_verification`
-
-Until these inputs are frozen, only interfaces/contracts are added; no excessive environment setup or simulated substitutes.
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Not executed yet: the stage code, baseline and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The reference's parameter count (4 blocks plus a 2d × d adapter, about 1% above the baseline) and its compute at 8 loops (about 1.7 times the baseline's, with the tied output head included) were derived by hand and are checked by the stage at activation.
+- No number in the case files is a result: there are no training curves or reference scores.
+- Baseline run by the judge alongside every submission: `harness/baselines/fourlayer`.
 
 ## Files
 
-- `case/anchor_card.yaml`: task anchor and acceptance boundary.
-- `case/task_prompt.md`: the task given to the agent under test.
-- `case/eval_protocol.yaml`: proxy ladder, budget, hidden evaluation and output constraints.
-- `case/resources.yaml`: registry of data, models, software, hardware and private resources.
-- `case/scoring_config.yaml`: metrics and thresholds pending calibration.
-- `harness/README.md`: execution interface conventions.
-- `scoring/README.md`: scoring input/output conventions.
-- `example_submission/README.md`: example submission directory conventions.
+- `spec/cases/U-LOOP-001.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case U-LOOP-001`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/u_loop_001.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
+
+## Data sources (links only; nothing is downloaded in the repository)
+
+- FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (data of the modded-nanogpt speedrun): https://huggingface.co/datasets/kjj0/fineweb10B-gpt2 — license: MIT on the token repository; the underlying FineWeb text is ODC-BY (verified 2026-10-19)
+
+## Activation (operator)
+
+```bash
+python3 tools/prepare/run.py --case U-LOOP-001 --list-sources                 # what to download
+python3 tools/prepare/run.py --case U-LOOP-001 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case U-LOOP-001 --submission cases/U-LOOP-001/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case U-LOOP-001 --activate                     # after reviewing the calibration run
+```
+
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

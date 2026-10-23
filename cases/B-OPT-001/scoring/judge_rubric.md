@@ -5,7 +5,7 @@ The judges are 3 different LLMs (not from the same model family as the agent und
 ## Inputs
 
 1. The submission's `report/index.html`, `optimizer.py` and `references.yaml`
-2. Nearest-neighbor candidates: abstracts and method sections of the top 10 papers retrieved from the **hidden snapshot** (all relevant papers before the cutoff, not given to the agent) using the description of the update rule in the design report
+2. Nearest-neighbor candidates: abstracts and method sections of the top 10 papers retrieved from the **hidden snapshot** (all relevant papers that existed when the session started, not given to the agent) using the description of the update rule in the design report
 3. Method sections of the source papers the agent declared
 
 ## Task A: mechanism novelty (0–3)
@@ -27,4 +27,4 @@ The closest prior work and the reason must be given.
 | partial | The paper's conclusions influenced design decisions (motivation, trade-offs), but there is no directly corresponding code |
 | decorative | No substantive connection to the method, or the declared code location does not contain the element |
 
-Unresolvable or post-cutoff sources are handled automatically by the program; judges do not need to assess them.
+Unresolvable sources are handled automatically by the program; judges do not need to assess them.

@@ -1,0 +1,121 @@
+id: DS-GBM-001
+title: "A tabular learner trained by the evaluator on twenty unseen datasets"
+template: DS-PIPE-002
+anchor: {authors: "Tianqi Chen, Carlos Guestrin", title: "XGBoost: A Scalable Tree Boosting System", arxiv: "1603.02754"}
+baseline: "scikit-learn HistGradientBoosting with default settings (`interface/baselines/hgb/`), trained by the evaluator under the same conditions"
+baseline_run: "Under exactly the same conditions (datasets, seeds, CPU allotment), the evaluator also trains the HistGradientBoosting baseline in `interface/baselines/hgb/` and reports your mean score relative to it and the fraction of datasets on which you beat it."
+reference_verification: "The reference submission, the HistGradientBoosting baseline and the whole pipeline (dev split, stage runner with pre-timed inputs, metrics) run end to end on synthetic data in tests/test_standard_cases.py. Nothing has been run on the real frozen data yet."
+mode: judge_trains
+n_seeds: 2
+extra_interface: [harness/baselines/hgb/model.py]
+task: |
+  Design a **tabular learning algorithm** — preprocessing, model family, hyperparameter selection and ensembling, all decided by your code from the data — that the evaluator trains on **20 datasets it has never shown you**, each within a fixed CPU time budget, and that reaches the **highest mean test score** across them.
+
+  - Submit code only (`model.py` with `fit()` and `predict()`). At evaluation your `fit()` is called on the training split of each held-out dataset, on 8 CPU cores with about 60 seconds per dataset (1,200 seconds for all 20), then `predict()` on its test split; this is repeated for two seeds unknown to you.
+  - The 20 held-out datasets come from the same tabular benchmark as the 10 dev datasets you get, but are different datasets: binary classification and regression, about 700 to 10,000 training rows, 3 to several hundred numeric features (some are one-hot or ordinal codes of categorical columns), missing values possible.
+  - Your code must decide everything from the training data it receives; nothing may depend on recognising a particular dataset.
+  - You may build on any public work (gradient-boosted trees, neural tabular models, AutoML search and portfolios, stacking), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/dev_<name>.npz` (read-only): ten dev datasets from the tabular benchmark of Grinsztajn et al. 2022 (Hugging Face `inria-soda/tabular-benchmark`): default-of-credit-card-clients, heloc, eye_movements and california (classification); abalone, cpu_act, wine_quality, house_sales, elevators and Bike_Sharing_Demand (regression).
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `x_train`, `x_test` | (n, F) | float32 | Features, NaN allowed |
+  | `y_train`, `y_test` | (n,) | int64 (0/1) or float64 | Target |
+  | `task` | (1,) | int64 | 0 classification, 1 regression |
+
+  Each dataset was shuffled with a fixed seed; the test split is min(30%, 5,000) rows (stratified for classification) and the training split min(rest, 10,000) rows. The held-out datasets are split the same way; none of them, and no part of their data, is in the sandbox. The self-check trains your learner on the dev training splits and scores the dev test splits, exactly as the evaluator does on the held-out ones.
+interface: "Implement `fit(x, y, task, budget_seconds, seed) -> model` and `predict(model, x) -> array` in `model.py`. `task` is `\"classification\"` or `\"regression\"`; `predict` returns the probability of class 1 (classification) or the predicted value (regression), one per row."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean score** (primary) | Per held-out dataset, test accuracy (classification, class 1 when the predicted probability is ≥ 0.5) or R² (regression, counted as 0 when negative); averaged over the 20 datasets and the two seeds; higher is better | — |
+  | Fit time | Seconds of the whole `fit()` loop over the 20 datasets (parent clock) | Threshold: ≤ 1,200 s |
+  | Per-dataset scores, AUC, raw R² | Reported for each dataset | reported |
+  | Relative to the baseline | Mean-score difference and fraction of datasets won against HistGradientBoosting | reported |
+
+  **Timing and decision**
+
+  - Each run is a new process with empty cache directories and 8 CPU threads, timed by the evaluator's parent process (`interface/abench_stage.py`). The training splits are in place before the clock starts; importing `model.py` and every `fit()` call are timed. Test inputs are given only afterwards; all `predict()` calls must finish within 300 seconds.
+  - A submission is valid only if the fit-time threshold holds in both runs; valid submissions are ranked by mean score. Differences inside the 95% interval reported with the score are treated as ties.
+  - If any call crashes, a time limit is exceeded, or predictions have the wrong length, are non-finite or (classification) lie outside [0, 1], the submission is invalid.
+  - The final ABench score is driven mainly by mean score, and also considers how different the method is from existing tabular learners and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: cpu
+  session_hours: 4
+  dev_budget: "32 CPU-core-hours (the whole session on the 8-core allotment)"
+  software: "Python 3, NumPy, SciPy, scikit-learn"
+  notes: |
+    - No GPU is available in this case; the evaluation runs on CPU only. The submission may depend only on NumPy, SciPy, scikit-learn and the Python standard library (no XGBoost, LightGBM or CatBoost packages).
+    - `budget_seconds` (60) is advisory per dataset; only the total of 1,200 seconds is enforced, so time saved on easy datasets can be spent on hard ones.
+    - `selfcheck.py` runs the evaluator's stage on the ten dev datasets (`--quick`: four of them, smaller); it prints your mean score and the time the fit loop took.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: fit() and predict()
+    ├── src/                # optional: other .py modules imported by model.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total; no trained parameters or stored predictions.
+rules: |
+  - The submission is code only; every model is trained by the evaluator from the training split it receives.
+  - `fit()` may use only its arguments; `predict()` only the model and the rows it is given, each row independently of the others (no fitting on test inputs).
+  - No pretrained tabular models, embeddings or meta-learned weights from outside data; no code that recognises specific datasets (by shape, values or statistics) to switch to hand-chosen settings. General rules that depend on dataset size, feature count or task are fine.
+  - No subprocesses that outlive `fit()` or `predict()`, no reading or writing files outside the stage's working directory.
+interface_md: |
+  # DS-GBM-001 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def fit(x: numpy.ndarray, y: numpy.ndarray, task: str, budget_seconds: float, seed: int):
+      """Train on one dataset and return a model (any Python object).
+
+      x float32 (n, F), NaN allowed; y int64 0/1 (task == "classification") or float64 (task == "regression");
+      budget_seconds is advisory (the total over the 20 datasets is what counts); seed differs per dataset and run."""
+
+  def predict(model, x: numpy.ndarray) -> numpy.ndarray:
+      """Return (n,) floats: the probability of class 1, or the predicted target."""
+  ```
+
+  - The evaluator calls `fit` once per held-out dataset inside the timed phase, then `predict` once per dataset after it.
+  - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Evaluator code you can read
+
+  - `stages.py`: the stage (how training splits are given before the clock starts, the fit loop, the prediction step) and the dev setting of the self-check.
+  - `metrics.py`, `abench_metrics.py`: per-dataset accuracy, AUC and R², the mean score, and the comparison with the baseline.
+  - `baselines/hgb/model.py`: the HistGradientBoosting baseline trained alongside your learner; it is also a working starting point.
+  - `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, NumPy, SciPy and scikit-learn, CPU only. Nothing can be installed.
+oj:
+  agent_budget: {cpu_core_hours: 32, session_hours: 4}
+  data:
+    public_dir: sandbox/data/DS-GBM-001
+    public: []
+    public_files: "dev_<name>.npz for the ten dev datasets (hashes recorded in data_lock.yaml by tools/prepare/run.py)"
+    hidden: {path: sandbox/hidden/DS-GBM-001/hidden.npz.enc, sha256_plain: pending, keys: "h00..h19: x_train, y_train, task (given before the timed phase), x_test (after it), y_test (evaluator only)"}
+    sources:
+      - name: "Tabular benchmark of Grinsztajn et al. 2022, Hugging Face inria-soda/tabular-benchmark (30 CSV files: 10 dev, 20 held-out)"
+        url: https://huggingface.co/datasets/inria-soda/tabular-benchmark
+        revision: 8d0ff9103525b7e3579b180230fddb3186258301
+        license: "no licence on the dataset card (to_verify before release); each file re-uploads an OpenML dataset"
+        verified: "2026-10-22: revision and file list from the Hugging Face API; CSV layout (numeric features, target in the last column) read from clf_cat/compas-two-years.csv and clf_num/heloc.csv at this revision"
+  submission:
+    kind: code_only
+    entry: model.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, model.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cpu
+    reference_hardware: "8 CPU cores (model frozen at activation)"
+    seeds: [1603, 2754]          # kept secret by the operator
+    baseline: harness/baselines/hgb

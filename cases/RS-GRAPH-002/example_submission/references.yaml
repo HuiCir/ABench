@@ -1,0 +1,50 @@
+schema: abench.references/v2
+references:
+- id: he2020lightgcn
+  title: 'LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation'
+  authors: Xiangnan He, Kuan Deng, Xiang Wang, Yan Li, Yongdong Zhang and Meng Wang
+  year: 2020
+  venue: SIGIR
+  arxiv: '2002.02126'
+  used_for: Anchor; the data split and metric definitions
+  code_location: null
+- id: hu2008implicit
+  title: Collaborative Filtering for Implicit Feedback Datasets
+  authors: Yifan Hu, Yehuda Koren and Chris Volinsky
+  year: 2008
+  venue: ICDM
+  doi: 10.1109/ICDM.2008.22
+  used_for: Implicit ALS
+  code_location: 'train.py: solve_side, main'
+- id: rendle2022ials
+  title: Revisiting the Performance of iALS on Item Recommendation Benchmarks
+  authors: Steffen Rendle, Walid Krichene, Li Zhang and Yehuda Koren
+  year: 2022
+  venue: RecSys
+  arxiv: '2110.14037'
+  used_for: Frequency-scaled regularisation
+  code_location: 'train.py: solve_side'
+- id: wang2019ngcf
+  title: Neural Graph Collaborative Filtering
+  authors: Xiang Wang, Xiangnan He, Meng Wang, Fuli Feng and Tat-Seng Chua
+  year: 2019
+  venue: SIGIR
+  arxiv: '1905.08108'
+  used_for: Related work (graph propagation); origin of the split
+  code_location: null
+- id: rendle2009bpr
+  title: 'BPR: Bayesian Personalized Ranking from Implicit Feedback'
+  authors: Steffen Rendle, Christoph Freudenthaler, Zeno Gantner and Lars Schmidt-Thieme
+  year: 2009
+  venue: UAI
+  arxiv: '1205.2618'
+  used_for: Related work (pairwise loss of the anchor)
+  code_location: null
+- id: steck2019ease
+  title: Embarrassingly Shallow Autoencoders for Sparse Data
+  authors: Harald Steck
+  year: 2019
+  venue: WWW
+  arxiv: '1905.03375'
+  used_for: Related work (linear item-item models)
+  code_location: null

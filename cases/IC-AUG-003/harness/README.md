@@ -1,14 +1,33 @@
-# IC-AUG-003 harness contract
+# IC-AUG-003 harness
 
-This scaffold defines the server-side contract only; it does not run training or create synthetic results.
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-## Required interface
+## Pipeline (`stages.py`)
 
-- Read the immutable manifest supplied by the benchmark.
-- Write deterministic metrics.json and run_metadata.json.
-- Record seed, input/resource hashes, wall-clock time, peak memory and exit status.
-- Keep network and filesystem access within case/eval_protocol.yaml sandbox policy.
+```
+IC-AUG-003 pipeline: the evaluator trains the fixed CIFAR-10 recipe (recipe.py) with your augmentation policy and
+measures test accuracy (evaluator and self-check use this same file).
 
-## Pending
+One stage, "train" (imports policy.py after checking that it uses only the primitives of aug_ops.py):
+  setup   load the training images to the GPU (untimed)
+  timed   check and import policy.py; train the fixed recipe for 40 epochs, augmenting the whole training set with
+          policy.augment at the start of every epoch
+  finish  class probabilities for the CIFAR-10 test images and the CIFAR-10.1 images (with mirror averaging)
+The evaluator runs the flip-and-translate baseline (baselines/flipcrop) through the same stage on the same seeds.
+```
 
-The benchmark maintainer must freeze the executable runner, container image, resource hashes and failure semantics before accepting submissions.
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `aug_ops.py`
+- `baselines/flipcrop/policy.py`
+- `interface.md`
+- `metrics.py`
+- `recipe.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

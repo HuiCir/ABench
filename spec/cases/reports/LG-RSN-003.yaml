@@ -1,0 +1,65 @@
+case: LG-RSN-003
+title: 'LegalBench Base Prompts with Likelihood-Ranked Labels'
+abstract: >-
+  This submission uses each task's LegalBench base prompt [@guha2023legalbench] as written, fills it with the row,
+  and lets the frozen model choose among the task's labels by the mean log-probability of each label as a
+  continuation, so every answer is a valid label. It trains nothing and treats seen and unseen tasks alike. It is
+  the plain few-shot classifier that calibration methods start from [@zhao2021calibrate].
+sections:
+- title: Introduction
+  paras:
+  - >-
+    LegalBench tasks differ in their rules, label sets and inputs. A pipeline that must also handle tasks it has never
+    seen can rely only on what each task brings: its instructions, its labels and a few solved examples.
+- title: Related Work
+  paras:
+  - >-
+    LegalBench evaluates models with the base prompts used here and reports balanced accuracy
+    [@guha2023legalbench]. Few-shot classifiers are biased towards labels that are frequent, recent or common in
+    pretraining; contextual calibration corrects for this [@zhao2021calibrate]. The frozen model is Qwen2.5-1.5B-Instruct
+    [@qwen2024qwen25].
+- title: Method
+  paras:
+  - >-
+    The prompt is the base prompt with its slots filled and at most its last 3,000 tokens kept. Each label is
+    scored as " <label>" by the mean log-probability of its tokens, using the prompt's key-value cache; the
+    highest-scoring label is returned.
+- title: Design Rationale
+  paras:
+  - >-
+    Ranking labels instead of generating text removes invalid answers and depends only on the task's own label set,
+    which unseen tasks also provide.
+- title: Scope and Limitations
+  paras:
+  - >-
+    No calibration, no use of the training rows beyond those in the base prompt, one forward pass per label (slow for
+    tasks with many labels). The frozen model has not been run here.
+references:
+- id: guha2023legalbench
+  title: 'LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models'
+  authors: Neel Guha, Julian Nyarko, Daniel E. Ho, Christopher Ré, Adam Chilton et al.
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2308.11462'
+  used_for: 'Anchor: the tasks, base prompts and balanced accuracy'
+  code_location: 'pipeline.py: fill'
+- id: zhao2021calibrate
+  title: 'Calibrate Before Use: Improving Few-Shot Performance of Language Models'
+  authors: Tony Z. Zhao, Eric Wallace, Shi Feng, Dan Klein and Sameer Singh
+  year: 2021
+  venue: ICML
+  arxiv: '2102.09690'
+  used_for: Related work (label bias of few-shot classifiers)
+  code_location: null
+- id: qwen2024qwen25
+  title: Qwen2.5 Technical Report
+  authors: An Yang et al. (Qwen Team)
+  year: 2024
+  venue: arXiv
+  arxiv: '2412.15115'
+  used_for: The frozen model
+  code_location: null
+changes:
+- text: Labels are chosen by their mean log-probability as a continuation of the base prompt rather than by parsing
+    generated text.
+  code: 'pipeline.py: label_scores, predict'

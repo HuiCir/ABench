@@ -4,8 +4,9 @@
 Raw files (downloaded by the operator on a networked machine into one directory):
   CIFAR-10   https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz   (official, md5 c58f30108f718f92721af3b95e74349a)
              Mirror: https://huggingface.co/datasets/uoft-cs/cifar10
-  CIFAR-10.1 https://github.com/modestyachts/CIFAR-10.1/tree/master/datasets
-             cifar10.1_v6_data.npy, cifar10.1_v6_labels.npy (2,000 images, class-balanced; Recht et al. 2018)
+  CIFAR-10.1 https://github.com/modestyachts/CIFAR-10.1/raw/d9982abb0bfc4846b8d13a11e66b887d946205d0/datasets/
+             cifar10.1_v6_data.npy, cifar10.1_v6_labels.npy (2,000 images, class-balanced; Recht et al. 2018; MIT;
+             pinned to commit d9982abb, sha256 checked below)
 
 Output:
   sandbox/data/IC-SPD-001/train.npz          public: x uint8 (50000,32,32,3), y int64, dev_idx int64 (5000)
@@ -15,7 +16,7 @@ and write hashes and row counts back to cases/IC-SPD-001/case/oj.yaml.
 Usage:
   python3 tools/prepare_ic_spd.py --raw-dir <download dir> --key-file ~/.abench/hidden.key
   ABENCH_ALLOW_SYNTHETIC=1 python3 tools/prepare_ic_spd.py --synthetic 3000 --key-file <key>
-      Synthetic data is only for pipeline tests: oj.yaml is marked data.synthetic: true, and validate_scaffolds refuses it for formal evaluation.
+      Synthetic data is only for pipeline tests: oj.yaml is marked data.synthetic: true, and the judge refuses it unless ABENCH_ALLOW_SYNTHETIC=1 (never scorable).
 """
 from __future__ import annotations
 
@@ -57,6 +58,11 @@ def _batch(tf: tarfile.TarFile, name: str) -> tuple[np.ndarray, np.ndarray]:
     return np.ascontiguousarray(x), np.asarray(d[b"labels"], dtype=np.int64)
 
 
+CIFAR101_SHA256 = {  # files at commit d9982abb0bfc4846b8d13a11e66b887d946205d0 of modestyachts/CIFAR-10.1, checked 2026-10-21
+    "cifar10.1_v6_data.npy": "2997188e5816f5bd545dc77771b6227828c28146049fcecf3fa10775474cacc6",
+    "cifar10.1_v6_labels.npy": "ae40beda001693674edc94d925ee8268cfe68905f8f9aff800c8dcdfcd6c9448",
+}
+
 def load_raw(raw: Path):
     tar = raw / "cifar-10-python.tar.gz"
     md5 = hashlib.md5(tar.read_bytes()).hexdigest()
@@ -66,6 +72,10 @@ def load_raw(raw: Path):
         parts = [_batch(tf, f"data_batch_{i}") for i in range(1, 6)]
         xte, yte = _batch(tf, "test_batch")
     xtr, ytr = np.concatenate([p[0] for p in parts]), np.concatenate([p[1] for p in parts])
+    for f, want in CIFAR101_SHA256.items():
+        got = hashlib.sha256((raw / f).read_bytes()).hexdigest()
+        if got != want:
+            raise SystemExit(f"{f} sha256 {got} != {want} (CIFAR-10.1 commit d9982abb)")
     x101 = np.load(raw / "cifar10.1_v6_data.npy", allow_pickle=False).astype(np.uint8)
     y101 = np.load(raw / "cifar10.1_v6_labels.npy", allow_pickle=False).astype(np.int64)
     assert xtr.shape == (50000, 32, 32, 3) and xte.shape == (10000, 32, 32, 3) and x101.shape == (2000, 32, 32, 3)

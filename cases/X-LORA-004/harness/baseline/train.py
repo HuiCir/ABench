@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -20,9 +21,13 @@ import torch.nn.functional as F
 
 from peft import batches, build, trainable
 
-TASKS = {"rte": ("sentence1", "sentence2", 2), "mrpc": ("sentence1", "sentence2", 2),
-         "cola": ("sentence", None, 2), "sst2": ("sentence", None, 2)}
-SCHEDULE = {"rte": (10, 5e-4), "mrpc": (10, 5e-4), "cola": (8, 4e-4), "sst2": (2, 5e-4)}   # epochs, peak lr
+if os.environ.get("ABENCH_VIEW_DIR"):
+    sys.path.insert(0, str(Path(os.environ["ABENCH_VIEW_DIR"]) / "interface"))
+from textpack import unpack  # noqa: E402
+
+TASKS = {"sst2": ("sentence", None, 2), "cola": ("sentence", None, 2),
+         "mnli": ("premise", "hypothesis", 3), "qnli": ("question", "sentence", 2)}
+SCHEDULE = {"sst2": (2, 5e-4), "cola": (8, 4e-4), "mnli": (1, 5e-4), "qnli": (2, 5e-4)}   # epochs, peak lr
 BATCH = 32
 
 
@@ -71,8 +76,8 @@ def main() -> None:
         if not a.include_dev:
             keep[raw[f"{t}_dev_idx"]] = False
         idx = np.flatnonzero(keep)[:200] if a.quick else np.flatnonzero(keep)
-        d = {"sentence1": [str(s) for s in raw[f"{t}_{c1}"][idx]],
-             "sentence2": [str(s) for s in raw[f"{t}_{c2}"][idx]] if c2 else None,
+        d = {"sentence1": unpack(raw[f"{t}_{c1}_utf8"], raw[f"{t}_{c1}_offsets"], idx),
+             "sentence2": unpack(raw[f"{t}_{c2}_utf8"], raw[f"{t}_{c2}_offsets"], idx) if c2 else None,
              "label": raw[f"{t}_label"][idx].astype(np.int64), "n_classes": k}
         epochs, lr = SCHEDULE[t]
         states[t] = train_task(d, a.models, t, a.seed, a.device, 1 if a.quick else epochs, lr)

@@ -1,0 +1,124 @@
+id: X-DATA-007
+title: "A data pipeline for a raw web pool: deduplication, filtering and mixing that minimise a fixed small model's loss on held-out educational text"
+template: A-NORM-005
+anchor: {authors: "Katherine Lee, Daphne Ippolito, Andrew Nystrom, Chiyuan Zhang, Douglas Eck, Chris Callison-Burch, Nicholas Carlini", title: "Deduplicating Training Data Makes Language Models Better", arxiv: "2107.06499"}
+baseline: "exact and MinHash deduplication followed by a hashed-n-gram logistic-regression quality filter trained on the target examples, top-scoring documents up to the token budget (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Not executed yet on the real pool: the pool and the training stage need the FineWeb files and PyTorch, which were not available where the case was built; the operator runs them at activation. The reference pipeline (CPU) was run in the container on a synthetic pool with planted near-copies, and the duplicate metrics were checked on its selection."
+mode: judge_trains
+n_seeds: 1
+show_baseline: true
+kit_extra: [microlm/lm_train.py]
+extra_interface: [harness/norm_lm.py, harness/fixed_norm.py, harness/token_data.py, harness/textpack.py]
+task: |
+  Design a **data pipeline** — exact and near-duplicate removal, quality and domain filtering, rating documents with small models trained on the provided examples, mixing and up- or down-weighting by repetition — that **selects training documents from a raw web pool** so that a **fixed 30M-parameter language model**, trained by the evaluator on your selection for a fixed number of tokens, reaches the **lowest loss on held-out educational web text**.
+
+  - Submit code only: `pipeline.py` with `select(pool_dir, budget_tokens, workdir)` returning document indices in training order (repeats allowed). The evaluator runs it on 8 CPU cores without a GPU, then trains the fixed model on the concatenated documents with a fixed recipe and measures held-out loss.
+  - The pool contains near-duplicates (across Common Crawl dumps, and planted copies with small edits whose clusters are known to the evaluator); how much repetition helps or hurts is part of the problem.
+  - You may build on any public work (exact and MinHash deduplication, suffix-array deduplication, perplexity and classifier filters, DoReMi-style mixing, data-constrained scaling), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only), built from FineWeb (`HuggingFaceFW/fineweb` @9bb295dd, ODC-BY; deduplicated only within each dump) and FineWeb-Edu (`HuggingFaceFW/fineweb-edu` @87f09149, ODC-BY), GPT-2 BPE tokens (`openai-community/gpt2` @607a30d7):
+
+  | File | Contents |
+  |---|---|
+  | `pool_text.npz` | 416,000 documents, shuffled: the first 100,000 of dumps CC-MAIN-2013-20, 2023-14, 2023-50 and 2024-18, plus 16,000 planted near-copies (packed text, `interface/textpack.py`) |
+  | `pool_tokens.bin`, `pool_index.npz` | Their GPT-2 tokens (each document ends with `<|endoftext|>`; llm.c shard format, `interface/token_data.py`), `token_offsets` and the source `dump` of each document |
+  | `target_examples.npz` | 5,000 FineWeb-Edu documents: examples of the target distribution |
+  | `dev_text.npz` | 2,097,153 FineWeb-Edu tokens (other documents) and 2,097,153 tokens of dump CC-MAIN-2024-26, for the self-check |
+
+  The held-out sets are not in the sandbox: 2,097,153 tokens of another FineWeb-Edu file (target) and 2,097,153 tokens of dump CC-MAIN-2024-51 (general), plus the clusters of the planted copies.
+interface: "Implement `select(pool_dir, budget_tokens, workdir) -> 1-D int array` in `pipeline.py`: indices into the pool in training order (repeats allowed), totalling at least 20M tokens; `budget_tokens` (98,304,000) is what the fixed model will see, and `workdir` is a writable scratch directory."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Target loss** (primary) | Mean next-token cross-entropy of the fixed model on the 2,097,153 held-out FineWeb-Edu tokens after training on your selection; lower is better | — |
+  | General loss | The same on the held-out tokens of a later FineWeb dump | reported |
+  | Duplicates kept | Extra copies of planted near-duplicate clusters among your distinct selected documents, as a fraction of all extra copies in the pool; duplicate rate of the selection | reported |
+  | Selection | Selected tokens, documents and distinct documents; CPU seconds of `select()` | reported |
+  | Divergence | Training diverged | Threshold: = 0 |
+
+  **Measurement and decision**
+
+  - The fixed model is `norm_lm.LM` in its "mu2" configuration (8 layers, width 384, GPT-2 vocabulary, about 30M parameters) with pre-RMSNorm (`interface/fixed_norm.py`), trained by `lm_train.py` (AdamW, learning rate 2e-3, warm-up and cosine decay, bf16) for 3,000 steps of 32 windows of 1,024 tokens drawn uniformly at random from your concatenated selection, so documents you repeat are seen more often.
+  - `select()` runs in a process with 8 CPU cores and no GPU and is killed at 3,600 s; training runs in a second process on the reference GPU and is killed at 2,400 s.
+  - Valid submissions are ranked by target loss; differences below 0.01 nats are treated as ties.
+  - The final ABench score is driven mainly by target loss, and also considers how different the pipeline is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "4 GPU-hours"
+  software: "Python 3, NumPy, SciPy, scikit-learn (the select stage); PyTorch (CUDA) for the training stage"
+  notes: |
+    - `selfcheck.py` runs both stages on the dev token sets (`--quick`: 300 training steps, a budget of 9,830,400 tokens and a 2M-token minimum).
+    - Only the select stage runs your code; the training stage is fixed, so your report should argue from data, not from the model.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── pipeline.py         # required: select()
+    ├── src/                # optional: helper modules, .py only
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; models you train inside `select()` must be trained there, within its time limit.
+rules: |
+  - Select only from the pool, using the pool, the target examples and anything you compute from them inside `select()`; no other data, word lists or pretrained models.
+  - `select()` must not read the dev token sets or anything outside `pool_dir` and `workdir`.
+interface_md: |
+  # X-DATA-007 interface
+
+  ## Entry point: `pipeline.py`
+
+  ```python
+  def select(pool_dir: str, budget_tokens: int, workdir: str) -> "np.ndarray":
+      """Return document indices into the pool in training order (repeats allowed), at least 20M tokens in all.
+      pool_dir holds pool_text.npz, pool_tokens.bin, pool_index.npz and target_examples.npz."""
+  ```
+
+  ## Evaluator code you can read
+
+  `stages.py` (the two stages), `lm_train.py`, `norm_lm.py`, `fixed_norm.py` (the fixed model and recipe),
+  `metrics.py`, `token_data.py`, `textpack.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the
+  reference submission's code under `baseline/`.
+
+  ## Available software
+
+  Python 3, NumPy, SciPy, scikit-learn in the select stage; PyTorch (CUDA) in the sandbox for your own experiments.
+  Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 4.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/X-DATA-007
+    public:
+      - {path: sandbox/data/X-DATA-007/pool_text.npz, sha256: pending}
+      - {path: sandbox/data/X-DATA-007/pool_tokens.bin, sha256: pending}
+      - {path: sandbox/data/X-DATA-007/pool_index.npz, sha256: pending}
+      - {path: sandbox/data/X-DATA-007/target_examples.npz, sha256: pending}
+      - {path: sandbox/data/X-DATA-007/dev_text.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/X-DATA-007/hidden.npz.enc, sha256_plain: pending, keys: "target_tokens, general_tokens (given to the training stage after its timed phase); cluster (evaluator only)"}
+    sources:
+      - name: "FineWeb (HuggingFaceFW/fineweb), first shard of six dumps"
+        url: https://huggingface.co/datasets/HuggingFaceFW/fineweb
+        revision: 9bb295ddab0e05d785b879661af7260fed5140fc
+        license: ODC-BY
+        verified: "2026-10-22: revision, licence and dump layout from the Hugging Face API"
+      - name: "FineWeb-Edu sample/10BT (HuggingFaceFW/fineweb-edu)"
+        url: https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu
+        revision: 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9
+        license: ODC-BY
+      - name: "GPT-2 tokenizer (openai-community/gpt2)"
+        url: https://huggingface.co/openai-community/gpt2
+        revision: 607a30d783dfa663caf39e06633721c8d4cfcd7e
+        license: MIT
+        verified: "2026-10-22: revision and licence from the Hugging Face API"
+  submission:
+    kind: code_only
+    entry: pipeline.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, pipeline.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA and torch versions frozen at activation)"
+    seeds: [107]

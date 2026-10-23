@@ -21,7 +21,7 @@ Standard (reference) case of its track, built to task statement standard v2.1. A
 
 ## Data sources (links only; nothing is downloaded in the repository)
 
-- GLUE (Wang et al. 2019), Hugging Face nyu-mll/glue: rte, mrpc, cola, sst2: https://huggingface.co/datasets/nyu-mll/glue — license: per-task terms; the dataset card lists 'other' (research use) (verified 2026-10-19)
+- GLUE (Wang et al. 2019), Hugging Face nyu-mll/glue: sst2, cola, mnli, qnli: https://huggingface.co/datasets/nyu-mll/glue — license: per-task terms; the dataset card lists 'other' (research use); QNLI derives from SQuAD (CC BY-SA 4.0) (verified 2026-10-19)
 - roberta-base, Hugging Face FacebookAI/roberta-base: https://huggingface.co/FacebookAI/roberta-base — license: MIT (verified 2026-10-19)
 
 ## Activation (operator)

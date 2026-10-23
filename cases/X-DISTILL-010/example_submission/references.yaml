@@ -1,0 +1,42 @@
+schema: abench.references/v2
+references:
+- id: hinton2015distilling
+  title: Distilling the Knowledge in a Neural Network
+  authors: Geoffrey Hinton, Oriol Vinyals and Jeff Dean
+  year: 2015
+  venue: NeurIPS Deep Learning Workshop
+  arxiv: '1503.02531'
+  used_for: 'Anchor: distillation from the teacher''s distribution'
+  code_location: 'train.py: main'
+- id: allal2025smollm2
+  title: 'SmolLM2: When Smol Goes Big -- Data-Centric Training of a Small Language Model'
+  authors: Loubna Ben Allal et al.
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.02737'
+  used_for: The student and the teacher
+  code_location: null
+- id: sanh2019distilbert
+  title: 'DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter'
+  authors: Victor Sanh, Lysandre Debut, Julien Chaumond and Thomas Wolf
+  year: 2019
+  venue: NeurIPS EMC2 Workshop
+  arxiv: '1910.01108'
+  used_for: Mixing the data loss with distillation
+  code_location: 'train.py: main'
+- id: gu2024minillm
+  title: 'MiniLLM: Knowledge Distillation of Large Language Models'
+  authors: Yuxian Gu, Li Dong, Furu Wei and Minlie Huang
+  year: 2024
+  venue: ICLR
+  arxiv: '2306.08543'
+  used_for: Related work
+  code_location: null
+- id: gu2025miniplm
+  title: 'MiniPLM: Knowledge Distillation for Pre-Training Language Models'
+  authors: Yuxian Gu, Hao Zhou, Fandong Meng, Jie Zhou and Minlie Huang
+  year: 2025
+  venue: ICLR
+  arxiv: '2410.17215'
+  used_for: Related work
+  code_location: null

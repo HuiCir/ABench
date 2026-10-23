@@ -1,0 +1,59 @@
+schema: abench.references/v2
+references:
+- id: brunton2016sindy
+  title: Discovering governing equations from data by sparse identification of nonlinear dynamical systems
+  authors: Steven L. Brunton, Joshua L. Proctor and J. Nathan Kutz
+  year: 2016
+  venue: PNAS
+  arxiv: '1509.03580'
+  used_for: 'Anchor: library regression and STLSQ'
+  code_location: 'discover.py: _stlsq, discover'
+- id: savitzky1964
+  title: Smoothing and Differentiation of Data by Simplified Least Squares Procedures
+  authors: Abraham Savitzky and Marcel J. E. Golay
+  year: 1964
+  venue: Analytical Chemistry
+  doi: 10.1021/ac60214a047
+  used_for: Derivative estimation
+  code_location: 'discover.py: _derivative'
+- id: rudy2017pdefind
+  title: Data-driven discovery of partial differential equations
+  authors: Samuel H. Rudy, Steven L. Brunton, Joshua L. Proctor and J. Nathan Kutz
+  year: 2017
+  venue: Science Advances
+  arxiv: '1609.06401'
+  used_for: Related work (thresholded ridge regression)
+  code_location: null
+- id: mangan2017selection
+  title: Model selection for dynamical systems via sparse regression and information criteria
+  authors: Niall M. Mangan, J. Nathan Kutz, Steven L. Brunton and Joshua L. Proctor
+  year: 2017
+  venue: Proceedings of the Royal Society A
+  arxiv: '1701.01773'
+  used_for: Selecting supports along a path by a criterion
+  code_location: 'discover.py: discover'
+- id: messenger2021weak
+  title: 'Weak SINDy: Galerkin-Based Data-Driven Model Selection'
+  authors: Daniel A. Messenger and David M. Bortz
+  year: 2021
+  venue: Multiscale Modeling & Simulation
+  arxiv: '2005.04339'
+  used_for: Related work (weak formulation)
+  code_location: null
+- id: fasel2022ensemble
+  title: 'Ensemble-SINDy: Robust sparse model discovery in the low-data, high-noise limit, with active learning
+    and control'
+  authors: Urban Fasel, J. Nathan Kutz, Bingni W. Brunton and Steven L. Brunton
+  year: 2022
+  venue: Proceedings of the Royal Society A
+  arxiv: '2111.10992'
+  used_for: Related work (ensembles)
+  code_location: null
+- id: champion2020sr3
+  title: A unified sparse optimization framework to learn parsimonious physics-informed models from data
+  authors: Kathleen Champion, Peng Zheng, Aleksandr Y. Aravkin, Steven L. Brunton and J. Nathan Kutz
+  year: 2020
+  venue: IEEE Access
+  arxiv: '1906.10612'
+  used_for: Related work (relaxed sparse regression)
+  code_location: null

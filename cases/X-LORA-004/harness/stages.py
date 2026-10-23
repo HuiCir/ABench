@@ -1,4 +1,5 @@
-"""X-LORA-004 pipeline: score parameter-efficient fine-tuning states for frozen roberta-base on four GLUE tasks.
+"""X-LORA-004 pipeline: score parameter-efficient fine-tuning states for frozen roberta-base on four GLUE tasks
+(SST-2, CoLA, MNLI-matched, QNLI). Texts are stored packed (UTF-8 bytes + offsets, textpack.py).
 
 The evaluator does not train. One stage, "eval" (imports peft.py; the provided roberta-base is available):
   timed   load checkpoint/states.pt ({task: {name: tensor}}, task-specific parameters only), import peft.py
@@ -12,18 +13,19 @@ from pathlib import Path
 import numpy as np
 
 from abench_stage import Context, Stage
+from textpack import pack, unpack
 
-TASKS = {"rte": ("sentence1", "sentence2", 2), "mrpc": ("sentence1", "sentence2", 2),
-         "cola": ("sentence", None, 2), "sst2": ("sentence", None, 2)}
+TASKS = {"sst2": ("sentence", None, 2), "cola": ("sentence", None, 2),
+         "mnli": ("premise", "hypothesis", 3), "qnli": ("question", "sentence", 2)}
 PARAM_CAP = 1_000_000
 PARAMS = {"tasks": list(TASKS), "param_cap_per_task": PARAM_CAP, "base_model": "roberta-base"}
-HELD_OUT_KEYS = [f"{t}_{c}" for t, (a, b, _) in TASKS.items() for c in (a, b) if c]
+HELD_OUT_KEYS = [f"{t}_{c}_{part}" for t, (a, b, _) in TASKS.items() for c in (a, b) if c for part in ("utf8", "offsets")]
 PIPELINE = [{"stage": "eval", "timeout": 180 + 600, "finish_cap": 600, "tail_slack": 10, "threads": 8,
              "held_out": True, "models": True}]
 
 
-def _texts(arr):
-    return [str(s) for s in arr]
+def _texts(z, key, idx=None):
+    return unpack(z[f"{key}_utf8"], z[f"{key}_offsets"], idx)
 
 
 def _timed(ctx: Context, _):
@@ -51,8 +53,8 @@ def _finish(ctx: Context, st):
     out = {"params_per_task": np.asarray(counts, np.int64)}
     with np.load(ctx.post_dir / "held_out.npz", allow_pickle=False) as z:
         for t, (a, b, _) in TASKS.items():
-            s1 = _texts(z[f"{t}_{a}"])
-            s2 = _texts(z[f"{t}_{b}"]) if b else None
+            s1 = _texts(z, f"{t}_{a}")
+            s2 = _texts(z, f"{t}_{b}") if b else None
             out[f"pred_{t}"] = np.asarray(mod.predict(str(ctx.models), t, states[t], s1, s2, ctx.device)).astype(np.int64)
     return out
 
@@ -70,9 +72,9 @@ def make_dev(public: Path, out: Path, quick: bool = False) -> dict:
         dev = d[f"{t}_dev_idx"]
         if quick:
             dev = dev[:100]
-        held[f"{t}_{a}"] = d[f"{t}_{a}"][dev]
-        if b:
-            held[f"{t}_{b}"] = d[f"{t}_{b}"][dev]
+        for c in (a, b):
+            if c:
+                held[f"{t}_{c}_utf8"], held[f"{t}_{c}_offsets"] = pack(_texts(d, f"{t}_{c}", dev))
         ref[f"{t}_label"] = d[f"{t}_label"][dev]
     out.mkdir(parents=True, exist_ok=True)
     np.savez(out / "held_out.npz", **held)

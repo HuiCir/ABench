@@ -1,0 +1,42 @@
+schema: abench.references/v2
+references:
+- id: guo2017calibration
+  title: On Calibration of Modern Neural Networks
+  authors: Chuan Guo, Geoff Pleiss, Yu Sun and Kilian Q. Weinberger
+  year: 2017
+  venue: ICML
+  arxiv: '1706.04599'
+  used_for: 'Anchor: temperature scaling'
+  code_location: 'train.py: main (temperature grid)'
+- id: hendrycks2017baseline
+  title: A Baseline for Detecting Misclassified and Out-of-Distribution Examples in Neural Networks
+  authors: Dan Hendrycks and Kevin Gimpel
+  year: 2017
+  venue: ICLR
+  arxiv: '1610.02136'
+  used_for: Maximum-probability confidence
+  code_location: 'model.py: predict'
+- id: hendrycks2019oe
+  title: Deep Anomaly Detection with Outlier Exposure
+  authors: Dan Hendrycks, Mantas Mazeika and Thomas Dietterich
+  year: 2019
+  venue: ICLR
+  arxiv: '1812.04606'
+  used_for: Related work
+  code_location: null
+- id: geifman2017selective
+  title: Selective Classification for Deep Neural Networks
+  authors: Yonatan Geifman and Ran El-Yaniv
+  year: 2017
+  venue: NeurIPS
+  arxiv: '1705.08500'
+  used_for: Risk-coverage evaluation
+  code_location: null
+- id: larson2019clinc
+  title: An Evaluation Dataset for Intent Classification and Out-of-Scope Prediction
+  authors: Stefan Larson et al.
+  year: 2019
+  venue: EMNLP
+  arxiv: '1909.02027'
+  used_for: The dataset
+  code_location: null

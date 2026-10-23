@@ -1,17 +1,18 @@
 id: PRO-SPD-004
 title: "Pretraining speedrun: GPT-2 Medium scale to a FineWeb loss target on 4 × H100"
 anchor: {authors: "Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford and others", title: "Training Compute-Optimal Large Language Models", arxiv: "2203.15556"}
-baseline: "a data-parallel AdamW recipe for a GPT-2 Medium-shaped model (`example_submission/`)"
-reference_verification: "Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation."
+baseline: "the modded-nanogpt GPT-2 Medium track record of 2025-11-12 (Muon, FlexAttention, 454M parameters), ported from 8 to 4 GPUs with the same global batch (`example_submission/`)"
+reference_verification: "Not executed yet: the stage code and reference submission need PyTorch >= 2.7 and four H100s, which were not available where the case was built; the operator runs them at activation. The reference is a port of a public record whose own log reports val_loss 2.918512 after 1,496 s of training on 8 x H100 (PyTorch 2.7.0); the 4-GPU port, its 6,100-step budget and the evaluation interface have not run."
 mode: judge_trains
+show_baseline: true
 n_seeds: 2
 task: |
-  Design a complete pretraining recipe — architecture, optimizer, schedule, batch and sequence strategy, precision, kernels, distributed execution — that trains a **dense language model of at most 450M parameters** on one node with **4 × H100** to a **held-out FineWeb loss of at most 2.92** in the **shortest wall-clock time**. This is the setting of the GPT-2 Medium track of the modded-nanogpt speedrun, on half its hardware.
+  Design a complete pretraining recipe — architecture, optimizer, schedule, batch and sequence strategy, precision, kernels, distributed execution — that trains a **dense language model of at most 550M stored parameters** on one node with **4 × H100** to a **held-out FineWeb loss of at most 2.92** in the **shortest wall-clock time**. This is the setting of the GPT-2 Medium track of the modded-nanogpt speedrun, on half its hardware. The reference ports the track's public record to four GPUs; the target is out of reach for conventional AdamW recipes in the time cap, so valid entries need speedrun-class methods, and the bar is the ported record.
 
   - Submit code only: `train.py` (launched with torchrun on all four GPUs) and `model.py` (rebuilds the trained model for evaluation). At evaluation the run is executed from scratch twice, with seeds unknown to you; time is measured from launch until every training process has exited.
   - Only the provided training shards may be used: no pretrained weights, distillation from other models, external data, or reading of the validation tokens.
   - Dense means every token passes through all parameters (no mixture-of-experts routing); the size cap counts every tensor in the saved state.
-  - You may build on any public work from before the cutoff (the speedrun's record history, Muon, value embeddings, FP8 kernels, sequence-length warm-up, compute-optimal scaling), but the design report must state what you borrowed and what you changed.
+  - You may build on any public work (the speedrun's record history, Muon, value embeddings, FP8 kernels, sequence-length warm-up, compute-optimal scaling), but the design report must state what you borrowed and what you changed.
 data: |
   `$ABENCH_DATA_DIR/` (read-only) holds the 103 training shards of FineWeb-10B pre-tokenized with the GPT-2 BPE (Hugging Face `kjj0/fineweb10B-gpt2`, MIT; the data of the modded-nanogpt speedrun):
 
@@ -27,24 +28,25 @@ metrics: |
   |---|---|---|
   | **Training time** (primary) | Wall-clock seconds from the launch of torchrun until all training processes have exited, mean (= median) of the 2 runs; lower is better | — |
   | Held-out loss | Mean next-token cross-entropy (nats) of the saved model on the 10,485,760 validation tokens, evaluated in consecutive windows of `EVAL_SEQ_LEN`, mean of the 2 runs | Threshold: ≤ 2.92 |
-  | Model size | Elements of all tensors in `model.pt` | Threshold: ≤ 450,000,000 |
+  | Model size | Elements of all tensors in `model.pt` (embedding tables included; the reference has 454,496,336) | Threshold: ≤ 550,000,000 |
   | Time cap | Each run must finish within 3 hours | Threshold: ≤ 10,800 s |
 
   **Timing and decision**
 
   - Each run starts in new processes with empty compiler caches (`interface/abench_stage.py`); everything from Python start-up to the last process exit counts, including compilation, data loading and saving `model.pt`.
   - The evaluation stage runs in another process on one GPU with only the `out/` directory; it must finish within 20 minutes.
-  - A submission is valid only if every threshold holds; valid submissions are ranked by training time.
+  - A submission is valid only if every threshold holds; valid submissions are ranked by training time. Differences inside the 95% interval reported with the score are treated as ties.
   - If any run crashes or exceeds a time limit, the whole submission is invalid.
   - The final ABench score is driven mainly by training time, and also considers how different the recipe is from existing speedrun records and the quality of the sources cited in the design report; the exact weights are not published.
 hardware:
   kind: pro
   session_hours: 24
   dev_budget: "96 H100-hours (24 hours of the 4-GPU node)"
-  software: "Python 3, PyTorch (CUDA, Triton, torch.distributed / torchrun, torch.compile), NumPy"
+  software: "Python 3, PyTorch >= 2.7 (CUDA, Triton, FlexAttention, torch.distributed / torchrun, torch.compile), NumPy; no packages fetched at run time (the FlashAttention 3 kernel that later records download from the Hugging Face kernel hub is not available)"
   notes: |
     - `selfcheck.py --quick` passes `--quick` to `train.py` (your script decides what a short run is) and evaluates on 1,048,576 tokens of the last training shard; `--seeds 1` runs your full recipe once and evaluates on the last 10,485,760 tokens of that shard, which are also training data, so the dev loss is optimistic.
-    - Budget your development: a full run of the example recipe takes hours, and the evaluation runs your recipe twice.
+    - Budget your development: a full run of the reference (`interface/baseline/`) is expected to take about 55–65 minutes on the node, and the evaluation runs your recipe twice.
+    - The reference is record 17 of the modded-nanogpt GPT-2 Medium track (2025-11-12, commit 4ea6b937 of github.com/KellerJordan/modded-nanogpt, MIT licence): 5,960 steps of 524,288 tokens on 8 x H100, val_loss 2.9185 in 1,496 s of training time; the port keeps the global batch with two micro-steps per rank and runs 6,100 steps.
 deliverables:
   tree: |
     $ABENCH_SUBMISSION_DIR/

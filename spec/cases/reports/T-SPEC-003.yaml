@@ -1,0 +1,107 @@
+case: T-SPEC-003
+title: 'Windowed Picard Iteration: Draft-and-Verify Rounds for DDIM Sampling'
+abstract: >-
+  This submission transfers the draft-and-verify structure of speculative decoding
+  [@leviathan2023speculative;@chen2023accelerating] to diffusion sampling with the parallel-in-time scheme of
+  ParaDiGMS [@shih2023paradigms]. The deterministic DDIM update [@song2021ddim] is affine in the state given the
+  network's prediction, so a window of four future states can be drafted, evaluated by the network in one batched
+  round, and re-derived from the window start in closed form. Sliding the window by two states per round covers 2R
+  DDIM steps in R rounds with four evaluations per image per round. Unlike speculative decoding, the verification is
+  not exact: there is no acceptance test, only repeated refinement.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Speculative decoding makes autoregressive generation faster without changing its output by letting a cheap
+    process propose several tokens and the target model check them all in one parallel pass. Diffusion sampling has the
+    same sequential bottleneck, one network call per step, but its steps are continuous, so verification becomes a
+    fixed-point problem rather than an accept-or-reject decision.
+- title: Related Work
+  paras:
+  - >-
+    Speculative decoding and speculative sampling verify draft tokens in parallel and accept a prefix, preserving the
+    target distribution [@leviathan2023speculative;@chen2023accelerating]. ParaDiGMS writes the sampling ODE as a
+    fixed-point equation over a window of time steps and solves it by Picard iterations whose drift evaluations run in
+    parallel, sliding the window by the number of converged steps [@shih2023paradigms]. DDIM gives the deterministic
+    sampler whose steps the window covers [@song2021ddim], for the DDPM model in use [@ho2020ddpm].
+  - >-
+    Picard windows spend parallel compute to save sequential steps but have no exact acceptance rule; a test that tells
+    which drafted states are good enough, as speculative decoding has for tokens, is the gap.
+- title: Method
+  subsections:
+  - title: Window iteration
+    paras:
+    - >-
+      The grid has N = 2R uniformly spaced timesteps. With c_j = sqrt(ᾱ_{j+1}/ᾱ_j) and
+      d_j = sqrt(1 − ᾱ_{j+1}) − sqrt(ᾱ_{j+1}(1 − ᾱ_j)/ᾱ_j), DDIM is x_{j+1} = c_j x_j + d_j ε(x_j, t_j). All states start
+      as copies of the initial noise. Each round evaluates ε at the current guesses of the four states s … s+3 in one
+      call, recomputes x_{s+1} … x_{s+4} from x_s with these predictions, copies the newest state into the guesses
+      further ahead, and advances s by two.
+    algorithm_caption: One round
+    algorithm:
+    - E ← denoiser([x_s, …, x_{s+3}], [t_s, …, t_{s+3}])   (one call, 4n rows)
+    - 'for j = s … s+3: x_{j+1} ← c_j x_j + d_j E_j'
+    - x_k ← x_{s+4} for k > s + 4; s ← s + 2
+  - title: Complexity
+    paras:
+    - >-
+      R rounds, 4 evaluations per image per round (4R in total, against R for DDIM), and N + 1 stored states per image.
+- title: Design Rationale
+  paras:
+  - >-
+    Because the DDIM step is affine given ε, re-deriving the window after a parallel evaluation costs nothing; each state
+    is evaluated once as a draft and once more after its predecessors were refined, which is enough for the early,
+    smooth part of the trajectory and gives a sampler that behaves like DDIM with twice the steps.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The window advances by a fixed two states without checking convergence, x₀ is not clipped, and the drafts are naive
+    copies of the newest state instead of predictions from a cheap model.
+references:
+- id: leviathan2023speculative
+  title: Fast Inference from Transformers via Speculative Decoding
+  authors: Yaniv Leviathan, Matan Kalman and Yossi Matias
+  year: 2023
+  venue: ICML
+  arxiv: '2211.17192'
+  used_for: 'Anchor: draft several steps, verify them in one parallel pass'
+  code_location: 'sampler.py: sample (window evaluation)'
+- id: chen2023accelerating
+  title: Accelerating Large Language Model Decoding with Speculative Sampling
+  authors: Charlie Chen, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre and John Jumper
+  year: 2023
+  arxiv: '2302.01318'
+  used_for: Related work (speculative sampling)
+  code_location: null
+- id: shih2023paradigms
+  title: Parallel Sampling of Diffusion Models
+  authors: Andy Shih, Suneel Belkhale, Stefano Ermon, Dorsa Sadigh and Nima Anari
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.16317'
+  used_for: Picard iteration over a sliding window of time steps
+  code_location: 'sampler.py: sample'
+- id: song2021ddim
+  title: Denoising Diffusion Implicit Models
+  authors: Jiaming Song, Chenlin Meng and Stefano Ermon
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.02502'
+  used_for: The deterministic step and its affine form
+  code_location: 'sampler.py: coefficients'
+- id: ho2020ddpm
+  title: Denoising Diffusion Probabilistic Models
+  authors: Jonathan Ho, Ajay Jain and Pieter Abbeel
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11239'
+  used_for: The frozen model and its noise schedule
+  code_location: null
+changes:
+- text: Speculative decoding's prefix acceptance is replaced by a fixed slide of two states per round, with every state
+    evaluated twice.
+  code: 'sampler.py: WINDOW, ADVANCE, sample'
+- text: The window update uses the closed-form affine DDIM recursion instead of ParaDiGMS's cumulative drift sum.
+  code: 'sampler.py: coefficients, sample'
+- text: Guesses beyond the window are copies of the newest state.
+  code: 'sampler.py: sample'

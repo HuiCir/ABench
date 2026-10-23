@@ -1,4 +1,4 @@
-# ABench standard case TC-FT-001: Text classification on AG News within a CPU budget
+# ABench standard case TC-FT-001: Text classification on Yelp Review Full within a CPU budget
 
 Standard (reference) case of its track, built to task statement standard v2.1. Anchor: Armand Joulin, Edouard Grave, Piotr Bojanowski, Tomas Mikolov, *Bag of Tricks for Efficient Text Classification*
 (arXiv:1607.01759).
@@ -21,7 +21,7 @@ Standard (reference) case of its track, built to task statement standard v2.1. A
 
 ## Data sources (links only; nothing is downloaded in the repository)
 
-- AG News (Zhang, Zhao & LeCun 2015), Hugging Face fancyzhx/ag_news: https://huggingface.co/datasets/fancyzhx/ag_news — license: unknown on the dataset card; the card describes the corpus as provided for research and non-commercial use (verified 2026-10-19)
+- Yelp Review Full (Zhang, Zhao & LeCun 2015), Hugging Face Yelp/yelp_review_full: https://huggingface.co/datasets/Yelp/yelp_review_full — license: other: the dataset card refers to the Yelp Dataset Agreement (academic, non-commercial use); to_verify by the operator before release (verified 2026-10-21)
 
 ## Activation (operator)
 

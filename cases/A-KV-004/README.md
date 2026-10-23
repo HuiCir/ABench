@@ -1,34 +1,37 @@
-# ABench Case A-KV-004: Design an attention/KV structure that minimizes quality loss under a given KV memory budget
+# ABench case A-KV-004: An attention and key-value cache structure for SmolLM2-135M that keeps quality at a third of the cache
 
-- Track: A · LLM architecture · method
-- Anchor: GQA (arXiv: 2305.13245)
-- Subset: main; difficulty: medium; resource tier: medium; status: **scaffold**
-- Task: Design an attention/KV structure that minimizes quality loss under a given KV memory budget
-- Metrics: Loss; KV bytes; length extrapolation
-- Proxy: SURG, SYN; plan: Replace attention in SmolLM2-135M with the candidate KV structure and continue training for 30M tokens; KV-byte and length-extrapolation probes
+Case built to task statement standard v2.1 from the template of X-LORA-004. Anchor: Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, Sumit Sanghai, *GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints*
+(arXiv:2305.13245).
 
-## Current deliverables
+## Status
 
-This directory only sets up the bench contract scaffold: task card, evaluation protocol, resource registry, scoring contract and directory-level notes. There is no simulated training, no simulated reference run, no simulated score and no fabricated leaderboard result. Formal runs require the benchmark operator to inject real resources, reference runs, the hidden set and server-generated run records.
-
-## Blockers and reservations
-
-This case can enter the next implementation batch of the shared runner, but real scores still cannot be published on this basis.
-
-Blocking inputs:
-
-- `frozen_tokenizer_model_data_and_long_context_probe`
-- `reference_runs_and_fixed_hardware_throughput`
-
-Until these inputs are frozen, only interfaces/contracts are added; no excessive environment setup or simulated substitutes.
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Not executed yet: the stage code, baseline and reference submission need PyTorch, safetensors and the SmolLM2 weights, which were not available where the case was built; the operator runs them at activation. The SmolLM2 configuration (30 layers, width 576, 9 query and 3 key-value heads of 64, rope theta 100,000, tied embeddings) was read from the model's config.json at the pinned revision, giving 23,040 cache bytes per token in bf16; the reference and the baseline both reach 7,680 by construction.
+- No number in the case files is a result: there are no training curves or reference scores.
+- Baseline run by the judge alongside every submission: `harness/baselines/mqa`.
 
 ## Files
 
-- `case/anchor_card.yaml`: task anchor and acceptance boundary.
-- `case/task_prompt.md`: the task given to the agent under test.
-- `case/eval_protocol.yaml`: proxy ladder, budget, hidden evaluation and output constraints.
-- `case/resources.yaml`: registry of data, models, software, hardware and private resources.
-- `case/scoring_config.yaml`: metrics and thresholds pending calibration.
-- `harness/README.md`: execution interface conventions.
-- `scoring/README.md`: scoring input/output conventions.
-- `example_submission/README.md`: example submission directory conventions.
+- `spec/cases/A-KV-004.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case A-KV-004`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/a_kv_004.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
+
+## Data sources (links only; nothing is downloaded in the repository)
+
+- FineWeb-Edu sample/10BT, Hugging Face HuggingFaceFW/fineweb-edu: 000_00000.parquet (training) and 013_00000.parquet (held out): https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu — license: ODC-BY (verified 2026-10-22)
+- SmolLM2-135M, Hugging Face HuggingFaceTB/SmolLM2-135M: https://huggingface.co/HuggingFaceTB/SmolLM2-135M — license: Apache-2.0 (verified 2026-10-22)
+
+## Activation (operator)
+
+```bash
+python3 tools/prepare/run.py --case A-KV-004 --list-sources                 # what to download
+python3 tools/prepare/run.py --case A-KV-004 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case A-KV-004 --submission cases/A-KV-004/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case A-KV-004 --activate                     # after reviewing the calibration run
+```
+
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

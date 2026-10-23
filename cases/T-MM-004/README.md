@@ -1,27 +1,36 @@
-# ABench Case T-MM-004: On frozen vision/text encoders and offline image–text pairs, design a lightweight cross-modal fusion or adapter that is Pareto-optimal over retrieval quality, trainable parameters, memory and inference latency
+# ABench case T-MM-004: Aligning a frozen image encoder and a frozen text encoder with light trained adapters: COCO retrieval and compositional checks
 
-This is a low-cost multimodal architecture case. It tests the quality–parameter–latency Pareto front of cross-modal adapters rather than chasing SOTA on a single dataset.
+Case built to task statement standard v2.1 from the template of X-LORA-004. Anchor: Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever, *Learning Transferable Visual Models From Natural Language Supervision*
+(arXiv:2103.00020).
 
-- Corpus cutoff: 2026-07-01.
-- Difficulty: **medium**; resource rating: **medium**; budget tier: **medium**.
-- Proxy: FROZEN, SUBSET; development about 3 GPU-h, per verification about 1.5 GPU-h, reference precompute about 15 GPU-h.
-- Resources: `case/resources.yaml`; all resources are mounted offline by the server, and network access at run time is forbidden.
-- Currently only a scaffold, with no real reference runs, hidden evaluation or simulated scores.
+## Status
 
-## Proxy setting
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Not executed yet: the reference needs PyTorch, transformers and the encoder weights, which were not available where the case was built; the operator runs it at activation. The retrieval and compositional scores were checked in the container on constructed embeddings (perfect alignment gives 1.0; random embeddings give R@1 ≈ 1/n and image→text R@10 ≈ 1 − (1 − 10/n_text)^5), and the data preparation runs on synthetic images.
+- No number in the case files is a result: there are no training curves or reference scores.
 
-Freeze small vision/text encoders, use an offline thumbnail and caption bundle, and train only adapters/cross-attention/temperature; hidden compositional retrieval is evaluated server-side.
+## Files
 
-## Metrics and scoring
+- `spec/cases/T-MM-004.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case T-MM-004`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/t_mm_004.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
 
-Metric definitions are in `case/eval_protocol.yaml`. This case uses `pareto_frontier`: quality metrics are maximized, cost metrics minimized, and constraint metrics must pass first; the output is the full non-dominated set and the hypervolume relative to the reference envelope.
+## Data sources (links only; nothing is downloaded in the repository)
 
-## Blockers before launch
+- COCO captions, Karpathy split (yerevann/coco-karpathy) and COCO 2014 images: https://huggingface.co/datasets/yerevann/coco-karpathy — license: COCO annotations CC BY 4.0; images under the COCO terms of use (Flickr terms); the parquet export states no licence of its own (verified 2026-10-22)
+- SugarCrepe (Hsieh et al. 2023): https://github.com/RAIVNLab/sugar-crepe — license: MIT (verified 2026-10-22)
 
-- `frozen_vision_text_encoder_and_tokenizer_hash`
-- `offline_image_text_bundle_and_hidden_compositions`
-- `fixed_gpu_timer_and_retrieval_evaluator`
+## Activation (operator)
 
+```bash
+python3 tools/prepare/run.py --case T-MM-004 --list-sources                 # what to download
+python3 tools/prepare/run.py --case T-MM-004 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case T-MM-004 --submission cases/T-MM-004/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case T-MM-004 --activate                     # after reviewing the calibration run
+```
 
-Protocol references: [`spec/pareto_protocol.md`](../../spec/pareto_protocol.md); [`spec/sandbox_profiles.md`](../../spec/sandbox_profiles.md).
-Resource profile: `single_gpu_24gb`; objective mode: `objective_mode: pareto`.
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

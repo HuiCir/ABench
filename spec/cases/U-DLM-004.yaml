@@ -1,0 +1,129 @@
+id: U-DLM-004
+title: "A noise process and objective that narrow the likelihood gap between masked diffusion and autoregressive language models (two scales)"
+template: B-OPT-001
+anchor: {authors: "Subham Sekhar Sahoo, Marianne Arriola, Yair Schiff, Aaron Gokaslan, Edgar Marroquin, Justin T. Chiu, Alexander Rush, Volodymyr Kuleshov", title: "Simple and Effective Masked Diffusion Language Models", arxiv: "2406.07524"}
+baseline: "MDLM (linear schedule, the bound as the training loss), run by the evaluator under identical conditions (`interface/baselines/mdlm/`)"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, recipe, denoiser), the evaluator also trains MDLM from `interface/baselines/mdlm/` and reports your bounds relative to it."
+reference_verification: "Not executed yet: the stage code, baseline and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation, together with the autoregressive reference (lm_model.LM, same sizes, data and recipe) that fills AR_REFERENCE in metrics.py. The evaluator's bound estimator was checked in a NumPy mirror under the reference's position-dependent schedule: for a context-free denoiser it recovers the exact unigram negative log-likelihood within its Monte-Carlo error (bias 0.002, standard deviation 0.012 nats per 100 windows), and the schedule passes the window check (width 0.4 ≥ 0.2)."
+mode: judge_trains
+n_seeds: 2
+kit_extra:
+  - microlm/lm_train.py
+  - microlm/dlm.py
+extra_interface:
+  - harness/lm_model.py
+  - harness/token_data.py
+  - harness/baselines/mdlm/recipe.py
+task: |
+  Design the **noise process and training objective of a masked (absorbing-state) diffusion language model** — per-position masking schedules, time sampling, weighting, auxiliary terms — so that a fixed denoiser reaches the **lowest likelihood bound** on held-out text at two scales, closing as much as possible of the gap to an autoregressive model of the same size.
+
+  - Submit the recipe only (`recipe.py` with `loss(model, x)` and optionally `alpha(t, seq)`). At evaluation the evaluator trains the fixed bidirectional denoiser from scratch with your loss at scale μ2 (8 layers, width 384) and μ3 (10 layers, width 768), 3,000 steps of 32 × 1,024 FineWeb tokens each, once for each of 2 seeds unknown to you, then computes the masked-diffusion bound itself under your schedule. It trains MDLM the same way.
+  - Your schedule `alpha_i(t)` may differ by position; the bound stays valid for any schedule that decreases from 1 to 0. To keep the model a parallel (non-autoregressive) generator, every position must take at least 0.2 of diffusion time to go from 90% to 10% unmasked.
+  - The gap to an autoregressive model with the same sizes, data and recipe is reported at both scales, and how the bound improves from μ2 to μ3.
+  - You may build on any public work (masked and uniform discrete diffusion, learned and state-dependent schedules, block and semi-autoregressive diffusion, variance reduction), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only) holds the first two training shards of FineWeb-10B pre-tokenized with the GPT-2 BPE (Hugging Face `kjj0/fineweb10B-gpt2`, the data of the modded-nanogpt speedrun):
+
+  | File | Contents |
+  |---|---|
+  | `fineweb_train_000001.bin`, `fineweb_train_000002.bin` | 256 int32 header (magic 20240520, version 1, token count), then about 100M uint16 tokens each |
+
+  Read them with `interface/token_data.py`. The held-out set is the first 2,097,152 tokens of the official FineWeb validation shard (`fineweb_val_000000.bin`); it is not in the sandbox. The self-check holds out the last 2,097,152 tokens of the second training shard. The mask token is id 50,257 (`dlm.MASK`).
+interface: "Implement `loss(model, x) -> scalar tensor` and optionally `alpha(t, seq) -> (B, seq)` in `recipe.py` (default: the linear schedule 1 − t). `x` is an int64 (32, 1,024) batch of clean tokens (μ3 receives two micro-batches of 16 per step); `model(z, t)` maps corrupted tokens and times (B,) to logits (B, T, 50,304); `alpha` maps times t (B,) to the probability that each position is still unmasked. `interface/dlm.py` provides corruption, the bound and helpers."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean NELBO** (primary) | The masked-diffusion bound in nats per token under your schedule on the 2,097,152 held-out tokens (windows of 1,024, 8 stratified times per window), averaged over μ2 and μ3 and the 2 seeds; lower is better | — |
+  | NELBO and perplexity bound per scale | The same per scale, and exp(NELBO) | reported |
+  | Gap to autoregression | NELBO minus the held-out loss of the autoregressive reference of the same scale | reported |
+  | Scale gain | NELBO at μ2 minus NELBO at μ3 | reported |
+  | NELBO vs MDLM | Differences to the baseline, per scale and on the mean | reported |
+  | Schedule | alpha in [0, 1], decreasing from 1 to 0; every position needs ≥ 0.2 of time from alpha 0.9 to 0.1 | Threshold: holds (checked before training) |
+  | Training time | Seconds of the μ2 and μ3 training (parent clock) | Threshold: ≤ 1,800 s (μ2), ≤ 3,600 s (μ3) |
+
+  **The bound** (`dlm.nelbo_per_token`): NELBO = Σ_i ∫ −alpha_i'(t) / (1 − alpha_i(t)) · 1[position i masked] · (−log p(x_i | z_t, t)) dt per window, estimated with 8 stratified times and divided by the window length (Sahoo et al. 2024; Shi et al. 2024 for per-position schedules); derivatives by central differences. A diverged run counts as 10.83.
+
+  **Fixed training setting** (`interface/lm_train.py`, `interface/dlm.py`): the denoiser is B-OPT-001's decoder without the causal mask, with the time added to the token embeddings through a sinusoidal embedding and a linear map; AdamW at 1e-3 (β = 0.9, 0.95; weight decay 0.1 on matrices), 150 warm-up steps then cosine decay to 0.1, clipping at 1.0, bf16 autocast with fp32 weights.
+
+  **Decision**
+
+  - A submission is valid only if every threshold holds for the 2-seed means; valid submissions are ranked by mean NELBO. Differences smaller than the spread over the two seeds are treated as ties.
+  - If any run crashes, fails the schedule check or exceeds a time limit (the stages are killed at 2,100 s and 3,900 s), the whole submission is invalid.
+  - The final ABench score is driven mainly by the mean NELBO relative to the baseline, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+  - Generative perplexity of samples is not measured in this case (it needs an external judge model); the likelihood bound is the only quality metric.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "8 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML"
+  notes: |
+    - `selfcheck.py --quick` trains 300 steps per scale and evaluates the bound on 262,144 tokens; one full seed takes about 1.5 GPU-hours.
+    - Concentrated schedules make the Monte-Carlo estimate of the bound noisier; the evaluator always uses 8 stratified times per window.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── recipe.py           # required: loss(model, x); optional alpha(t, seq)
+    ├── src/                # optional: helper modules imported by recipe.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; no trained parameters are submitted.
+rules: |
+  - `alpha` must be a deterministic function of t, the position and the sequence length only (no dependence on the tokens or the model).
+  - The loss may only call the model on corruptions of the batch it receives; it must not change the model's parameters other than through the returned loss, read files or the network, or use a second model.
+interface_md: |
+  # U-DLM-004 interface
+
+  ## Entry point: `recipe.py`
+
+  ```python
+  import dlm                          # interface/dlm.py is on sys.path
+
+  def alpha(t, seq):                  # optional; t: (B,) float tensor -> (B, seq) probability of being unmasked
+      return dlm.linear_alpha(t, seq)
+
+  def loss(model, x):                 # x: int64 (B, 1024) clean tokens -> scalar tensor
+      return dlm.mdlm_loss(model, x, alpha_fn=alpha)
+  ```
+
+  - `model(z, t) -> logits (B, T, 50304)`; `dlm.corrupt(x, t, alpha)` masks; `dlm.alpha_and_rate` returns alpha and the
+    bound's weight −alpha'/(1 − alpha); `dlm.nelbo_per_token` is the evaluator's bound; `dlm.check_schedule(alpha, 1024,
+    min_window=0.2)` is the evaluator's schedule check.
+
+  ## Evaluator code you can read
+
+  `dlm.py`, `stages.py` (the two runs), `metrics.py`, `lm_train.py` (recipe, gradient accumulation), `lm_model.py`,
+  `token_data.py`, `baselines/mdlm/recipe.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/U-DLM-004
+    public:
+      - {path: sandbox/data/U-DLM-004/fineweb_train_000001.bin, sha256: pending}
+      - {path: sandbox/data/U-DLM-004/fineweb_train_000002.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/U-DLM-004/hidden.npz.enc, sha256_plain: pending, keys: [tokens], tokens: 4194305}
+    sources:
+      - name: FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (data of the modded-nanogpt speedrun)
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        files: [fineweb_train_000001.bin, fineweb_train_000002.bin, fineweb_val_000000.bin]
+        license: MIT on the token repository; the underlying FineWeb text is ODC-BY
+        verified: "2026-10-19: revision, license and file list from the Hugging Face API (shared with B-OPT-001)"
+  submission:
+    kind: code_only
+    entry: recipe.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, recipe.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [2406, 7524]          # kept secret by the operator
+    baseline: harness/baselines/mdlm

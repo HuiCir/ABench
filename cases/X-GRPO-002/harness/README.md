@@ -1,11 +1,35 @@
-# X-GRPO-002 harness contract
+# X-GRPO-002 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+X-GRPO-002 pipeline: the RL-trained Qwen2.5-0.5B-Instruct answers held-out Countdown and GSM8K problems; the
+evaluator formats the prompts, decodes and verifies (evaluator and self-check use this same file).
+
+One stage, "eval" (the base model is under models/Qwen2.5-0.5B-Instruct):
+  timed   import model.py and call load(checkpoint_dir, models_dir, device), which returns the trained causal LM
+  finish  greedy responses (ChatML template, at most 512 new tokens, lmpost.generate) to the held-out prompts of both
+          task sets, and the number of parameters stored in checkpoint/                                (≤ 1,800 s)
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/model.py`
+- `baseline/src/lora.py`
+- `baseline/src/verify_math.py`
+- `baseline/train.py`
+- `interface.md`
+- `lmpost.py`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+- `textpack.py`
+- `verify_math.py`
+
+The held-out data, keys and judge configuration are never in this directory.

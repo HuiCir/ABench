@@ -1,11 +1,34 @@
-# K-KB-001 harness contract
+# K-KB-001 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+K-KB-001 pipeline: kernels for 30 KernelBench Level-1 problems, correct on five input distributions, timed against
+PyTorch eager and torch.compile (evaluator and self-check; K-FUS-002 uses the same file with its own problem list).
+
+Two stages, each in a new process on the same GPU:
+  reference  nothing timed; finish: for every problem, Model in PyTorch eager and torch.compile(Model) (default mode),
+             timed on the problem's own inputs (kb_bench.time_call), and eager peak memory. Your code is not imported.
+  bench      setup: a snapshot of torch's entry points; timed: import every kernels/<problem>.py that exists (module-level
+             compilation, load_inline builds and autotuning count here); finish: for every problem, correctness on
+             the five input distributions (a ModelNew that modifies its inputs fails), timing and peak memory of
+             ModelNew, a correctness check of the timed instance on fresh inputs and again after those buffers are
+             overwritten in place, and a check that torch's entry points are unchanged.
+Problem files, shape overrides and the order of problems come from `$ABENCH_DATA_DIR/problems.json`.
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `interface.md`
+- `kb_bench.py`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

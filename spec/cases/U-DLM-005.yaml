@@ -1,0 +1,123 @@
+id: U-DLM-005
+title: "A faster sampler for a frozen masked diffusion language model: text quality at 16, 32 and 64 network evaluations"
+template: V-SMP-002
+anchor: {authors: "Shen Nie, Fengqi Zhu, Zebin You, Xiaolu Zhang, Jingyang Ou, Jun Hu, Jun Zhou, Yankai Lin, Ji-Rong Wen, Chongxuan Li", title: "Large Language Diffusion Models", arxiv: "2502.09992"}
+baseline: "MDLM ancestral sampling with equal time steps, run by the evaluator under identical conditions (`interface/baselines/ancestral/`)"
+baseline_run: "Under exactly the same conditions (model, budgets, seeds, prefixes), the evaluator also runs the ancestral sampler in `interface/baselines/ancestral/` and reports your perplexities relative to it."
+reference_verification: "Partly executed: the window selection of the data preparation ran on synthetic token streams. The sampler, the denoiser wrapper and the scoring need PyTorch, transformers and the model weights, which were not available here; the operator runs the reference and the baseline at activation, and checks that the reference's perplexity at NFE 64 is close to the published MDLM figures."
+mode: no_training
+n_seeds: 2
+show_baseline: true
+extra_interface: [harness/dlm.py, harness/baselines/ancestral/sampler.py]
+task: |
+  Design a **sampler** — unmasking order and schedule, remasking, temperature and confidence rules, caching, corrector steps, anything that only queries the network — for a **frozen masked diffusion language model** (MDLM, 110M parameters, trained on OpenWebText) that produces the **most natural text with only 16, 32 or 64 network evaluations** per batch, both from scratch and continuing held-out prefixes.
+
+  - Submit code only (`sampler.py`). The evaluator calls `sample()` with a counting denoiser that refuses calls beyond the budget, at NFE 16, 32 and 64: 256 unconditional samples of 1,024 tokens and 256 continuations of 256 tokens after held-out 256-token prefixes per budget, twice with seeds you do not know. It runs the ancestral baseline the same way.
+  - Quality is the generative perplexity of the samples under GPT-2 Large, which is not in the sandbox; text must also keep at least 90% of the token diversity (unigram entropy) of real text, so repetition cannot buy a low perplexity.
+  - The sampler may only query the denoiser: no other model, no retraining, no access to the scorer.
+  - You may build on any public work (ancestral and τ-leaping samplers, confidence-based and low-confidence remasking, MaskGIT schedules, predictor-corrector and ReMDM-style remasking, caching across steps, semi-autoregressive blocks), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_MODELS_DIR/mdlm-owt/` holds the frozen MDLM (Sahoo et al. 2024, `kuleshov-group/mdlm-owt` @d0958fa8, Apache-2.0; GPT-2 vocabulary plus mask token 50257; loaded with `trust_remote_code`), and `$ABENCH_MODELS_DIR/gpt2/` GPT-2 small (`openai-community/gpt2` @607a30d7, MIT), which scores samples in the self-check only.
+
+  `$ABENCH_DATA_DIR/dev_text.npz` (read-only): `windows`, 64 windows of 1,024 GPT-2 tokens, each the start of a FineWeb document of at least 1,024 tokens (`kjj0/fineweb10B-gpt2` @889765ea train shard 1, MIT; text ODC-BY).
+
+  The held-out set is 256 windows drawn the same way from the validation shard with a secret seed: their first 256 tokens are the prefixes, the windows the references for entropy.
+interface: "Implement `sample(denoiser, prefix, length, nfe, gen) -> LongTensor (B, length)` in `sampler.py`. `denoiser(x)` maps a (B, L) LongTensor with mask token 50257 to log-probabilities (B, L, 50257) of the clean tokens (unmasked positions one-hot) and counts one evaluation per call; `prefix` is a (B, 256) LongTensor to keep unchanged, or None; `gen` carries `gen.torch` (a seeded torch.Generator), `gen.device` and `gen.batch` (B when prefix is None). See `interface/dlm.py`."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean log generative perplexity** (primary) | Mean over the six settings (NFE 16, 32, 64; unconditional and continuation) of the mean per-token negative log-likelihood of the generated tokens under GPT-2 Large (continuations conditioned on their prefix), averaged over the two seeds; lower is better | — |
+  | Entropy | Mean unigram entropy of the generated tokens per sample, divided by that of the held-out real text of the same length (1,024 tokens; 256 for continuations); the smallest ratio over the six settings | Threshold: ≥ 0.9 |
+  | Per setting | Generative perplexity and entropy for each NFE and mode; wall-clock seconds per budget; the real text's perplexity under the scorer | reported |
+  | Relative to ancestral | Each perplexity divided by the ancestral sampler's in the same run | reported |
+
+  **Measurement and decision**
+
+  - A submission is valid if it returns fully unmasked samples of the right shape with prefixes unchanged, never exceeds the budget, finishes within 3,000 s per run and meets the entropy threshold; otherwise it is invalid.
+  - The primary metric is reported with a 95% bootstrap interval over samples; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by the mean log generative perplexity, and also considers how different the sampler is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 5
+  dev_budget: "3 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), transformers, NumPy"
+  notes: |
+    - `selfcheck.py` runs both stages with the dev windows and GPT-2 small as scorer (`--quick`: 32 unconditional samples, 32 prefixes, NFE 16).
+    - Perplexities under GPT-2 small and GPT-2 Large differ in level but usually agree on the ordering of samplers.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── sampler.py          # required: sample()
+    ├── src/                # optional: helper modules, .py only
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - `sample()` may only use the denoiser it is given and the generator; it must not load models or files, keep state between calls, or look at the prefix of another batch.
+  - Randomness must come from `gen.torch` so that runs are reproducible.
+interface_md: |
+  # U-DLM-005 interface
+
+  ## Entry point: `sampler.py`
+
+  ```python
+  def sample(denoiser, prefix, length: int, nfe: int, gen) -> "torch.LongTensor":
+      """Return (B, length) GPT-2 token ids with no mask token left; keep prefix (B, 256) unchanged if given.
+      denoiser(x) -> (B, L, 50257) log-probabilities; at most nfe calls per sample() call."""
+  ```
+
+  ## Evaluator code you can read
+
+  `dlm.py` (denoiser, baseline sampler, perplexity and entropy), `stages.py`, `metrics.py`, `abench_metrics.py`,
+  `abench_stage.py`, `selfcheck.py`, the ancestral baseline under `baselines/ancestral/` and the reference under
+  `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), transformers, NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 3.0, session_hours: 5}
+  data:
+    public_dir: sandbox/data/U-DLM-005
+    public:
+      - {path: sandbox/data/U-DLM-005/dev_text.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/U-DLM-005/hidden.npz.enc, sha256_plain: pending, keys: "prefixes, references (given after the timed phase)"}
+    models_dir: sandbox/models/U-DLM-005
+    models:
+      - {name: mdlm-owt, path: sandbox/models/U-DLM-005/mdlm-owt, tree_sha256: pending, revision: d0958fa851335ece6c15260ce0025f030673c0fb, license: Apache-2.0}
+      - {name: gpt2, path: sandbox/models/U-DLM-005/gpt2, tree_sha256: pending, revision: 607a30d783dfa663caf39e06633721c8d4cfcd7e, license: MIT}
+    judge_models_dir: sandbox/judge_models/U-DLM-005
+    judge_models:
+      - {name: gpt2-large, path: sandbox/judge_models/U-DLM-005/gpt2-large, tree_sha256: pending, revision: 32b71b12589c2f8d625668d2335a01cac3249519, license: MIT}
+    sources:
+      - name: "MDLM trained on OpenWebText (kuleshov-group/mdlm-owt)"
+        url: https://huggingface.co/kuleshov-group/mdlm-owt
+        revision: d0958fa851335ece6c15260ce0025f030673c0fb
+        license: Apache-2.0
+        verified: "2026-10-23: revision, licence, file list and config (vocab 50,258, no time conditioning) from the Hugging Face API"
+      - name: "GPT-2 and GPT-2 Large (openai-community)"
+        url: https://huggingface.co/openai-community/gpt2-large
+        revision: "gpt2 607a30d7, gpt2-large 32b71b12"
+        license: MIT
+        verified: "2026-10-23: revisions, licences and file lists from the Hugging Face API"
+      - name: "FineWeb 10B pre-tokenized with GPT-2 BPE (kjj0/fineweb10B-gpt2), train shard 1 and the validation shard"
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        license: "MIT on the token repository; the underlying FineWeb text is ODC-BY"
+        verified: "2026-10-19: revision, licence and file list from the Hugging Face API (B-OPT-001)"
+  submission:
+    kind: code_only
+    entry: sampler.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, sampler.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [2406, 7524]
+    baseline: harness/baselines/ancestral
+    code_audit: "the operator checks that sample() uses only the denoiser and the generator"

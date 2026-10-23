@@ -1,7 +1,5 @@
 # V-SMP-002: A training-free sampler for a frozen diffusion model at small step counts
 
-Knowledge cutoff: **2026-07-01**. You may only rely on material that was public and verifiable before that date.
-
 Anchor: Jiaming Song, Chenlin Meng, Stefano Ermon, *Denoising Diffusion Implicit Models* (arXiv:2010.02502). Baseline used for comparison: deterministic DDIM with uniform timesteps, run by the evaluator under identical conditions (`interface/baselines/ddim/`).
 
 ## Task
@@ -11,12 +9,12 @@ Design a **training-free sampler** — integrator, timestep schedule, corrector 
 - Submit code only (`sampler.py`). At evaluation the evaluator runs your `sample()` with the frozen model at NFE 5, 10 and 20, 10,000 images each, once for each of 3 seed sets unknown to you, and computes FID against the CIFAR-10 training set. It runs the DDIM baseline the same way.
 - No training or fine-tuning of any network, no other networks (distilled students, classifiers, discriminators), and no stored images; schedules or coefficients you tune in the sandbox may be written into the code.
 - The NFE budget is enforced: every call of the denoiser counts once per batch, and calls beyond the budget fail the run.
-- You may build on any public work from before the cutoff (DDIM, DPM-Solver and DPM-Solver++, UniPC, EDM samplers, optimised or learned timestep schedules, flow-matching views of the probability-flow ODE), but the design report must state what you borrowed and what you changed.
+- You may build on any public work (DDIM, DPM-Solver and DPM-Solver++, UniPC, EDM samplers, optimised or learned timestep schedules, flow-matching views of the probability-flow ODE), but the design report must state what you borrowed and what you changed.
 
 ### Workflow
 
-1. **Retrieve.** Study the anchor and find related work published before the cutoff with the offline paper search tool: `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` (titles and abstracts of arXiv papers up to the cutoff). Every call is logged automatically; the log is kept with your run.
-2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address. This is Section 2 (Related Work) of the design report.
+1. **Research (throughout).** Study the anchor and related work, and come back to the literature whenever your experiments raise a question (an unexpected failure, a bottleneck, a result you cannot explain). The sandbox is online for papers, code and documentation, and the offline paper search `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` answers quickly from arXiv titles and abstracts. Searches and connections are logged with your run.
+2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address, and keep this up to date as you learn. It becomes Section 2 (Related Work) of the design report.
 3. **Design.** Propose an improvement over the anchor and the baseline: at least one change you can state precisely and point to in your code. List every change, with its code location, in the report's "Changes relative to the anchor" list (`<ol id="changes">`); a report without it fails the format check.
 4. **Develop and verify.** Implement it, measure it on the dev setting with `selfcheck.py`, and iterate as your budget allows.
 5. **Submit** the deliverables below. Submission is one-shot.
@@ -38,17 +36,17 @@ The full reference is `interface/interface.md`. `abench_stage.py`, `stages.py` a
 
 | Metric | Definition | Requirement |
 |---|---|---|
-| **FID at NFE 10** (primary) | Fréchet Inception distance between 10,000 samples and the CIFAR-10 training set (pytorch-fid Inception, pool-3 features), mean over 3 seed sets; lower is better | — |
-| FID at NFE 5 and NFE 20 | The same at the other two budgets | reported |
+| **Mean FID at NFE 5 and 10** (primary) | Fréchet Inception distance between 10,000 samples and the CIFAR-10 training set (pytorch-fid Inception, pool-3 features), averaged over NFE 5 and NFE 10 and over 3 seed sets; lower is better | — |
+| FID at NFE 5, 10 and 20 | Each budget separately (NFE 20 is reported but not ranked) | reported |
 | FID vs DDIM | Your FID minus the DDIM baseline's at each budget | reported |
 | NFE violations | Budgets exceeded (a violation also fails the run) | Threshold: 0 |
 
 **Timing and decision**
 
 - Each seed set runs in a new process with empty caches (`interface/abench_stage.py`). Images are generated in batches of 500; batch b of a budget uses a generator seeded from that budget's held-out seed, the run's seed and b (`stages.py`). Generating all 30,000 images must finish within 900 s.
-- A submission is valid only if no budget is exceeded; valid submissions are ranked by FID at NFE 10.
+- A submission is valid only if no budget is exceeded; valid submissions are ranked by mean FID at NFE 5 and 10.
 - If any run crashes, exceeds a time limit, or returns images of the wrong shape or with non-finite values, the whole submission is invalid.
-- The final ABench score is driven mainly by FID at NFE 10 relative to the baseline (the other budgets are considered too), and also by how different the method is from existing samplers and the quality of the sources cited in the design report; the exact weights are not published.
+- The final ABench score is driven mainly by mean FID at NFE 5 and 10 relative to the baseline (NFE 20 is considered too), and also by how different the method is from existing samplers and the quality of the sources cited in the design report; the exact weights are not published.
 
 ## Evaluation
 
@@ -62,10 +60,11 @@ The full reference is `interface/interface.md`. `abench_stage.py`, `stages.py` a
 
 The full guide is `interface/sandbox_guide.md`. Key points:
 
-- One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model. No network and no package installation; available software: Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, diffusers and pytorch-fid (versions frozen at activation; offline).
-- The session lasts at most 4 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 4 GPU-hours.
+- One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model. Available software: Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, diffusers and pytorch-fid (versions frozen at activation; offline); your submission may depend only on it (packages you install while developing are not available to the evaluator).
+- Network: online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run; blocked for this case because its data is distributed there: `github.com`, `www.cs.toronto.edu` (with its subdomains and `*.githubusercontent.com`).
+- The session lasts at most 4 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 4 GPU-hours; the runner meters it (GPU-busy time, CPU time of your processes) and a run that exceeds it is not scored.
 - Data is read-only under `$ABENCH_DATA_DIR`, frozen pretrained files under `$ABENCH_MODELS_DIR`. Write code and run experiments in `$ABENCH_WORKSPACE`; put the final files in `$ABENCH_SUBMISSION_DIR`.
-- Paper search (offline, cutoff-filtered, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
+- Offline paper search (arXiv titles and abstracts, fast, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
 - Self-check: `python3 "$ABENCH_VIEW_DIR/interface/selfcheck.py" --quick` (interface, small slice), then without `--quick` on the full dev split.
 
 ## Deliverables

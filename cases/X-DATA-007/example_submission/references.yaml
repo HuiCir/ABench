@@ -1,0 +1,43 @@
+schema: abench.references/v2
+references:
+- id: lee2022dedup
+  title: Deduplicating Training Data Makes Language Models Better
+  authors: Katherine Lee, Daphne Ippolito, Andrew Nystrom, Chiyuan Zhang, Douglas Eck, Chris Callison-Burch and
+    Nicholas Carlini
+  year: 2022
+  venue: ACL
+  arxiv: '2107.06499'
+  used_for: 'Anchor: exact and near-duplicate removal'
+  code_location: src/dedup.py
+- id: broder1997resemblance
+  title: On the Resemblance and Containment of Documents
+  authors: Andrei Z. Broder
+  year: 1997
+  venue: Compression and Complexity of Sequences
+  doi: 10.1109/SEQUEN.1997.666900
+  used_for: MinHash
+  code_location: 'src/dedup.py: minhash, near_keep'
+- id: brown2020gpt3
+  title: Language Models are Few-Shot Learners
+  authors: Tom B. Brown et al.
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2005.14165'
+  used_for: Classifier-based quality filtering
+  code_location: 'pipeline.py: select'
+- id: penedo2024fineweb
+  title: 'The FineWeb Datasets: Decanting the Web for the Finest Text Data at Scale'
+  authors: Guilherme Penedo et al.
+  year: 2024
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2406.17557'
+  used_for: The pool and the educational target
+  code_location: null
+- id: muennighoff2023scaling
+  title: Scaling Data-Constrained Language Models
+  authors: Niklas Muennighoff et al.
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.16264'
+  used_for: Related work (value of repetition)
+  code_location: null

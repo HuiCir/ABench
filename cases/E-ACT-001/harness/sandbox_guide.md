@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Hardware | One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model |
-| Network | None. You cannot download data or models or install packages |
+| Network | Online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run; blocked for this case because its data is distributed there: `github.com` (with its subdomains and `*.githubusercontent.com`). Data and pretrained weights come only from the directories below |
 | Software | Python 3, PyTorch (CUDA, Triton), NumPy, gymnasium and gym-pusht (versions frozen at activation); trust the versions reported in the sandbox |
 | Session length | At most 6 hours wall clock; the deadline is in `$ABENCH_DEADLINE` (Unix seconds), and all processes are killed at that time |
 | Compute | At most 6 GPU-hours during development; the sandbox records usage, and exceeding it is a violation |
@@ -38,7 +38,7 @@ python3 -c "import os,time; print(round((int(os.environ['ABENCH_DEADLINE'])-time
 cd "$ABENCH_WORKSPACE"
 ls -la "$ABENCH_DATA_DIR"
 # ... develop, train and test in the workspace ...
-python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<topic of the anchor>"   # related work before the cutoff
+python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<topic or problem>"     # related work, at any point
 python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" show <arXiv id>                  # title, authors, date, abstract
 mkdir -p "$ABENCH_SUBMISSION_DIR"      # copy the deliverables listed in the task statement here
 python3 "$ABENCH_SUBMISSION_DIR/train.py" --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"   # your training program (the evaluator only loads the checkpoint)
@@ -53,5 +53,5 @@ the held-out metrics, not a promise.
 
 ## 4. Case notes
 
-- The simulator runs on the CPU; keep `act()` fast (the 15,000 calls of an evaluation share the 900-second rollout budget with physics and your model).
+- The simulator runs on the CPU; keep `act()` fast (the up to 45,000 calls of a run share the 2,700-second rollout budget with physics and your model).
 - You may use the simulator in the sandbox to test your policy; it may not be used to generate training data or rewards for `train.py`.

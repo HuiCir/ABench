@@ -1,0 +1,132 @@
+id: X-ROBUST-009
+title: "An intent classifier that knows when not to answer: selective risk on CLINC150 with out-of-scope, shifted and noisy queries"
+template: X-LORA-004
+anchor: {authors: "Chuan Guo, Geoff Pleiss, Yu Sun, Kilian Q. Weinberger", title: "On Calibration of Modern Neural Networks", arxiv: "1706.04599"}
+baseline: "TF-IDF word and character n-grams with a logistic regression over the 150 intents, temperature scaling and an abstain threshold fitted on the validation split (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "The reference (scikit-learn, CPU) was trained and run in the build container on the real public data (training 36 s). On the self-check split its area under the risk-coverage curve is 0.022; run once against the frozen held-out set as an operator calibration check it is 0.128 (in-scope accuracy 0.924, ECE 0.017, out-of-scope AUROC 0.879, decision accuracy 0.663: it answers 82% of out-of-scope and shifted queries). These are calibration checks of the case, not results."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/textpack.py]
+task: |
+  Design an **intent classifier with calibrated confidence and an abstain decision** for the 150 intents of CLINC150 that **keeps its selective risk low** when the queries it receives mix in-scope requests, **out-of-scope requests, requests from another banking assistant's domain, and requests with typos** — measured by the **area under the risk-coverage curve** over all of them.
+
+  - Submit a trained checkpoint, the code that loads it and the training program that produced it. The evaluator calls `predict()` on batches of held-out queries; for each it gets the best in-scope intent, a confidence that this answer is correct, and whether the model abstains.
+  - Out-of-scope queries have no correct intent: answering them is always an error, so the confidence must rank them below the in-scope queries the model gets right. The held-out mix contains query types that are not in the training data.
+  - The provided roberta-base may be fine-tuned, but nothing else pretrained may be used.
+  - You may build on any public work (temperature and vector scaling, label smoothing and focal losses, ensembles, Mahalanobis and energy scores, outlier exposure, selective classification), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/clinc_public.npz` (read-only): CLINC150 (Larson et al. 2019, `github.com/clinc/oos-eval` @828f8093, data_full.json, CC BY 3.0), packed texts (`interface/textpack.py`):
+
+  | Key | Rows | Description |
+  |---|---|---|
+  | `train_text_*`, `train_label` | 15,100 | 100 queries per intent and 100 out-of-scope queries (label −1) |
+  | `val_text_*`, `val_label` | 3,100 | 20 per intent and 100 out-of-scope |
+
+  `$ABENCH_DATA_DIR/intents.json` lists the 150 intent names in label order. `$ABENCH_MODELS_DIR/roberta-base/` holds the encoder and tokenizer (MIT).
+
+  The held-out mix (13,080 queries) is not in the sandbox: the CLINC150 test set (4,500 in-scope, 1,000 out-of-scope), the Banking77 test set (Casanueva et al. 2020, CC BY 4.0; 3,080 banking queries, all outside CLINC's intents), and the 4,500 in-scope test queries with character noise (deleted, doubled, swapped or neighbouring-key letters at about 6% of letters, drawn with a secret seed). The self-check uses the validation split, plus a noisy copy of its in-scope queries.
+interface: "Implement `load(checkpoint_dir, models_dir, device)` and `predict(state, texts) -> (labels, confidence, abstain)` in `model.py`: for a list of strings, `labels` are intent indices 0–149 (your best in-scope answer, always given), `confidence` your probability in [0, 1] that this answer is correct, and `abstain` booleans; write a `train.py` that produces the checkpoint from the public data."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **AURC** (primary) | Area under the risk-coverage curve over all 13,080 held-out queries: queries sorted by confidence, risk at coverage k/N = fraction of errors among the k most confident, averaged over k; an error is a wrong intent or any answer to an out-of-scope or Banking77 query; lower is better | — |
+  | ECE | Expected calibration error (15 equal-width bins) of the confidence on the clean in-scope queries | reported |
+  | Out-of-scope AUROC | Confidence of in-scope (clean and noisy) vs out-of-scope and Banking77 queries | reported |
+  | Accuracy | Intent accuracy and macro-F1 on clean in-scope queries; accuracy on noisy ones | reported |
+  | Decision accuracy | Correct if an in-scope query is answered with the right intent or an out-of-scope/Banking77 query is abstained on; overall and per group; over-abstention on in-scope queries | reported |
+  | Cost | Milliseconds per query in batches of 512; checkpoint size | reported |
+
+  No threshold applies to any metric: a submission is valid if it loads, runs within the time limits and the code follows the rules (see below).
+
+  **Measurement and decision**
+
+  - `predict` is called in batches of 512 queries in a fixed random order, so every batch mixes the four groups; loading must finish within 600 s and all queries within 900 s, on one GPU.
+  - The primary metric is reported with a 95% bootstrap interval over queries; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by AURC, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 5
+  dev_budget: "3 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), transformers, NumPy, SciPy, scikit-learn"
+  notes: |
+    - The out-of-scope training and validation queries (100 each) are the only examples of what not to answer; the held-out mix also contains Banking77 queries, which look like in-scope requests from a related domain.
+    - `selfcheck.py` runs the evaluation on the validation split (`--quick`: 350 queries) and prints AURC and the other metrics; the validation split has no Banking77 stand-in, so its AURC is optimistic.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and predict()
+    ├── train.py            # required: reproduces the checkpoint from the public data
+    ├── src/                # optional: other .py modules
+    ├── checkpoint/         # required: trained parameters, at most 600 MB
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - Train only on the public data and the provided roberta-base; no other datasets, pretrained models or lists of out-of-scope phrases.
+  - `predict` must treat each query on its own: no use of the batch's composition, other queries or their order.
+interface_md: |
+  # X-ROBUST-009 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, models_dir: str, device: str):
+      """Return whatever predict() needs; roberta-base is under models_dir/roberta-base."""
+
+  def predict(state, texts: list[str]):
+      """Return (labels, confidence, abstain), each of length len(texts):
+      labels      int 0..149, your best in-scope intent (always given, also when you abstain)
+      confidence  float in [0, 1], your probability that `labels` is the right answer
+      abstain     bool, True if the assistant should not answer"""
+  ```
+
+  - Intent indices follow `$ABENCH_DATA_DIR/intents.json`; label −1 in the public data marks out-of-scope queries.
+  - `train.py --data "$ABENCH_DATA_DIR" --out checkpoint` must reproduce the checkpoint.
+
+  ## Evaluator code you can read
+
+  `stages.py` (batching, timing), `metrics.py` (AURC, ECE, AUROC, decision accuracy), `textpack.py`,
+  `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the reference submission's code under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), transformers, NumPy, SciPy, scikit-learn. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 3.0, session_hours: 5}
+  data:
+    public_dir: sandbox/data/X-ROBUST-009
+    public:
+      - {path: sandbox/data/X-ROBUST-009/clinc_public.npz, sha256: pending}
+      - {path: sandbox/data/X-ROBUST-009/intents.json, sha256: pending}
+    hidden: {path: sandbox/hidden/X-ROBUST-009/hidden.npz.enc, sha256_plain: pending, keys: "text_utf8, text_offsets (given after the timed phase); label, group (evaluator only)"}
+    models_dir: sandbox/models/X-ROBUST-009
+    models:
+      - {name: roberta-base, path: sandbox/models/X-ROBUST-009/roberta-base, tree_sha256: pending, revision: e2da8e2f811d1448a5b465c236feacd80ffbac7b, license: MIT}
+    sources:
+      - name: "CLINC150 (Larson et al. 2019), data_full.json"
+        url: https://github.com/clinc/oos-eval
+        revision: 828f8093932c8fe6ca7936c3d2e52903b1c523de
+        license: CC BY 3.0
+        verified: "2026-10-22: commit, licence file and sha256 from a clone; split sizes counted"
+      - name: "Banking77 test set (Casanueva et al. 2020), banking_data/test.csv"
+        url: https://github.com/PolyAI-LDN/task-specific-datasets
+        revision: 57ec275d8078af65b7731c2a98be812d844a6d6b
+        license: CC BY 4.0
+        verified: "2026-10-22: commit, licence file and sha256 from a clone"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 629145600
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 631145600
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [0]

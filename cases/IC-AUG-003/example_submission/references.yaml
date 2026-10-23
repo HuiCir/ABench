@@ -1,0 +1,41 @@
+schema: abench.references/v2
+references:
+- id: cubuk2019autoaugment
+  title: 'AutoAugment: Learning Augmentation Policies from Data'
+  authors: Ekin D. Cubuk, Barret Zoph, Dandelion Mane, Vijay Vasudevan and Quoc V. Le
+  year: 2019
+  venue: CVPR
+  arxiv: '1805.09501'
+  used_for: 'Anchor: augmentation policies as compositions of image operations with magnitudes'
+  code_location: 'policy.py: OPS'
+- id: cubuk2020randaugment
+  title: 'RandAugment: Practical automated data augmentation with a reduced search space'
+  authors: Ekin D. Cubuk, Barret Zoph, Jonathon Shlens and Quoc V. Le
+  year: 2020
+  venue: CVPR Workshops
+  arxiv: '1909.13719'
+  used_for: Two uniformly drawn operations at a shared magnitude
+  code_location: 'policy.py: augment, M'
+- id: devries2017cutout
+  title: Improved Regularization of Convolutional Neural Networks with Cutout
+  authors: Terrance DeVries and Graham W. Taylor
+  year: 2017
+  arxiv: '1708.04552'
+  used_for: Cutout
+  code_location: 'policy.py: augment (cutout)'
+- id: lim2019fast
+  title: Fast AutoAugment
+  authors: Sungbin Lim, Ildoo Kim, Taesup Kim, Chiheon Kim and Sungwoong Kim
+  year: 2019
+  venue: NeurIPS
+  arxiv: '1905.00397'
+  used_for: Related work (search without full training)
+  code_location: null
+- id: muller2021trivialaugment
+  title: 'TrivialAugment: Tuning-free Yet State-of-the-Art Data Augmentation'
+  authors: Samuel G. Müller and Frank Hutter
+  year: 2021
+  venue: ICCV
+  arxiv: '2103.10158'
+  used_for: Related work (one random operation at a random strength)
+  code_location: null

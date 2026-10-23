@@ -1,0 +1,114 @@
+case: V-DST-004
+title: 'Consistency Distillation of a Discrete-Time DDPM with a Squared-Error Distance'
+abstract: >-
+  This submission distils the frozen CIFAR-10 DDPM [@ho2020ddpm] into a one- to four-step generator with the anchor's
+  consistency distillation [@song2023consistency]. The student shares the teacher's architecture and starts from its
+  weights; its consistency function is the clean image implied by its ε-prediction. Pairs of adjacent points on a
+  40-step grid are linked by one deterministic DDIM step of the teacher [@song2021ddim], and the student's output at
+  the noisier point is pulled towards an EMA target network's output at the cleaner one. A squared-error distance
+  replaces the anchor's LPIPS, since no pretrained feature network is allowed.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    A diffusion model needs many network evaluations because each one only moves its sample a little along the
+    probability-flow ODE. Distillation trains a student that jumps along the ODE in one or a few evaluations, using the
+    teacher to define the trajectories.
+- title: Related Work
+  paras:
+  - >-
+    Progressive distillation halves the number of sampling steps repeatedly by training the student to match two teacher
+    steps with one [@salimans2022progressive]. Consistency models instead enforce that all points on one ODE trajectory
+    map to the same clean image, with the trajectory locally given by the teacher [@song2023consistency]. Rectified flow
+    straightens trajectories by re-training on the model's own couplings [@liu2023flow], and adversarial or
+    distribution-matching objectives match the distribution of one-step samples directly [@yin2024onestep].
+  - >-
+    The anchor's best CIFAR-10 results use a perceptual distance computed by a pretrained network, which this case
+    forbids; how to make the distance informative without one is the gap.
+- title: Method
+  subsections:
+  - title: Distillation objective
+    paras:
+    - >-
+      The grid is 0 = t_0 < … < t_40 = 999. For a training image x₀, an index n and noise z, x_{n+1} =
+      sqrt(ᾱ_{t_{n+1}}) x₀ + sqrt(1 − ᾱ_{t_{n+1}}) z. The teacher's ε at x_{n+1} defines one DDIM step to x̂_n. The loss
+      is ‖f_θ(x_{n+1}, t_{n+1}) − f_θ⁻(x̂_n, t_n)‖² with f(x, t) = clip((x − sqrt(1 − ᾱ_t) ε̂(x, t)) / sqrt(ᾱ_t)) and θ⁻
+      an EMA (0.999) of θ. Adam at 1e-4 after 1,000 warm-up steps, batch 128, horizontal flips. Sampling with S steps
+      evaluates f at S timesteps from 999 down, re-noising the estimate to the next timestep in between.
+    algorithm_caption: One distillation step
+    algorithm:
+    - x₀, n ~ U{0, …, 39}, z; x_{n+1} ← sqrt(ᾱ) x₀ + sqrt(1 − ᾱ) z
+    - x̂_n ← DDIM_teacher(x_{n+1}, t_{n+1} → t_n)
+    - loss ← ‖f_θ(x_{n+1}, t_{n+1}) − f_θ⁻(x̂_n, t_n)‖²; Adam step on θ; θ⁻ ← 0.999 θ⁻ + 0.001 θ
+  - title: Complexity
+    paras:
+    - >-
+      Per step: one teacher forward, one target forward and one student forward and backward pass; sampling costs S
+      student evaluations per image.
+- title: Design Rationale
+  paras:
+  - >-
+    Initialising the student from the teacher makes its consistency function correct near t = 0 from the start, and the
+    discrete DDPM grid lets the teacher's own timesteps define the ODE steps without converting to continuous time.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Squared error in pixel space favours blurry averages, the grid of 40 steps is fixed rather than refined during
+    training, and no data-free or adversarial term corrects the student's errors at one step.
+references:
+- id: song2023consistency
+  title: Consistency Models
+  authors: Yang Song, Prafulla Dhariwal, Mark Chen and Ilya Sutskever
+  year: 2023
+  venue: ICML
+  arxiv: '2303.01469'
+  used_for: 'Anchor: consistency distillation and multistep consistency sampling'
+  code_location: 'train.py: main; model.py: consistency, generate'
+- id: ho2020ddpm
+  title: Denoising Diffusion Probabilistic Models
+  authors: Jonathan Ho, Ajay Jain and Pieter Abbeel
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11239'
+  used_for: The teacher and its noise schedule
+  code_location: 'model.py: ALPHAS_CUMPROD'
+- id: song2021ddim
+  title: Denoising Diffusion Implicit Models
+  authors: Jiaming Song, Chenlin Meng and Stefano Ermon
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.02502'
+  used_for: The teacher's ODE step
+  code_location: 'train.py: main (teacher step)'
+- id: salimans2022progressive
+  title: Progressive Distillation for Fast Sampling of Diffusion Models
+  authors: Tim Salimans and Jonathan Ho
+  year: 2022
+  venue: ICLR
+  arxiv: '2202.00512'
+  used_for: Related work
+  code_location: null
+- id: liu2023flow
+  title: 'Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow'
+  authors: Xingchao Liu, Chengyue Gong and Qiang Liu
+  year: 2023
+  venue: ICLR
+  arxiv: '2209.03003'
+  used_for: Related work
+  code_location: null
+- id: yin2024onestep
+  title: One-step Diffusion with Distribution Matching Distillation
+  authors: Tianwei Yin, Michaël Gharbi, Richard Zhang, Eli Shechtman, Frédo Durand, William T. Freeman and Taesung Park
+  year: 2024
+  venue: CVPR
+  arxiv: '2311.18828'
+  used_for: Related work
+  code_location: null
+changes:
+- text: Squared-error distance instead of the anchor's LPIPS, which needs a pretrained network.
+  code: 'train.py: main (loss)'
+- text: The consistency function is the clipped clean-image estimate of an ε-predicting student on the teacher's discrete
+    timesteps, instead of the anchor's skip-connection parametrisation in continuous time.
+  code: 'model.py: consistency'
+- text: The student is initialised from the teacher and the target network is an EMA with decay 0.999.
+  code: 'train.py: main'

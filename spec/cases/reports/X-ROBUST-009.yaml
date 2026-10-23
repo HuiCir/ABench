@@ -1,0 +1,87 @@
+case: X-ROBUST-009
+title: 'Temperature-Scaled Maximum Probability over Sparse n-gram Features'
+abstract: >-
+  This submission is a deliberately simple floor. Queries are represented by TF-IDF weights of word 1–2-grams and
+  character 3–5-grams, a multinomial logistic regression scores the 150 intents, and the logits are divided by a
+  temperature fitted on the in-scope validation queries [@guo2017calibration]. The confidence is the largest calibrated
+  probability [@hendrycks2017baseline], and the model abstains below a threshold chosen on the validation split to
+  maximise decision accuracy. Character n-grams give some robustness to typos; nothing models out-of-scope queries
+  directly.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    An assistant that answers every request is wrong on every request it cannot handle. Selective classification asks
+    for a confidence that ranks right answers above wrong ones and out-of-scope requests [@geifman2017selective];
+    CLINC150 provides out-of-scope queries for exactly this [@larson2019clinc].
+- title: Related Work
+  paras:
+  - >-
+    Temperature scaling fixes the over-confidence of trained classifiers with one parameter [@guo2017calibration]; the
+    maximum softmax probability is the standard out-of-distribution baseline [@hendrycks2017baseline]; outlier exposure
+    trains on auxiliary outliers [@hendrycks2019oe]; risk-coverage curves evaluate selective classifiers
+    [@geifman2017selective].
+- title: Method
+  paras:
+  - >-
+    Features: word 1–2-grams and character 3–5-grams within word boundaries, sublinear TF-IDF, fitted on in-scope
+    training queries. Classifier: logistic regression (C = 20). Calibration: the temperature T minimising the negative
+    log-likelihood of in-scope validation queries over a log-spaced grid. Decision: abstain if the calibrated maximum
+    probability is below the threshold with the best validation decision accuracy.
+- title: Design Rationale
+  paras:
+  - >-
+    Sparse n-gram models are fast, well calibrated after scaling and robust to small spelling changes through shared
+    character n-grams; they leave the out-of-scope problem to the confidence alone, which is the gap an entry should
+    close.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The validation split has only 100 out-of-scope queries, so the threshold is noisy; queries from a related domain
+    (banking) share vocabulary with in-scope intents and receive high confidence.
+references:
+- id: guo2017calibration
+  title: On Calibration of Modern Neural Networks
+  authors: Chuan Guo, Geoff Pleiss, Yu Sun and Kilian Q. Weinberger
+  year: 2017
+  venue: ICML
+  arxiv: '1706.04599'
+  used_for: 'Anchor: temperature scaling'
+  code_location: 'train.py: main (temperature grid)'
+- id: hendrycks2017baseline
+  title: A Baseline for Detecting Misclassified and Out-of-Distribution Examples in Neural Networks
+  authors: Dan Hendrycks and Kevin Gimpel
+  year: 2017
+  venue: ICLR
+  arxiv: '1610.02136'
+  used_for: Maximum-probability confidence
+  code_location: 'model.py: predict'
+- id: hendrycks2019oe
+  title: Deep Anomaly Detection with Outlier Exposure
+  authors: Dan Hendrycks, Mantas Mazeika and Thomas Dietterich
+  year: 2019
+  venue: ICLR
+  arxiv: '1812.04606'
+  used_for: Related work
+  code_location: null
+- id: geifman2017selective
+  title: Selective Classification for Deep Neural Networks
+  authors: Yonatan Geifman and Ran El-Yaniv
+  year: 2017
+  venue: NeurIPS
+  arxiv: '1705.08500'
+  used_for: Risk-coverage evaluation
+  code_location: null
+- id: larson2019clinc
+  title: An Evaluation Dataset for Intent Classification and Out-of-Scope Prediction
+  authors: Stefan Larson et al.
+  year: 2019
+  venue: EMNLP
+  arxiv: '1909.02027'
+  used_for: The dataset
+  code_location: null
+changes:
+- text: The abstain threshold is chosen on validation data for decision accuracy, after temperature scaling.
+  code: 'train.py: main'
+- text: Character n-grams are added to word n-grams for robustness to typos.
+  code: 'src/features.py: vectorizers'

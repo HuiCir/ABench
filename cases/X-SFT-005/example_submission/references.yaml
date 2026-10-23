@@ -1,0 +1,45 @@
+schema: abench.references/v2
+references:
+- id: dettmers2023qlora
+  title: 'QLoRA: Efficient Finetuning of Quantized LLMs'
+  authors: Tim Dettmers, Artidoro Pagnoni, Ari Holtzman and Luke Zettlemoyer
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.14314'
+  used_for: 'Anchor: parameter-efficient fine-tuning recipe'
+  code_location: null
+- id: hu2022lora
+  title: 'LoRA: Low-Rank Adaptation of Large Language Models'
+  authors: Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang and Weizhu
+    Chen
+  year: 2022
+  venue: ICLR
+  arxiv: '2106.09685'
+  used_for: Low-rank adapters
+  code_location: 'src/lora.py: LoRALinear, merge'
+- id: liu2024dora
+  title: 'DoRA: Weight-Decomposed Low-Rank Adaptation'
+  authors: Shih-Yang Liu, Chien-Yi Wang, Hongxu Yin, Pavlo Molchanov, Yu-Chiang Frank Wang, Kwang-Ting Cheng and
+    Min-Hung Chen
+  year: 2024
+  venue: ICML
+  arxiv: '2402.09353'
+  used_for: Related work
+  code_location: null
+- id: zhou2023ifeval
+  title: Instruction-Following Evaluation for Large Language Models
+  authors: Jeffrey Zhou, Tianjian Lu, Swaroop Mishra, Siddhartha Brahma, Sujoy Basu, Yi Luan, Denny Zhou and Le
+    Hou
+  year: 2023
+  venue: arXiv
+  arxiv: '2311.07911'
+  used_for: Verifiable instructions
+  code_location: null
+- id: allal2025smollm2
+  title: 'SmolLM2: When Smol Goes Big -- Data-Centric Training of a Small Language Model'
+  authors: Loubna Ben Allal et al.
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.02737'
+  used_for: The base model and its post-training data
+  code_location: null

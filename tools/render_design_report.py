@@ -13,7 +13,7 @@ Source format:
     - title: Introduction
       paras: [text, ...]
       subsections: [{title, paras, algorithm: [lines]}]
-  changes:                        # required: rendered at the end of S1 as <ol id="changes">
+  changes:                        # required for design reports (not judgment reports): end of S1 as <ol id="changes">
     - {text: "what differs from the anchor/baseline and why", code: "model.py: function"}
   references: [{id, title, authors, year, venue?, arxiv?|doi?|url?, used_for, code_location}]
 Inline markup in paragraphs: [@id] or [@id1;@id2] citations, `code`, **bold**, *italic*.
@@ -121,7 +121,7 @@ def render(src: dict) -> tuple[str, str]:
                    f'<span class="ltx_tag ltx_tag_ref">{i} </span>{html.escape(sec["title"])}</span></a></li>')
         parts = [f'<section id="{sid}" class="ltx_section"><h2 class="ltx_title ltx_title_section">'
                  f'<span class="ltx_tag ltx_tag_section">{i}</span>{html.escape(sec["title"])}</h2>', _paras(sec.get("paras"), refs)]
-        if i == 1:
+        if i == 1 and "-T7-" not in src["case"] and src.get("profile") != "judgment":   # judgment reports have no changes list
             parts.append(_changes(src.get("changes") or [], refs))
         for j, ss in enumerate(sec.get("subsections") or [], 1):
             ssid = f"{sid}.SS{j}"
@@ -155,7 +155,7 @@ def render(src: dict) -> tuple[str, str]:
 <nav class="ltx_page_navbar"><nav class="ltx_TOC"><ol class="ltx_toclist">
 {chr(10).join(toc)}
 </ol></nav></nav>
-<div class="ltx_page_main"><div id="infobox" class="infobox"><div id="watermark-tr">ABench:{case} reference submission · literature cutoff 2026-07-01</div></div>
+<div class="ltx_page_main"><div id="infobox" class="infobox"><div id="watermark-tr">ABench:{case} reference submission</div></div>
 <div class="ltx_page_content"><article class="ltx_document ltx_authors_1line">
 <h1 class="ltx_title ltx_title_document">{title}</h1>
 <div class="ltx_authors"><span class="ltx_creator ltx_role_author"><span class="ltx_personname">ABench reference submission</span><span class="ltx_contact ltx_role_affiliation">{html.escape(src.get("author_note", "Standard reference for task statement standard v2.1"))}</span></span></div>

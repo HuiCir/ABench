@@ -13,6 +13,8 @@ GATES: list = []          # validity = no crash, time limits respected, well-for
 def _expected_len(task: str, n: np.ndarray) -> np.ndarray:
     return {"parity": np.ones_like(n), "addition": n + 1, "copy": n}[task]
 
+# examples resampled together for the bootstrap 95% interval of the primary metric (abench_metrics.bootstrap_ci)
+RESAMPLE = [{"reference": [f"y_{t}", f"n_{t}"], "outputs": [["predict", f"pred_{t}"], ["predict", f"len_{t}"]]} for t in TASKS]
 
 def score(outputs: dict, reference: dict, params: dict, seconds: dict) -> dict:
     out, ood, ind = {}, [], []

@@ -1,0 +1,132 @@
+id: A-NORM-005
+title: "A normalisation and residual scheme for small language models that stays stable at a high learning rate (two scales, two learning rates)"
+template: B-OPT-001
+anchor: {authors: "Biao Zhang, Rico Sennrich", title: "Root Mean Square Layer Normalization", arxiv: "1910.07467"}
+baseline: "pre-normalisation with RMSNorm (the anchor, as in Llama), run by the evaluator under identical conditions (`interface/baselines/prenorm/`)"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, recipe, scales and learning rates), the evaluator also trains the model with the pre-RMSNorm baseline in `interface/baselines/prenorm/` and reports your losses and spike counts relative to it."
+reference_verification: "Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The training recipe is B-OPT-001's AdamW setting moved into the shared lm_train.py; its spike counter was unit-checked in NumPy."
+mode: judge_trains
+n_seeds: 2
+kit_extra:
+  - microlm/lm_train.py
+extra_interface:
+  - harness/norm_lm.py
+  - harness/token_data.py
+  - harness/baselines/prenorm/norm.py
+task: |
+  Design a **normalisation and residual scheme** — where activations are normalised, with what, how the residual stream is formed and scaled — that lets a fixed decoder-only language model train to the **lowest held-out loss at two scales and two learning rates**, including a learning rate four times higher than usual, where loss spikes and divergence are common.
+
+  - Submit the scheme only (`norm.py`). At evaluation the evaluator trains the fixed model (attention and MLP sublayers, tied embeddings, data, optimiser and schedule are all fixed) from scratch with your scheme in four runs — scale μ1 (4 layers, width 256, 1,500 steps) and μ2 (8 layers, width 384, 3,000 steps), each at learning rates 1e-3 and 4e-3 — once for each of 2 seeds unknown to you. It trains the pre-RMSNorm baseline the same way.
+  - The scheme may add normalisation parameters and cheap element-wise operations, but no matrix multiplications: forward FLOPs per token may exceed the baseline's by at most 2%.
+  - This is a calibration task with a mature anchor; improvements must hold at both scales. You may build on any public work (pre-, post- and sandwich normalisation, residual scaling and gating, QK normalisation, initialisation schemes), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only) holds the first two training shards of FineWeb-10B pre-tokenized with the GPT-2 BPE (Hugging Face `kjj0/fineweb10B-gpt2`, the data of the modded-nanogpt speedrun):
+
+  | File | Contents |
+  |---|---|
+  | `fineweb_train_000001.bin`, `fineweb_train_000002.bin` | 256 int32 header (magic 20240520, version 1, token count), then about 100M uint16 tokens each |
+
+  Read them with `interface/token_data.py`. The evaluator samples training windows from both shards with the seed. The held-out set is the first 4,194,304 tokens of the official FineWeb validation shard (`fineweb_val_000000.bin`); it is not in the sandbox. The self-check holds out the last 2,097,152 tokens of the second shard.
+interface: "Implement a scheme class in `norm.py` and export it as `SCHEME`: `SCHEME(d_model, n_layers, n_heads, head_dim)` with `make_layer(layer) -> nn.Module`, `layer_forward(mod, x, attn, mlp, layer) -> x` and `make_final() -> nn.Module`, optionally `qk(mod, q, k, layer)`, `embed(final, x)` and `init(model)`. `interface/norm_lm.py` shows exactly where each is called."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean held-out loss** (primary) | Mean next-token cross-entropy (nats) on the 4,194,304 held-out tokens in windows of 1,024, averaged over the four runs and the 2 seeds; a diverged run counts as ln(50,304) = 10.83; lower is better | — |
+  | Loss per run | The same for each scale and learning rate | reported |
+  | High-learning-rate penalty | Loss at 4e-3 minus loss at 1e-3, mean over scales | reported |
+  | Loss spikes | Training steps after warm-up whose loss exceeds 1.15 × the median of the previous 100 steps (a multi-step spike counts once), summed over runs | reported |
+  | Diverged runs | Runs whose training loss became non-finite or exceeded 20 | reported |
+  | Compute | Forward FLOPs per token (FlopCounterMode, sequence 1,024) relative to the baseline scheme at the same scale, the largest over runs | Threshold: ≤ 1.02 |
+  | Parameters | Model parameters relative to the baseline scheme | Threshold: ≤ 1.001 |
+  | Training time | Seconds of a μ2 run (parent clock), the largest | Threshold: ≤ 1,500 s |
+
+  **Fixed training setting** (`interface/lm_train.py`, `interface/stages.py`): AdamW (β = 0.9, 0.95; weight decay 0.1 on matrices only), 150 warm-up steps then cosine decay to 0.1 of the peak, gradient clipping at 1.0, batches of 32 × 1,024 tokens, bf16 autocast with fp32 weights; initialisation N(0, 0.02) with residual output projections scaled by 1/√(2 · layers), after which your `init` may rescale weights.
+
+  **Decision**
+
+  - A submission is valid only if every threshold holds for the 2-seed means; valid submissions are ranked by mean held-out loss. Differences between submissions smaller than the spread over the two seeds are treated as ties.
+  - If any run crashes or exceeds a time limit (a μ2 stage is killed at 1,800 s), the whole submission is invalid.
+  - The final ABench score is driven mainly by the mean held-out loss relative to the baseline, and also considers how different the scheme is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 6
+  dev_budget: "6 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML"
+  notes: |
+    - `selfcheck.py --quick` runs the four runs at a tenth of their steps; without it, one seed of the full setting takes about one GPU-hour.
+    - The learning rate of 4e-3 is meant to be hard: the baseline is expected to spike or diverge in some runs.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── norm.py             # required: SCHEME
+    ├── src/                # optional: helper modules imported by norm.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; no trained parameters are submitted.
+rules: |
+  - The scheme may only normalise, scale, gate or combine the residual stream and the sublayer outputs it is given; it must not replace the attention or MLP sublayers, change the optimiser, the learning rate or the loss, or read files, environment variables or the network.
+  - `init` may only rescale or re-draw the model's existing weights at initialisation.
+interface_md: |
+  # A-NORM-005 interface
+
+  ## Entry point: `norm.py`
+
+  ```python
+  import torch.nn as nn
+
+  class MyScheme:
+      def __init__(self, d_model, n_layers, n_heads, head_dim): ...
+      def make_layer(self, layer: int) -> nn.Module: ...            # parameters of one layer's scheme
+      def layer_forward(self, mod, x, attn, mlp, layer: int): ...   # returns the new residual stream
+      def make_final(self) -> nn.Module: ...                        # applied before the tied output head
+      # optional
+      def qk(self, mod, q, k, layer: int): ...                      # (B, H, T, head_dim) after RoPE -> (q, k)
+      def embed(self, final, x): ...                                # on the token embeddings
+      def init(self, model): ...                                    # after the default initialisation
+
+  SCHEME = MyScheme
+  ```
+
+  - `attn(h)` and `mlp(h)` apply the layer's fixed sublayers to a (B, T, d_model) input; the baseline's
+    `layer_forward` is `x = x + attn(n1(x)); return x + mlp(n2(x))`.
+  - Scales: μ1 = 4 layers, width 256, 4 heads (head_dim 64); μ2 = 8 layers, width 384, 6 heads (head_dim 64).
+
+  ## Evaluator code you can read
+
+  - `norm_lm.py`: the model and where the scheme is called; `lm_train.py`: the fixed recipe, held-out loss, spike
+    counter and FLOP count; `stages.py`: the four runs; `token_data.py`: shard format.
+  - `baselines/prenorm/norm.py`: the baseline scheme; `metrics.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, PyYAML. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 6}
+  data:
+    public_dir: sandbox/data/A-NORM-005
+    public:
+      - {path: sandbox/data/A-NORM-005/fineweb_train_000001.bin, sha256: pending}
+      - {path: sandbox/data/A-NORM-005/fineweb_train_000002.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/A-NORM-005/hidden.npz.enc, sha256_plain: pending, keys: [tokens], tokens: 4194305}
+    sources:
+      - name: FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (data of the modded-nanogpt speedrun)
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        files: [fineweb_train_000001.bin, fineweb_train_000002.bin, fineweb_val_000000.bin]
+        license: MIT on the token repository; the underlying FineWeb text is ODC-BY
+        verified: "2026-10-19: revision, license and file list (val shard + 103 train shards) from the Hugging Face API (shared with B-OPT-001)"
+  submission:
+    kind: code_only
+    entry: norm.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, norm.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [1910, 7467]          # kept secret by the operator
+    baseline: harness/baselines/prenorm

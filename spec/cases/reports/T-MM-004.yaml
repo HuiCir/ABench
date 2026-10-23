@@ -1,0 +1,86 @@
+case: T-MM-004
+title: 'Contrastive Projections over Frozen Self-Supervised Image and Sentence Encoders'
+abstract: >-
+  This submission aligns two frozen encoders with the anchor's contrastive objective [@radford2021clip]: the
+  DINOv2-small class token concatenated with the mean patch token [@oquab2023dinov2], and the mean-pooled tokens of a
+  MiniLM sentence encoder [@wang2020minilm], each pass through a trained two-layer projection into a shared 256-d space.
+  Both encoders stay fixed, which makes this the locked-image setting of LiT [@zhai2022lit] with the text side locked
+  as well. Frozen features are computed once, so training is cheap. It trains 1.7 million numbers and has not been run
+  yet: it needs PyTorch and the encoder weights, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Contrastive image-text models learn both encoders from hundreds of millions of pairs. With strong unimodal
+    encoders available, the question is how much alignment a small trained interface can add on 110,000 images, and
+    whether it captures the composition of captions or only their bag of words.
+- title: Related Work
+  paras:
+  - >-
+    CLIP trains both towers with a symmetric InfoNCE loss [@radford2021clip]; LiT locks the image tower and tunes the
+    text tower [@zhai2022lit]; DINOv2 provides strong frozen visual features [@oquab2023dinov2]; SugarCrepe shows that
+    contrastive models often ignore word order and attribute binding [@hsieh2023sugarcrepe].
+- title: Method
+  paras:
+  - >-
+    Image feature: [CLS; mean of patch tokens] of DINOv2-small at 224 px (768-d). Text feature: attention-masked mean of
+    MiniLM token states (384-d). Projections: LayerNorm, Linear to 1,024, GELU, Linear to 256, then L2 normalisation.
+    Loss: symmetric cross-entropy over a batch of 1,024 image-caption pairs with a learned temperature (capped at 100);
+    one random caption per image per epoch; AdamW, 15 epochs.
+- title: Design Rationale
+  paras:
+  - >-
+    Concatenating the class token with the mean patch token keeps both the global and the spatially pooled view of the
+    image; small projections on frozen features train in minutes, which leaves the budget for better negatives or for
+    adapters inside the encoders.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Pooled features lose word order and spatial relations, so swapped attributes and relations are the expected failure
+    cases; there are no hard negatives. It has not been run yet.
+references:
+- id: radford2021clip
+  title: Learning Transferable Visual Models From Natural Language Supervision
+  authors: Alec Radford et al.
+  year: 2021
+  venue: ICML
+  arxiv: '2103.00020'
+  used_for: 'Anchor: symmetric contrastive loss with a learned temperature'
+  code_location: 'train.py: main'
+- id: zhai2022lit
+  title: 'LiT: Zero-Shot Transfer with Locked-image text Tuning'
+  authors: Xiaohua Zhai, Xiao Wang, Basil Mustafa, Andreas Steiner, Daniel Keysers, Alexander Kolesnikov and Lucas Beyer
+  year: 2022
+  venue: CVPR
+  arxiv: '2111.07991'
+  used_for: Locked encoders
+  code_location: 'model.py: encoders'
+- id: oquab2023dinov2
+  title: 'DINOv2: Learning Robust Visual Features without Supervision'
+  authors: Maxime Oquab et al.
+  year: 2023
+  venue: TMLR
+  arxiv: '2304.07193'
+  used_for: The frozen image encoder
+  code_location: 'model.py: image_features'
+- id: wang2020minilm
+  title: 'MiniLM: Deep Self-Attention Distillation for Task-Agnostic Compression of Pre-Trained Transformers'
+  authors: Wenhui Wang, Furu Wei, Li Dong, Hangbo Bao, Nan Yang and Ming Zhou
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2002.10957'
+  used_for: The frozen text encoder
+  code_location: 'model.py: text_features'
+- id: hsieh2023sugarcrepe
+  title: 'SugarCrepe: Fixing Hackable Benchmarks for Vision-Language Compositionality'
+  authors: Cheng-Yu Hsieh, Jieyu Zhang, Zixian Ma, Aniruddha Kembhavi and Ranjay Krishna
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2306.14610'
+  used_for: The compositional test
+  code_location: null
+changes:
+- text: Both towers are frozen and only two-layer projections and the temperature are trained, on precomputed features.
+  code: 'model.py: Heads; train.py: main'
+- text: The image feature concatenates the class token with the mean patch token.
+  code: 'model.py: image_features'

@@ -1,3 +1,3 @@
-# Example submission contract — C-KV-002
+# C-KV-002 reference submission
 
-No executable or simulated baseline is included. A real submission must provide `submission_manifest.yaml`, implementation files required by the task, and reproducibility hashes.
+`cache.py`: per-token asymmetric 4/2/1-bit quantisation of keys and values in a transformers cache (a simplified KIVI). Design report: `report/index.html`; references: `references.yaml`.

@@ -31,3 +31,12 @@ allowed:
     required_user: abench-agent
     exact_prefix: true
     image_digest_required: false
+  - id: netns_sudo_abench_agent
+    launcher: unshare
+    kind: user_netns
+    # exact argv prefix: a fresh network namespace (loopback only, down) and the dedicated user.
+    # For agents that need no network at all (offline agents). An agent CLI that talks
+    # to its model API needs the network and uses sudo_abench_agent instead; the attestation records which.
+    exact_argv: [unshare, --net, --, sudo, -u, abench-agent, --]
+    required_user: abench-agent
+    image_digest_required: false

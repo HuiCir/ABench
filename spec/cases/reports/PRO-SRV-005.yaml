@@ -1,0 +1,63 @@
+case: PRO-SRV-005
+title: 'Tensor-Parallel vLLM with Chunked Prefill and Prefix Caching'
+abstract: >-
+  This submission serves Qwen3-8B with vLLM [@kwon2023vllm]: paged KV cache, continuous batching, chunked prefill
+  that mixes prefill chunks of at most 16,384 tokens with decoding steps [@agrawal2024sarathi], prefix caching, and
+  tensor parallelism over the four GPUs, behind a small FastAPI front end that speaks the case's protocol. It is the
+  configuration most deployments start from.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Under a time-per-token SLO, long prefills that stall decoding are the main cause of violations; under a
+    time-to-first-token SLO, queueing is. Chunked prefill addresses the first, a large batch and KV capacity the second.
+- title: Related Work
+  paras:
+  - >-
+    vLLM manages the KV cache in pages to batch many requests [@kwon2023vllm]; Sarathi-Serve splits prefills into
+    chunks scheduled with decodes [@agrawal2024sarathi]; DistServe separates prefill and decode onto different GPUs
+    [@zhong2024distserve].
+- title: Method
+  paras:
+  - >-
+    One engine with tensor parallelism 4, up to 512 concurrent sequences, 16,384 batched tokens per step, 92% of the
+    GPU memory for weights and cache, greedy sampling with ignore_eos; every engine output is streamed as the new
+    token ids.
+- title: Design Rationale
+  paras:
+  - >-
+    Tensor parallelism gives each request the full memory bandwidth of the node, which keeps time per token low at
+    small batches; one engine avoids load imbalance between replicas.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Four data-parallel replicas, disaggregated prefill and speculative decoding are not tried. Nothing here has been
+    run in this build.
+references:
+- id: kwon2023vllm
+  title: Efficient Memory Management for Large Language Model Serving with PagedAttention
+  authors: Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang and Ion Stoica
+  year: 2023
+  venue: SOSP
+  arxiv: '2309.06180'
+  used_for: 'Anchor: the vLLM engine with paged KV cache and continuous batching'
+  code_location: 'serve.py: main'
+- id: agrawal2024sarathi
+  title: Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve
+  authors: Amey Agrawal, Nitin Kedia, Ashish Panwar, Jayashree Mohan, Nipun Kwatra, Bhargav S. Gulavani, Alexey Tumanov and Ramachandran Ramjee
+  year: 2024
+  venue: OSDI
+  arxiv: '2403.02310'
+  used_for: Chunked prefill mixed with decoding
+  code_location: 'serve.py: main (enable_chunked_prefill)'
+- id: zhong2024distserve
+  title: 'DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving'
+  authors: Yinmin Zhong, Shengyu Liu, Junda Chen, Jianbo Hu, Yibo Zhu, Xuanzhe Liu, Xin Jin and Hao Zhang
+  year: 2024
+  venue: OSDI
+  arxiv: '2401.09670'
+  used_for: Goodput under TTFT and TPOT SLOs as the target (not implemented here)
+  code_location: 'serve.py: main'
+changes:
+- text: The engine is configured for the case's SLO (512 sequences, 16,384 batched tokens) and exposed through the case's token-id streaming protocol.
+  code: 'serve.py: main'

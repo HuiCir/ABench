@@ -1,0 +1,51 @@
+schema: abench.references/v2
+references:
+- id: song2023consistency
+  title: Consistency Models
+  authors: Yang Song, Prafulla Dhariwal, Mark Chen and Ilya Sutskever
+  year: 2023
+  venue: ICML
+  arxiv: '2303.01469'
+  used_for: 'Anchor: consistency distillation and multistep consistency sampling'
+  code_location: 'train.py: main; model.py: consistency, generate'
+- id: ho2020ddpm
+  title: Denoising Diffusion Probabilistic Models
+  authors: Jonathan Ho, Ajay Jain and Pieter Abbeel
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11239'
+  used_for: The teacher and its noise schedule
+  code_location: 'model.py: ALPHAS_CUMPROD'
+- id: song2021ddim
+  title: Denoising Diffusion Implicit Models
+  authors: Jiaming Song, Chenlin Meng and Stefano Ermon
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.02502'
+  used_for: The teacher's ODE step
+  code_location: 'train.py: main (teacher step)'
+- id: salimans2022progressive
+  title: Progressive Distillation for Fast Sampling of Diffusion Models
+  authors: Tim Salimans and Jonathan Ho
+  year: 2022
+  venue: ICLR
+  arxiv: '2202.00512'
+  used_for: Related work
+  code_location: null
+- id: liu2023flow
+  title: 'Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow'
+  authors: Xingchao Liu, Chengyue Gong and Qiang Liu
+  year: 2023
+  venue: ICLR
+  arxiv: '2209.03003'
+  used_for: Related work
+  code_location: null
+- id: yin2024onestep
+  title: One-step Diffusion with Distribution Matching Distillation
+  authors: Tianwei Yin, Michaël Gharbi, Richard Zhang, Eli Shechtman, Frédo Durand, William T. Freeman and Taesung
+    Park
+  year: 2024
+  venue: CVPR
+  arxiv: '2311.18828'
+  used_for: Related work
+  code_location: null

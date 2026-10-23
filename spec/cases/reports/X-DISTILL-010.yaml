@@ -1,0 +1,81 @@
+case: X-DISTILL-010
+title: 'Mixed Cross-Entropy and Forward-KL Distillation from a 13× Larger Teacher'
+abstract: >-
+  This submission continues training the pretrained SmolLM2-135M student [@allal2025smollm2] with the anchor's
+  objective [@hinton2015distilling]: half the next-token cross-entropy on the data and half the KL divergence from the
+  frozen SmolLM2-1.7B teacher's full next-token distribution at temperature 1, over 30 million tokens of the public
+  shard. It is a floor: no data selection, no truncated or cached teacher outputs, one schedule. It has not been run
+  yet: it needs PyTorch and the SmolLM2 weights, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    A small model trained on the same data as a larger one can learn more per token from the larger model's
+    distribution than from the one-hot target. With a fixed token budget, the question is which teacher signals and
+    which tokens give the student the most.
+- title: Related Work
+  paras:
+  - >-
+    Logit distillation matches the teacher's softened distribution [@hinton2015distilling]; DistilBERT combines it
+    with the data loss and hidden-state alignment [@sanh2019distilbert]; MiniLLM uses the reverse KL for generative
+    models [@gu2024minillm]; MiniPLM refines pre-training data with the teacher [@gu2025miniplm].
+- title: Method
+  paras:
+  - >-
+    For each window of 1,024 tokens: L = ½ CE(student, data) + ½ KL(teacher ∥ student) per token, teacher in bf16
+    without gradients; AdamW (β = 0.9, 0.95, weight decay 0.1), learning rate 3e-4 with 200 warm-up steps and cosine
+    decay to 10%, 32 windows per step, gradient clipping at 1, about 915 steps.
+- title: Design Rationale
+  paras:
+  - >-
+    Starting from the pretrained student keeps what it already knows; the data term keeps the student calibrated where
+    the teacher is wrong; the full distribution carries the most information per token.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Running the teacher online costs about as much as the student's training itself; the budget could instead be spent
+    on more tokens with cached top-k teacher outputs. It has not been run yet.
+references:
+- id: hinton2015distilling
+  title: Distilling the Knowledge in a Neural Network
+  authors: Geoffrey Hinton, Oriol Vinyals and Jeff Dean
+  year: 2015
+  venue: NeurIPS Deep Learning Workshop
+  arxiv: '1503.02531'
+  used_for: 'Anchor: distillation from the teacher''s distribution'
+  code_location: 'train.py: main'
+- id: allal2025smollm2
+  title: 'SmolLM2: When Smol Goes Big -- Data-Centric Training of a Small Language Model'
+  authors: Loubna Ben Allal et al.
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.02737'
+  used_for: The student and the teacher
+  code_location: null
+- id: sanh2019distilbert
+  title: 'DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter'
+  authors: Victor Sanh, Lysandre Debut, Julien Chaumond and Thomas Wolf
+  year: 2019
+  venue: NeurIPS EMC2 Workshop
+  arxiv: '1910.01108'
+  used_for: Mixing the data loss with distillation
+  code_location: 'train.py: main'
+- id: gu2024minillm
+  title: 'MiniLLM: Knowledge Distillation of Large Language Models'
+  authors: Yuxian Gu, Li Dong, Furu Wei and Minlie Huang
+  year: 2024
+  venue: ICLR
+  arxiv: '2306.08543'
+  used_for: Related work
+  code_location: null
+- id: gu2025miniplm
+  title: 'MiniPLM: Knowledge Distillation for Pre-Training Language Models'
+  authors: Yuxian Gu, Hao Zhou, Fandong Meng, Jie Zhou and Minlie Huang
+  year: 2025
+  venue: ICLR
+  arxiv: '2410.17215'
+  used_for: Related work
+  code_location: null
+changes:
+- text: Continued training of the pretrained student with an equal mix of data cross-entropy and forward KL.
+  code: 'train.py: main'

@@ -1,0 +1,24 @@
+{
+  "required": [
+    "kernels",
+    "report/index.html",
+    "references.yaml"
+  ],
+  "allowed_top_level": [
+    "README.md",
+    "kernels",
+    "src",
+    "report",
+    "references.yaml"
+  ],
+  "code_suffixes": [
+    ".py",
+    ".yaml",
+    ".yml",
+    ".md",
+    ".txt"
+  ],
+  "code_max_bytes": 400000,
+  "data_dirs": [],
+  "data_max_bytes": {}
+}

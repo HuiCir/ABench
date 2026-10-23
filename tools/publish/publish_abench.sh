@@ -4,7 +4,8 @@
 #   2. the static site (site/) to the existing GitHub Pages endpoint that serves ABench.
 #
 #   bash ~/Documents/ABench/tools/publish/publish_abench.sh discover   # read-only: account, repos, Pages endpoints
-#   bash ~/Documents/ABench/tools/publish/publish_abench.sh repo       # create the private repo and push
+#   bash ~/Documents/ABench/tools/publish/publish_abench.sh repo       # create the private repo and push (first time)
+#   bash ~/Documents/ABench/tools/publish/publish_abench.sh sync       # update the existing code repo to this tree
 #   bash ~/Documents/ABench/tools/publish/publish_abench.sh web        # update the Pages endpoint and wait for it
 #   bash ~/Documents/ABench/tools/publish/publish_abench.sh            # discover, repo, web
 #
@@ -14,7 +15,10 @@
 #   PAGES_REPO  owner/name of the repo that serves the endpoint (default: discovered automatically)
 #   PAGES_DIR   folder inside that repo's Pages source that holds the site (default: discovered: "" when the repo
 #               itself is the abench site, "abench" or "ABench" when it is a folder of <owner>.github.io)
-#   DRY_RUN=1   show what the web step would change, without committing or pushing
+#   DRY_RUN=1   show what the sync and web steps would change, without committing or pushing
+#   SYNC_MSG_FILE  file with the commit message of the sync step (default: a dated one-line message)
+#   WEB_MSG     commit message of the web step
+#   SKIP_TESTS=1   skip the test run of the sync step
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -112,6 +116,34 @@ repo() {
   echo "  https://github.com/$LOGIN/$CODE_REPO  (visibility: $(gh repo view "$LOGIN/$CODE_REPO" --json visibility -q .visibility))"
 }
 
+sync() {   # the code repo exists: replace its tree with a clean export of this one (deletions included)
+  say "sync the code repo $LOGIN/$CODE_REPO"
+  gh repo view "$LOGIN/$CODE_REPO" >/dev/null 2>&1 || fail "$LOGIN/$CODE_REPO does not exist; run the repo step first"
+  git config user.name >/dev/null && git config user.email >/dev/null \
+    || fail "git user.name / user.email are not set (git config --global user.name ...; git config --global user.email ...)"
+  rm -rf "$WORK/ABench-clone"
+  gh repo clone "$LOGIN/$CODE_REPO" "$WORK/ABench-clone" -- -q
+  export_clean
+  if [ "${SKIP_TESTS:-0}" != 1 ]; then          # about 15 minutes; SKIP_TESTS=1 when they were just run
+    (cd "$WORK/ABench" && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests >/dev/null 2>&1) \
+      && echo "  tests pass on the clean export" || echo "  WARNING: tests did not pass on the clean export (missing packages?); continuing"
+  fi
+  find "$WORK/ABench" -name __pycache__ -prune -exec rm -rf {} +
+  mv "$WORK/ABench-clone/.git" "$WORK/ABench/.git"; rm -rf "$WORK/ABench-clone"
+  cd "$WORK/ABench"
+  git add -A
+  if git diff --cached --quiet; then echo "  the repo already holds this tree"; return 0; fi
+  git diff --cached --shortstat
+  if [ "${DRY_RUN:-0}" = 1 ]; then echo "  DRY_RUN=1: not committed"; return 0; fi
+  if [ -n "${SYNC_MSG_FILE:-}" ]; then
+    git commit -q -F "$SYNC_MSG_FILE"
+  else
+    git commit -q -m "ABench: sync $(date +%Y-%m-%d)$TRAILER"
+  fi
+  git push -q origin HEAD
+  echo "  pushed $(git log -1 --format='%h %s') to https://github.com/$LOGIN/$CODE_REPO"
+}
+
 web() {
   say "Pages endpoint"
   mkdir -p "$WORK"
@@ -154,7 +186,7 @@ web() {
   if git diff --cached --quiet; then echo "  the endpoint already serves this version"; return 0; fi
   git diff --cached --stat | tail -15
   if [ "${DRY_RUN:-0}" = 1 ]; then echo "  DRY_RUN=1: not committed"; return 0; fi
-  git commit -q -m "Update the ABench site to v2.1: standard cases, evaluation modes, workflow, launch path$TRAILER"
+  git commit -q -m "${WEB_MSG:-Update the ABench site}$TRAILER"
   git push -q origin "$branch"
   echo "  pushed; waiting for the Pages build"
   for _ in $(seq 1 40); do
@@ -174,5 +206,5 @@ web() {
 
 steps=("$@"); [ ${#steps[@]} -eq 0 ] && steps=(discover repo web)
 for s in "${steps[@]}"; do
-  case "$s" in discover|repo|web) "$s" ;; *) fail "unknown step $s (discover repo web)" ;; esac
+  case "$s" in discover|repo|sync|web) "$s" ;; *) fail "unknown step $s (discover repo sync web)" ;; esac
 done

@@ -1,5 +1,32 @@
-# X-ROBUST-009 harness contract
+# X-ROBUST-009 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness reads frozen offline resources from the server manifest, limits file, network and process access, runs the public smoke and hidden replay, and outputs a deterministic run.jsonl, metrics.json and artifacts.sha256.
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-The harness must save the calibration split, thresholds, seeds, model/resource hashes, and per-shift and per-policy-family metrics. The server measures latency, peak memory and GPU-h; without real resources or hidden results it returns only pending_reference_runs.
+## Pipeline (`stages.py`)
+
+```
+X-ROBUST-009 pipeline: an intent classifier that knows when to abstain, scored on in-scope, out-of-scope, shifted
+(Banking77) and noisy queries (evaluator and self-check).
+
+One stage, "predict" (the provided roberta-base is available under models/):
+  timed   import model.py and call load(checkpoint_dir, models_dir, device)          (≤ 600 s)
+  finish  predict(state, texts) on all held-out queries, in batches of 512 in a fixed shuffled order, timed per query
+          → labels (best in-scope intent), confidence, abstain                         (≤ 900 s)
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/model.py`
+- `baseline/src/features.py`
+- `baseline/train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+- `textpack.py`
+
+The held-out data, keys and judge configuration are never in this directory.

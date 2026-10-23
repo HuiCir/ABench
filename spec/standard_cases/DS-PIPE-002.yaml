@@ -13,18 +13,18 @@ task: |
 
   - Submit your model code, the trained checkpoint (one fitted model per dataset) and the training program that produced it. The evaluator loads the checkpoint and predicts each dataset's held-out rows; it never retrains.
   - Only the provided training rows may be used: no pretrained models and no external data. `train.py` must apply the same procedure to every dataset; choices made automatically from the data (for example by validation) are fine, hand-picked per-dataset settings are not.
-  - You may build on any public work from before the cutoff (gradient-boosted trees, neural tabular models, stacking, AutoML search), but the design report must state what you borrowed and what you changed. The task tests robust design under the sandbox's compute budget.
+  - You may build on any public work (gradient-boosted trees, neural tabular models, stacking, AutoML search), but the design report must state what you borrowed and what you changed. The task tests robust design under the sandbox's compute budget.
 data: |
-  `$ABENCH_DATA_DIR/d<id>.npz` (read-only), one file per dataset of OpenML suite 337 ("Tabular benchmark numerical classification", Grinsztajn et al. 2022). All features are numeric (float32, NaN allowed); labels are 0/1.
+  `$ABENCH_DATA_DIR/d<id>.npz` (read-only), one file per dataset of the numerical-classification tabular benchmark of Grinsztajn et al. 2022 (OpenML suite 337). All features are numeric (float32, NaN allowed); labels are 0/1.
 
   | File | Dataset | Instances in OpenML | Features |
   |---|---|---|---|
-  | `d44120.npz` | electricity | 38,474 | 7 |
   | `d44122.npz` | pol | 10,082 | 26 |
   | `d44123.npz` | house_16H | 13,488 | 16 |
   | `d44125.npz` | MagicTelescope | 13,376 | 10 |
   | `d44126.npz` | bank-marketing | 10,578 | 7 |
   | `d44128.npz` | MiniBooNE | 72,998 | 50 |
+  | `d45021.npz` | jannis | 57,580 | 54 |
 
   Each file has `x` (N, F) float32, `y` (N,) int64 and `dev_idx` (10% per class, used only by `selfcheck.py`). Per dataset, the held-out split is a stratified min(30%, 5,000) rows and the public training split is min(rest, 10,000) rows, drawn with a fixed seed. The held-out rows are not in the sandbox.
 interface: Implement `load(checkpoint_dir)` and `predict_proba(model, dataset, X)` in `model.py`. `dataset` is the OpenML
@@ -115,7 +115,7 @@ oj:
   data:
     public_dir: sandbox/data/DS-PIPE-002
     public:
-    - path: sandbox/data/DS-PIPE-002/d44120.npz
+    - path: sandbox/data/DS-PIPE-002/d45021.npz
       sha256: pending
     - path: sandbox/data/DS-PIPE-002/d44122.npz
       sha256: pending
@@ -133,10 +133,12 @@ oj:
     sources:
     - name: OpenML suite 337, Tabular benchmark numerical classification (Grinsztajn et al. 2022, arXiv:2207.08815)
       url: https://www.openml.org/api/v1/json/study/337
-      files: https://data.openml.org/datasets/0004/<id>/dataset_<id>.pq for ids 44120, 44122, 44123, 44125, 44126, 44128
-      license: OpenML lists 'Public' for 44120, 44122, 44123, 44125, 44126 and 'CC0' for 44128
-      verified: '2026-10-19: suite membership, names, sizes, target columns, licences and parquet URLs read from the OpenML
-        API'
+      files: https://data.openml.org/datasets/0004/<id>/dataset_<id>.pq for ids 44122, 44123, 44125, 44126, 44128, 45021
+      license: OpenML lists 'Public' for 44122, 44123, 44125, 44126 and 'CC0' for 44128; 45021 (jannis) to_verify
+      verified: '2026-10-19: suite membership, names, sizes, target columns, licences and parquet URLs of the first five read from the
+        OpenML API; 2026-10-21: jannis = OpenML 45021 (57,580 rows, 54 features) from the dataset card of huggingface.co/datasets/inria-soda/tabular-benchmark;
+        its licence, target column and suite membership are checked at freeze'
+      replaces: 'electricity (44120): a time series, so the shuffled split leaks temporal neighbours (2026-10-21 audit)'
   submission:
     kind: code_plus_checkpoint
     entry: model.py

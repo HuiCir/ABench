@@ -1,0 +1,36 @@
+schema: abench.references/v2
+references:
+- id: yu2025dapo
+  title: 'DAPO: An Open-Source LLM Reinforcement Learning System at Scale'
+  authors: Qiying Yu, Zheng Zhang, Ruofei Zhu, Yufeng Yuan, Xiaochen Zuo, Yu Yue and others
+  year: 2025
+  venue: arXiv
+  arxiv: '2503.14476'
+  used_for: 'Anchor: clip-higher, dynamic sampling, token-level loss and overlong shaping'
+  code_location: 'train.py: main, rewards'
+- id: shao2024deepseekmath
+  title: 'DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models'
+  authors: Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang,
+    Y.K. Li, Y. Wu and Daya Guo
+  year: 2024
+  venue: arXiv
+  arxiv: '2402.03300'
+  used_for: Group-normalised advantages (GRPO)
+  code_location: 'train.py: main'
+- id: feng2025retool
+  title: 'ReTool: Reinforcement Learning for Strategic Tool Use in LLMs'
+  authors: Jiazhan Feng, Shijue Huang, Xingwei Qu, Ge Zhang, Yujia Qin, Baoquan Zhong, Chengquan Jiang, Jinxin Chi
+    and Wanjun Zhong
+  year: 2025
+  venue: arXiv
+  arxiv: '2504.11536'
+  used_for: Interleaved code execution with tool outputs excluded from the loss
+  code_location: 'train.py: masks'
+- id: yang2025qwen3
+  title: Qwen3 Technical Report
+  authors: An Yang and others (Qwen Team)
+  year: 2025
+  venue: arXiv
+  arxiv: '2505.09388'
+  used_for: The starting model and its chat template
+  code_location: 'train.py: main'

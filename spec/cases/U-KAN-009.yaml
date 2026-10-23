@@ -1,0 +1,114 @@
+id: U-KAN-009
+title: "A network layer that beats the MLP layer at equal parameters: held-out function fitting and Fashion-MNIST"
+template: A-NORM-005
+anchor: {authors: "Ziming Liu, Yixuan Wang, Sachin Vaidya, Fabian Ruehle, James Halverson, Marin Soljačić, Thomas Y. Hou, Max Tegmark", title: "KAN: Kolmogorov-Arnold Networks", arxiv: "2404.19756"}
+baseline: "the MLP layer (Linear followed by SiLU), trained by the evaluator next to your layer in every task at the same parameter budget, seed, data and recipe (`interface/layerbench.py`); the reference submission is that same layer (`interface/baseline/layer.py`)"
+reference_verification: "Not executed: the pipeline needs PyTorch and a GPU, which were not available where the case was built. The data preparation ran on the real Fashion-MNIST files and the held-out function sampler (a 5-nearest-neighbour regressor reaches a normalised test RMSE of 0.03–0.69 on the twelve functions, so they span easy to hard). The metric arithmetic is tested on synthetic stage outputs in tests/test_standard_cases.py; the operator runs the reference at activation, where its error ratio must come out near 1."
+mode: judge_trains
+n_seeds: 2
+show_baseline: true
+extra_interface: [harness/layerbench.py]
+task: |
+  Design a **network layer** — a replacement for the MLP's linear map followed by a fixed activation, for example learnable activations on edges (Kolmogorov-Arnold networks), basis expansions, gated or rational units — that **gives lower test error than the MLP layer at the same number of parameters**, measured on **twelve held-out function-fitting tasks** and on **Fashion-MNIST** by the **error ratio** to an MLP the evaluator trains next to it.
+
+  - Submit code only: `layer.py` with `make_layer(d_in, d_out, final)`. The evaluator builds three-layer networks d_in → h → h → d_out from your layer, chooses the largest width h within each task's parameter budget, picks a learning rate for each task on validation points and trains with a fixed recipe; it does the same for the MLP layer, on the same data and seeds.
+  - The comparison is the point of the case: claims that new layers beat MLPs often rest on unequal budgets or untuned baselines. Here parameters are matched exactly, the baseline gets the same learning-rate search, and your network's training step may take at most 3 times as long as the MLP's.
+  - The held-out functions (1–8 inputs; smooth, multiplicative, oscillating, sharp and piecewise-linear parts) are not shown; five dev functions of the same kinds are public.
+  - You may build on any public work (KANs and their spline, Chebyshev, Fourier, wavelet and radial-basis variants, rational and gated activations, SIREN-style periodic units, mixtures of activations), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only):
+
+  | File | Contents |
+  |---|---|
+  | `dev_functions.npz` | Five dev functions of 2 inputs (`d1`–`d5`), inputs uniform on [-1, 1]: `<name>_x_train` (2,000), `_x_val` (500), `_x_test` (5,000) and the matching `_y_*`, targets standardised by the training mean and std |
+  | `fashion_train.npz` | The 60,000 Fashion-MNIST training images (Xiao et al. 2017, MIT licence, `github.com/zalandoresearch/fashion-mnist` @b2617bb6): `x` uint8 (60000, 784), `y` int64 labels 0–9 |
+
+  The held-out part is not in the sandbox: twelve functions with the same layout (points drawn with a secret seed; their training and validation points go to the evaluator's training run, their test points to the final test) and the 10,000 Fashion-MNIST test images.
+interface: "Implement `make_layer(d_in, d_out, final) -> torch.nn.Module` in `layer.py`: a module mapping float32 (B, d_in) to (B, d_out); `final` is True for the output layer (it should not squash its output). The evaluator stacks three of them; it counts every parameter of the network against the budget."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Error ratio** (primary) | exp(½·mean over the twelve functions of ln(your error / MLP error) + ½·ln(your Fashion-MNIST error rate / MLP error rate)); function error = test RMSE / std of the test targets (floored at 1e-4), image error floored at 1e-3; lower is better, 1 = the MLP | — |
+  | Step time | Median training-step time of your network divided by the MLP's, the largest over tasks | Threshold: ≤ 3.0 |
+  | Budget | Tasks where your network exceeds the budget even at width 1 | Threshold: = 0 |
+  | Per task | Both errors, the ratio, widths, parameter counts, chosen learning rates, diverged runs; function ratio and image ratio separately; share of functions where you beat the MLP | reported |
+
+  **Measurement and decision**
+
+  - Budgets: 3,000 parameters per function network, 100,000 for the image network. Widths are chosen by bisection up to 4,096 assuming the parameter count grows with the width.
+  - Recipe (`interface/layerbench.py`): Adam, learning rate from {1e-3, 3e-3, 1e-2} by validation error, cosine decay, gradient clipping at 1.0, float32; functions: 3,000 full-batch steps on 2,000 points; images: 10 epochs, batches of 256, 55,000 training and 5,000 validation images. Step times are medians over the run on the same GPU.
+  - The functions stage is killed at 2,400 s and the image stage at 1,200 s (training of both networks included).
+  - Two runs with seeds you do not know; the error ratio is averaged over runs and reported with a 95% bootstrap interval over test points; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by the error ratio, and also considers how different the layer is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 5
+  dev_budget: "3 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), NumPy, SciPy, scikit-learn"
+  notes: |
+    - `selfcheck.py` runs both stages with the dev functions and a split of the public training images (`--quick`: two functions, 300 steps, one epoch).
+    - The networks are small: the per-step overhead of Python and kernel launches matters as much as arithmetic for the step-time gate.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── layer.py            # required: make_layer()
+    ├── src/                # optional: helper modules, .py only
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - The layer must be a function of its input only: no state carried between calls, no access to the data, the task or the step count, and no change to the optimiser, the recipe or global settings.
+  - No pretrained weights and no data inside the code.
+interface_md: |
+  # U-KAN-009 interface
+
+  ## Entry point: `layer.py`
+
+  ```python
+  def make_layer(d_in: int, d_out: int, final: bool) -> "torch.nn.Module":
+      """A module mapping (B, d_in) float32 to (B, d_out); final=True for the output layer."""
+  ```
+
+  - The evaluator calls `make_layer` many times while choosing the width (with `torch.manual_seed` set); it must be cheap
+    and deterministic in its parameter count.
+  - Initialise your parameters inside the module; the evaluator does not re-initialise them.
+
+  ## Evaluator code you can read
+
+  `layerbench.py` (networks, budgets, width choice, recipe, timing), `stages.py`, `metrics.py`, `abench_metrics.py`,
+  `abench_stage.py`, `selfcheck.py`, and the reference submission under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), NumPy, SciPy, scikit-learn. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 3.0, session_hours: 5}
+  data:
+    public_dir: sandbox/data/U-KAN-009
+    public:
+      - {path: sandbox/data/U-KAN-009/dev_functions.npz, sha256: pending}
+      - {path: sandbox/data/U-KAN-009/fashion_train.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/U-KAN-009/hidden.npz.enc, sha256_plain: pending, keys: "f00–f11 x_train, y_train, x_val, y_val (given before the timed phase), f00–f11 x_test and img_x_test (given after it); f00–f11 y_test and img_y_test (evaluator only)"}
+    sources:
+      - name: "Fashion-MNIST (Xiao et al. 2017), data/fashion/*.gz"
+        url: https://github.com/zalandoresearch/fashion-mnist
+        revision: b2617bb6d3ffa2e429640350f613e3291e10b141
+        license: MIT
+        verified: "2026-10-22: commit, licence file, sha256 of the four files and image counts from a clone"
+      - name: "Held-out and dev functions (tools/prepare/u_kan_009.py), points drawn with a secret seed"
+        url: null
+        license: "generated by ABench"
+  submission:
+    kind: code_only
+    entry: layer.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, layer.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA and torch versions frozen at activation)"
+    seeds: [409, 1756]

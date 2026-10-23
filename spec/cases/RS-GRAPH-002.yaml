@@ -1,0 +1,115 @@
+id: RS-GRAPH-002
+title: "Collaborative filtering on Gowalla with Recall@20 over all items"
+template: RS-SEQ-001
+anchor: {authors: "Xiangnan He, Kuan Deng, Xiang Wang, Yan Li, Yongdong Zhang, Meng Wang", title: "LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation", arxiv: "2002.02126"}
+baseline: "implicit ALS with frequency-scaled regularisation, in NumPy (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "The reference (implicit ALS, 128 factors, 12 sweeps, NumPy) was trained and run in the build container (CPU, 2 cores; training 204 s, recommendations for all users 9 s). On the self-check split it reaches Recall@20 0.1726 (NDCG@20 0.1160; α0 and λ chosen among five settings on this split); trained on all public interactions and scored against the frozen held-out interactions as an operator calibration check, Recall@20 0.1591 and NDCG@20 0.1287, below LightGCN's published 0.1830 / 0.1554 on the same split. These are calibration checks of the case, not results; the pipeline runs end to end on synthetic data in tests/test_standard_cases.py."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+task: |
+  Design a **collaborative-filtering model** that, trained only on users' past check-ins, ranks all 40,981 Gowalla locations for each of 29,858 users so that the locations they visit in the held-out set appear in the **top 20** — measured by **Recall@20 over all items** (no sampled negatives).
+
+  - Submit a trained checkpoint and the code that loads it. At evaluation the evaluator calls `recommend()` once for all users; every item the user has not interacted with in the training data is a candidate (no sampled negatives).
+  - The data and split are those of NGCF and LightGCN (a random 80/20 split of each user's interactions); the 217,242 held-out interactions are not in the sandbox.
+  - You may build on any public work (matrix factorisation, graph convolution over the user-item graph, autoencoders, linear item-item models, sampling and loss design), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/train.npz` (read-only): the training interactions of the LightGCN Gowalla split (`github.com/kuandeng/LightGCN`, Data/gowalla; check-ins of the SNAP loc-gowalla dataset, 10-core filtered).
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `indptr` | (29,859,) | int64 | User u's training items are `items[indptr[u]:indptr[u + 1]]` |
+  | `items` | (810,128,) | int32 | Item ids in 0..40,980, sorted per user |
+  | `n_items` | () | int64 | 40,981 |
+
+  The held-out interactions (on average 7.3 per user, at least 1) are not in the sandbox. The self-check holds out 20% of each user's training items (`stages.make_dev`).
+interface: "Implement `load(checkpoint_dir, device) -> model` and `recommend(model, train, users, k=20) -> (len(users), 20) item ids` in `model.py`. `train` holds the arrays above; each row must contain 20 distinct item ids, best first; items in the user's training list count as misses."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Recall@20** (primary) | Per user, the number of held-out items among the 20 returned divided by the number of held-out items; mean over all 29,858 users; higher is better | — |
+  | NDCG@20 | Binary-relevance DCG of the 20 returned items divided by the ideal DCG over min(held-out items, 20) positions; mean over users | reported |
+  | Load time | Seconds from the start signal to the end of `load()` (parent clock) | Threshold: ≤ 300 s |
+  | Recommendation time | Seconds of the `recommend()` call | Threshold: ≤ 600 s |
+
+  **Timing and decision**
+
+  - Each run is a new process with empty cache directories, 8 CPU threads and the reference GPU, timed by the evaluator's parent process (`interface/abench_stage.py`).
+  - A submission is valid only if every threshold holds; valid submissions are ranked by Recall@20. Differences inside the 95% interval over users reported with the score are treated as ties.
+  - If a run crashes, exceeds a time limit, or returns lists of the wrong shape or with repeated items, the submission is invalid.
+  - The final ABench score is driven mainly by Recall@20, and also considers how different the model is from existing models and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "8 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, SciPy"
+  notes: |
+    - The reference submission (`interface/baseline/`) trains in NumPy on the CPU in a few minutes; PyTorch with CUDA is available for heavier models. No recommendation or graph library is installed.
+    - Train your dev checkpoint on the self-check's 80% split (the reference `train.py --dev` does this), then retrain on all public interactions for the submission.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and recommend()
+    ├── train.py            # required: reproduces the checkpoint from the public data
+    ├── src/                # optional: other .py modules
+    ├── checkpoint/         # required: trained parameters, at most 2 GiB
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total; the checkpoint may hold any files.
+rules: |
+  - The checkpoint must be produced by `train.py` from the public training interactions only; no external data, pretrained models or stored recommendation lists.
+  - `recommend()` must rank items with the checkpoint and the training interactions it receives; it must not read other files.
+interface_md: |
+  # RS-GRAPH-002 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, device: str):
+      """Return the trained model (any Python object)."""
+
+  def recommend(model, train: dict, users: numpy.ndarray, k: int = 20) -> numpy.ndarray:
+      """train["indptr"], train["items"], train["n_items"]: the public training interactions (CSR).
+      Return int (len(users), k): for each user, k distinct item ids, best first."""
+  ```
+
+  - The evaluator calls `load` inside the timed phase and `recommend` once with all user ids 0..29,857 after it.
+  - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Evaluator code you can read
+
+  `stages.py` (the stage and the dev split), `metrics.py` (Recall@20, NDCG@20), `abench_metrics.py`,
+  `abench_stage.py`, `selfcheck.py`, and the reference submission's code under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, SciPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/RS-GRAPH-002
+    public:
+      - {path: sandbox/data/RS-GRAPH-002/train.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/RS-GRAPH-002/hidden.npz.enc, sha256_plain: pending, keys: [test]}
+    sources:
+      - name: "Gowalla split of NGCF/LightGCN, github.com/kuandeng/LightGCN Data/gowalla/{train,test}.txt"
+        url: https://github.com/kuandeng/LightGCN/tree/b067ec05f16a24e0e1efe63cd82385f0c469af20/Data/gowalla
+        revision: b067ec05f16a24e0e1efe63cd82385f0c469af20
+        license: "no licence file in the repository; the check-ins come from SNAP loc-gowalla (Cho, Myers & Leskovec 2011), published without an explicit licence — to_verify before release"
+        verified: "2026-10-22: repository cloned at this commit, sha256 of train.txt and test.txt pinned in tools/prepare/rs_graph_002.py; 29,858 users, 40,981 items, 810,128 + 217,242 interactions (the LightGCN paper's counts), train and test disjoint per user"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 2147483648
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2200000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [1]

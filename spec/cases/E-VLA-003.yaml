@@ -1,0 +1,161 @@
+id: E-VLA-003
+title: "An action head for a frozen vision-language model: SmolVLM2-500M controlling LIBERO-Spatial and LIBERO-Object robots"
+template: X-GRPO-002
+anchor: {authors: "Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair, Rafael Rafailov, Ethan Foster, Grace Lam, Pannag Sanketi, Quan Vuong, Thomas Kollar, Benjamin Burchfiel, Russ Tedrake, Dorsa Sadigh, Sergey Levine, Percy Liang, Chelsea Finn", title: "OpenVLA: An Open-Source Vision-Language-Action Model", arxiv: "2406.09246"}
+baseline: "an MLP head on the frozen backbone's layer-16 hidden states, mean-pooled over image and over text tokens, regressing 8-step action chunks with L1 loss and executing them open loop (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Partly executed: the synchronous episode loop, the policy's separate process with the evaluator's frozen-weight hook and the metrics were run in the build container on a toy task with a stand-in policy. LIBERO, MuJoCo, PyTorch and the SmolVLM2 weights were not available here: the operator runs the reference and draws the held-out initial states at activation."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+kit_extra: [libero/libero_eval.py]
+extra_interface: [harness/vla_frozen.py]
+task: |
+  Design the **action head of a vision-language-action policy** on a **frozen SmolVLM2-500M** backbone — which layers and tokens to read, how to condition on proprioception, what to predict and how (regression, discretised or compressed action tokens, diffusion or flow matching, action chunks and how they are executed), small adapters that leave the backbone's weights unchanged — so that, trained on the LIBERO demonstrations, it reaches the **highest success rate on LIBERO-Spatial and LIBERO-Object** within a real-time budget.
+
+  - The evaluator loads the backbone itself, freezes it and hands it to your policy; it checks after the episodes that no weight has changed. You submit the trained head (and any adapters), the code that runs it and the training program.
+  - Train in the sandbox on the 1,000 public demonstrations (two suites, ten tasks each); SmolVLA's pretrained weights (`smolvla_base`, whose action expert was trained for another robot) are available as a starting point. No other pretrained model, no other data.
+  - At most 100 million numbers in the checkpoint; on average at most 50 ms of policy computation per control step (20 Hz), measured in the policy's process.
+  - You may build on any public work (OpenVLA, SmolVLA, π0's flow-matching action expert, FAST action tokenisation, action chunking, OpenVLA-OFT's parallel decoding, VLA-Adapter), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/libero_spatial/` and `$ABENCH_DATA_DIR/libero_object/` (read-only): the 20 demonstration files (`<instruction>_demo.hdf5`, 50 human demonstrations each; Liu et al. 2023, `yifengzhu-hf/LIBERO-datasets` @f13aa24a, Apache-2.0) with `actions` (T, 7), `obs/agentview_rgb`, `obs/eye_in_hand_rgb` (T, 128, 128, 3), `obs/ee_pos`, `obs/ee_ori`, `obs/gripper_states`, in the orientation and units of the observations given to the policy (`interface/libero_eval.py`).
+
+  `$ABENCH_MODELS_DIR/` holds `SmolVLM2-500M-Video-Instruct/` (Hugging Face TB, @7b375e1b, Apache-2.0), loaded by `interface/vla_frozen.py`, and `smolvla_base/` (lerobot, @d9f33c94, Apache-2.0). The LIBERO package (@8f1084e3, MIT) is installed with its published initial states, which the self-check uses. The held-out set is 10 new initial states per task of both suites (object placements drawn from each task's own placement distribution with a secret seed, kept only if the scene is stable): 200 episodes.
+interface: "Implement `load_policy(checkpoint_dir, models_dir, device, vlm, processor)` in `policy.py`, returning an object with `reset(instruction)` and `act(obs) -> 7 numbers`; `vlm` is the frozen SmolVLM2 (`transformers` `AutoModelForImageTextToText`, bfloat16, on `device`) and `processor` its `AutoProcessor`. Write a `train.py` that produces `checkpoint/` from the public data and models."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean success** (primary) | Mean of the success rates on the held-out LIBERO-Spatial and LIBERO-Object episodes | — |
+  | Success per suite and task | Success rate of each suite and each of the 20 tasks | reported |
+  | Real-time cost | Policy computation per control step, averaged over all steps of all episodes | Threshold: ≤ 50 ms |
+  | Frozen backbone | SHA-256 of every backbone weight after the episodes equals the one taken at loading | Threshold: unchanged |
+  | Size | Numbers stored in `checkpoint/` | Threshold: ≤ 100,000,000 |
+
+  **Measurement and decision**
+
+  - One run of all 200 episodes (one simulator seed); an episode succeeds when LIBERO's goal predicate holds within 220 (Spatial) or 280 (Object) control steps after 10 settling steps. Loading is limited to 900 s and the episodes to 7,200 s on one GPU.
+  - A submission is valid if the policy loads, every action is 7 finite numbers, the episodes finish within the limits, the backbone is unchanged, the mean cost per step is at most 50 ms and the checkpoint holds at most 100,000,000 numbers; otherwise it is invalid.
+  - The primary metric is reported with a 95% bootstrap interval over initial states; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by mean success, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 12
+  dev_budget: "10 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), transformers, safetensors, NumPy, h5py, Pillow, lerobot (for smolvla_base), LIBERO with robosuite and MuJoCo (offscreen rendering)"
+  notes: |
+    - `selfcheck.py` runs your submission on LIBERO's published initial states (3 per task; `--quick`: 1 per task).
+    - A forward pass of the backbone on two 512 x 512 images takes tens of milliseconds; how often the policy queries it is the main real-time decision.
+    - Features of the frozen backbone for the 1,000 demonstrations can be computed once and cached in the sandbox's work directory.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── policy.py           # required: load_policy()
+    ├── train.py            # required: produces checkpoint/ from the public data and models
+    ├── checkpoint/         # required: trained head and adapters, at most 400 MB
+    ├── src/                # optional: other .py modules
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The policy must use the backbone it is given; loading another copy of it (or of any other pretrained model besides `smolvla_base`) from the checkpoint or the models directory makes the submission invalid.
+  - The policy must act from the observations and the instruction alone: no tables of initial states, object positions or trajectories, and no access to the simulator's internal state.
+  - The checkpoint must be trained in the sandbox from the public demonstrations and models.
+interface_md: |
+  # E-VLA-003 interface
+
+  ## Entry point: `policy.py`
+
+  ```python
+  def load_policy(checkpoint_dir: str, models_dir: str, device: str, vlm, processor):
+      """Runs in its own process. vlm: the frozen SmolVLM2-500M-Video-Instruct (bfloat16, eval mode, no gradients);
+      processor: its AutoProcessor. Returns an object with
+         reset(instruction: str) -> None
+         act(obs: dict) -> 7 numbers        # called every control step (20 Hz), clipped to [-1, 1]"""
+  ```
+
+  - `obs`: `agentview_rgb`, `eye_in_hand_rgb` (uint8, 128 x 128 x 3), `state` (8 numbers: end-effector position,
+    axis-angle orientation, gripper fingers) and `instruction`; see `libero_eval.py`.
+  - The time of every `act` call counts toward the 50 ms mean per step; an action chunk may be computed in one call
+    and returned over the following ones.
+  - `train.py --data "$ABENCH_DATA_DIR" --models "$ABENCH_MODELS_DIR" --out checkpoint` must reproduce the checkpoint.
+
+  ## Evaluator code you can read
+
+  `libero_eval.py` (environment, observation, episode loop, process isolation), `vla_frozen.py` (how the backbone is
+  loaded and checked), `stages.py`, `metrics.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the
+  reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), transformers, safetensors, NumPy, h5py, Pillow, lerobot, LIBERO (robosuite, MuJoCo).
+  Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 10.0, session_hours: 12}
+  data:
+    public_dir: sandbox/data/E-VLA-003
+    public:
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate_demo.hdf5, sha256: ff6f26121653c77280eb40a38773a74141c11a8509f3466058cb56dd2cc60ead}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate_demo.hdf5, sha256: 75ede0cf5fbfc925093671b55032ad80f1b1f1cf35442ec6c663460d37d3e0b3}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate_demo.hdf5, sha256: 7ff1ee60447875c152d8c7819f499d23dbc0eb4d4bf045225d5d87a2cdad99bd}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate_demo.hdf5, sha256: 9d0b5435b313a8c0d7336b429b5f0f578be6f2a9f5f8a6dd67459ef388f3c74c}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate_demo.hdf5, sha256: 3961cb7126eaca47d0f5be29eb297bb62e7591e3c86172c9587c0bf670112f84}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate_demo.hdf5, sha256: bf1090dd4826eacb49eb052f17d04798e2a1eb2f74f8d024bc3b9c5d234c25f9}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate_demo.hdf5, sha256: 0c053db7317e584632549bddb963bee8a237661b4bd29f0581a245f715e8eb72}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate_demo.hdf5, sha256: d9b2da7399a88bea39024c8ef97713a20734e9b765e14b3399e2755890c828b7}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate_demo.hdf5, sha256: 1fcb3990cf9fd6185f56531cc9f6dec0a77a59bfa0c7f39dff95b7e43cf6aeaa}
+      - {path: sandbox/data/E-VLA-003/libero_spatial/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate_demo.hdf5, sha256: 4d503d447028f437211880bea4ee1a7f6732113ea8560181fcca163251864794}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_alphabet_soup_and_place_it_in_the_basket_demo.hdf5, sha256: 42189d4415d4c51aaaf0708300653fccc39239cd3f2709079a713cd8d1678a8d}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_bbq_sauce_and_place_it_in_the_basket_demo.hdf5, sha256: 90a722f2243a72878baff494d07ce7f4206cfc10307a4c82dcda5f2a5fabc060}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_butter_and_place_it_in_the_basket_demo.hdf5, sha256: 07f48f1c0c06b5e10bc219e63701f0240d8205f85ccd0daab3ff9bd27bc35fb9}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_chocolate_pudding_and_place_it_in_the_basket_demo.hdf5, sha256: b5b57f36cd78e598e258e0e2a1a9d4e8d37d387901487eecd22d503e0e222302}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_cream_cheese_and_place_it_in_the_basket_demo.hdf5, sha256: 7ae50ed3a64bab8418fd6c8e346ba1c39da0fdaa62916a87b9d20f3745b45406}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_ketchup_and_place_it_in_the_basket_demo.hdf5, sha256: e0814effbe3a46777952950be0565577c348dad211327bc5d2a16f4eacc55ba1}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_milk_and_place_it_in_the_basket_demo.hdf5, sha256: e56d954928e613f9db58085b7677ccf9c4824f1ab982265f71405d5bb14cfb4a}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_orange_juice_and_place_it_in_the_basket_demo.hdf5, sha256: 53e40490c62e94c678233eefbfd874a61c93d92c8088f59d426ae6c3fd90d288}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_salad_dressing_and_place_it_in_the_basket_demo.hdf5, sha256: 45960606a85b9c68980eb8130e0fe16bf3621539cf5d4147f35aa8139573c5ac}
+      - {path: sandbox/data/E-VLA-003/libero_object/pick_up_the_tomato_sauce_and_place_it_in_the_basket_demo.hdf5, sha256: 43c52bdaa78b4c6aff3afb54d932d6a0e065f5c30c8e30a6c17f78749d487ea9}
+    hidden: {path: sandbox/hidden/E-VLA-003/hidden.npz.enc, sha256_plain: pending, keys: "init_states, init_len, task_id, suite_id (given after the timed phase)"}
+    models_dir: sandbox/models/E-VLA-003
+    models:
+      - {name: SmolVLM2-500M-Video-Instruct, path: sandbox/models/E-VLA-003/SmolVLM2-500M-Video-Instruct, tree_sha256: pending, revision: 7b375e1b73b11138ff12fe22c8f2822d8fe03467, license: Apache-2.0}
+      - {name: smolvla_base, path: sandbox/models/E-VLA-003/smolvla_base, tree_sha256: pending, revision: d9f33c94a60fb382c90dea2164c96845bd955e28, license: Apache-2.0}
+    sources:
+      - name: "LIBERO-Spatial and LIBERO-Object demonstrations (yifengzhu-hf/LIBERO-datasets)"
+        url: https://huggingface.co/datasets/yifengzhu-hf/LIBERO-datasets
+        revision: f13aa24a3da8c43c7225569f28c562979fa0e35a
+        license: Apache-2.0
+        verified: "2026-10-23: revision, licence, file names and LFS sha256 of the 20 files from the Hugging Face API (checked again when the operator downloads them)"
+      - name: "LIBERO simulator, task definitions and published initial states (Liu et al. 2023)"
+        url: https://github.com/Lifelong-Robot-Learning/LIBERO
+        revision: 8f1084e3132a39270c3a13ebe37270a43ece2a01
+        license: MIT
+        verified: "2026-10-23: commit from the GitHub API; observation keys and units from scripts/create_dataset.py"
+      - name: "SmolVLM2-500M-Video-Instruct (HuggingFaceTB)"
+        url: https://huggingface.co/HuggingFaceTB/SmolVLM2-500M-Video-Instruct
+        revision: 7b375e1b73b11138ff12fe22c8f2822d8fe03467
+        license: Apache-2.0
+        verified: "2026-10-23: revision, licence and file list from the Hugging Face API"
+      - name: "smolvla_base (lerobot; Shukor et al. 2025)"
+        url: https://huggingface.co/lerobot/smolvla_base
+        revision: d9f33c94a60fb382c90dea2164c96845bd955e28
+        license: Apache-2.0
+        verified: "2026-10-23: revision, licence, file list and configuration (backbone SmolVLM2-500M-Video-Instruct, 16 layers, 6-dimensional actions) from the Hugging Face API"
+      - name: "Held-out initial states (libero_eval.sample_init_states, secret seed)"
+        url: null
+        license: "generated by ABench"
+  submission:
+    kind: code_plus_checkpoint
+    entry: policy.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 419430400
+    allowed_top_level: [README.md, policy.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 421430400
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (driver, CUDA, torch, transformers, MuJoCo and robosuite versions frozen at activation)"
+    seeds: [11]
+    code_audit: "the operator checks that the policy uses the backbone it is given and that nothing in the checkpoint is a table of states or trajectories"

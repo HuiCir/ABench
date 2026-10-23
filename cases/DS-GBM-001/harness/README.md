@@ -1,14 +1,32 @@
-# DS-GBM-001 harness contract
+# DS-GBM-001 harness
 
-This scaffold defines the server-side contract only; it does not run training or create synthetic results.
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-## Required interface
+## Pipeline (`stages.py`)
 
-- Read the immutable manifest supplied by the benchmark.
-- Write deterministic metrics.json and run_metadata.json.
-- Record seed, input/resource hashes, wall-clock time, peak memory and exit status.
-- Keep network and filesystem access within case/eval_protocol.yaml sandbox policy.
+```
+DS-GBM-001 pipeline: the evaluator trains your tabular learner on datasets it has never seen (evaluator and
+self-check use this same file).
 
-## Pending
+One stage, "fit" (imports model.py):
+  before   the training splits of the held-out datasets are placed in ctx.pre_dir (held_pre.npz); loading them is
+           not timed
+  timed    for each dataset: fit(x_train, y_train, task, budget_seconds, seed) -> model; the whole loop is timed by
+           the parent's clock (gate: at most PARAMS["total_fit_seconds"])
+  finish   the test inputs arrive (held_out.npz); predict(model, x_test) for each dataset              (≤ 300 s)
+The evaluator runs the HistGradientBoosting baseline (baselines/hgb) through the same stage on the same seeds.
+```
 
-The benchmark maintainer must freeze the executable runner, container image, resource hashes and failure semantics before accepting submissions.
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baselines/hgb/model.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

@@ -1,0 +1,59 @@
+schema: abench.references/v2
+references:
+- id: geiping2025recurrent
+  title: 'Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach'
+  authors: Jonas Geiping, Sean McLeish, Neel Jain, John Kirchenbauer, Siddharth Singh, Brian R. Bartoldson, Bhavya
+    Kailkhura, Abhinav Bhatele and Tom Goldstein
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.05171'
+  used_for: 'Anchor: recurrent core with input injection, random unroll training, truncated backpropagation'
+  code_location: 'src/looped.py: LoopedModel; train.py'
+- id: dehghani2019universal
+  title: Universal Transformers
+  authors: Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit and Łukasz Kaiser
+  year: 2019
+  venue: ICLR
+  arxiv: '1807.03819'
+  used_for: Related work (shared layers, per-position halting)
+  code_location: null
+- id: graves2016act
+  title: Adaptive Computation Time for Recurrent Neural Networks
+  authors: Alex Graves
+  year: 2016
+  venue: arXiv
+  arxiv: '1603.08983'
+  used_for: Related work (halting)
+  code_location: null
+- id: banino2021pondernet
+  title: 'PonderNet: Learning to Ponder'
+  authors: Andrea Banino, Jan Balaguer and Charles Blundell
+  year: 2021
+  venue: ICML Workshop
+  arxiv: '2107.05407'
+  used_for: Related work (learned halting)
+  code_location: null
+- id: teerapittayanon2016branchynet
+  title: 'BranchyNet: Fast Inference via Early Exiting from Deep Neural Networks'
+  authors: Surat Teerapittayanon, Bradley McDanel and H. T. Kung
+  year: 2016
+  venue: ICPR
+  arxiv: '1709.01686'
+  used_for: Confidence-based early exit
+  code_location: 'model.py: readout'
+- id: schuster2022calm
+  title: Confident Adaptive Language Modeling
+  authors: Tal Schuster, Adam Fisch, Jai Gupta, Mostafa Dehghani, Dara Bahri, Vinh Q. Tran, Yi Tay and Donald Metzler
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2207.07061'
+  used_for: Related work (confidence exits)
+  code_location: null
+- id: fan2024looped
+  title: Looped Transformers for Length Generalization
+  authors: Ying Fan, Yilun Du, Kannan Ramchandran and Kangwook Lee
+  year: 2025
+  venue: ICLR
+  arxiv: '2409.15647'
+  used_for: Related work (looped transformers on algorithmic tasks)
+  code_location: null

@@ -1,0 +1,24 @@
+{
+  "required": [
+    "norm.py",
+    "report/index.html",
+    "references.yaml"
+  ],
+  "allowed_top_level": [
+    "README.md",
+    "norm.py",
+    "src",
+    "report",
+    "references.yaml"
+  ],
+  "code_suffixes": [
+    ".py",
+    ".yaml",
+    ".yml",
+    ".md",
+    ".txt"
+  ],
+  "code_max_bytes": 200000,
+  "data_dirs": [],
+  "data_max_bytes": {}
+}

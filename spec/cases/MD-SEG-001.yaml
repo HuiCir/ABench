@@ -1,0 +1,110 @@
+id: MD-SEG-001
+title: "A 3D segmentation network for a fixed nnU-Net-style recipe: four Medical Segmentation Decathlon tasks, one of them unseen"
+template: A-LCTX-006
+anchor: {authors: "Fabian Isensee, Jens Petersen, Andre Klein, David Zimmerer, Paul F. Jaeger, Simon Kohl, Jakob Wasserthal, Gregor Koehler, Tobias Norajitra, Sebastian Wirkert, Klaus H. Maier-Hein", title: "nnU-Net: Self-adapting Framework for U-Net-Based Medical Image Segmentation", arxiv: "1809.10486"}
+baseline: "nnU-Net's plain convolutional U-Net, planned from the patch size and spacing (downsampling and kernel sizes as in nnU-Net's default planner, features 32 to 320, deep supervision), trained by the evaluator under identical conditions (`interface/baselines/unet/`)"
+baseline_run: "Under exactly the same conditions (hardware, seed, data, recipe, iterations), the evaluator also trains the U-Net from `interface/baselines/unet/` on all four tasks and reports your Dice relative to it."
+reference_verification: "Partly executed: patch sampling, augmentation, sliding-window inference (with an oracle predictor it returns the labels exactly), Dice, normalised surface Dice and the self-check data path were run in the build container on synthetic volumes. The MSD files could not be downloaded here and PyTorch is not available: the operator preprocesses the data, runs the U-Net baseline and the reference at activation."
+mode: judge_trains
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/seg3d.py, harness/baselines/unet/network.py]
+task: |
+  Design a **3D segmentation network** — encoder and decoder blocks, normalisation, residual or dense connections, attention or large kernels, how resolution is reduced along anisotropic axes, deep supervision — that, trained by a **fixed nnU-Net-style recipe** (patch sampling, augmentation, Dice + cross-entropy, SGD with polynomial decay), gives the **highest Dice on four Medical Segmentation Decathlon tasks**: hippocampus and prostate MRI, left atrium MRI, and a **fourth task you never see**.
+
+  - Submit code only: `network.py` with `make_network(in_channels, num_classes, patch_size, spacing)`. The evaluator builds the network for each task from that task's configuration, trains it from scratch for 2,500 iterations with the recipe of `interface/seg3d.py` and segments the held-out volumes by sliding windows. It trains the nnU-Net U-Net baseline the same way.
+  - The network must adapt to the configuration it is given (1 or 2 channels, 2 or 3 classes, isotropic or strongly anisotropic spacing, patch sizes from 40 x 56 x 40 to 20 x 192 x 160); the unseen task's configuration is only given to `make_network` at training time.
+  - At most 64 million parameters for every task; the recipe, preprocessing and inference are fixed.
+  - You may build on any public work (nnU-Net and its residual-encoder variants, 3D U-Net, V-Net, attention U-Net, UNETR, Swin UNETR, MedNeXt, STU-Net, nnFormer, large-kernel convolutions), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only): `hippocampus.npz`, `prostate.npz`, `heart.npz` with the preprocessed labelled training volumes of MSD Task04 (208 of 260 volumes), Task05 (26 of 32) and Task02 (16 of 20) (Simpson et al. 2019, Antonelli et al. 2022; CC-BY-SA 4.0): `img`, `img_shape` (C, D, H, W) float16 and `seg`, `seg_shape` (D, H, W) uint8 volumes packed one after the other (`interface/seg3d.py: unpack`), resampled to each task's target spacing and normalised as described in `seg3d.py`.
+
+  The held-out set is the remaining 20% of the labelled volumes of each of the three tasks (52, 6 and 4, chosen with a secret seed) and a fourth MSD task: its training volumes and configuration are given to the evaluator's training stage, and 10 of its labelled volumes are held out. Only the images are given to the network, after training.
+interface: "Implement `make_network(in_channels, num_classes, patch_size, spacing) -> torch.nn.Module` in `network.py`; `forward(x)` maps (B, in_channels, *patch_size) to logits (B, num_classes, *patch_size) or, in training mode, optionally to a list of logits at full and successively lower resolutions (deep supervision; full resolution first). `spacing` is in millimetres, slowest axis first."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean Dice** (primary) | Dice per foreground class and held-out volume, averaged over classes, then volumes, then the four tasks; higher is better | — |
+  | Dice relative to U-Net | Mean Dice minus the U-Net baseline's in the same run; per task | reported |
+  | Surface accuracy | Normalised surface Dice at 1 mm (hippocampus) or 2 mm (others), averaged the same way | reported |
+  | Per task and class | Dice of each task and each class; peak GPU memory; training time | reported |
+  | Size and stability | Parameters of the network on every task; divergence | Threshold: ≤ 64,000,000; no divergence |
+
+  **Measurement and decision**
+
+  - One run with one seed; Dice and surface Dice are measured at the preprocessed resolution. With 4 to 52 held-out volumes per task, differences of about 0.01 in mean Dice are within run-to-run noise.
+  - A submission is valid if it trains without divergence on all four tasks within the time limits (1,800 s of training and 900 s of inference per task) and has at most 64,000,000 parameters on each; otherwise it is invalid.
+  - The final ABench score is driven mainly by mean Dice, and also considers how different the network is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 10
+  dev_budget: "8 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), NumPy, SciPy"
+  notes: |
+    - `selfcheck.py` trains and segments on a dev split of the public data (20% of each task held out; the hippocampus with both structures merged plays the unseen task; `--quick`: 100 iterations per task).
+    - One full self-check takes about an hour on the reference GPU; memory is the usual limit for the larger patches (bfloat16 autocast is on).
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── network.py          # required: make_network()
+    ├── src/                # optional: helper modules, .py only
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - The network may only compute from its input patch; it must not read files, keep data between calls beyond its parameters and buffers, or change the recipe (optimiser, loss, sampling, inference).
+  - No pretrained weights: the network is initialised from scratch by `make_network`.
+interface_md: |
+  # MD-SEG-001 interface
+
+  ## Entry point: `network.py`
+
+  ```python
+  def make_network(in_channels: int, num_classes: int, patch_size: tuple, spacing: tuple) -> "torch.nn.Module":
+      """forward(x): (B, in_channels, D, H, W) -> logits (B, num_classes, D, H, W), or in training mode a list of
+      logits at full and lower resolutions (full resolution first) for deep supervision."""
+  ```
+
+  Configurations of the three public tasks (`seg3d.TASKS`): hippocampus 1 channel, 3 classes, spacing (1, 1, 1),
+  patch (40, 56, 40), batch 8; prostate 2 channels, 3 classes, spacing (3.6, 1, 1), patch (20, 192, 160), batch 2;
+  heart 1 channel, 2 classes, spacing (2, 2, 2), patch (64, 128, 128), batch 2. The unseen task's configuration has
+  the same fields.
+
+  ## Evaluator code you can read
+
+  `seg3d.py` (recipe, sampling, augmentation, loss, inference, measures), `stages.py`, `metrics.py`,
+  `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, the U-Net baseline under `baselines/unet/` and the
+  reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), NumPy, SciPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 10}
+  data:
+    public_dir: sandbox/data/MD-SEG-001
+    public:
+      - {path: sandbox/data/MD-SEG-001/hippocampus.npz, sha256: pending}
+      - {path: sandbox/data/MD-SEG-001/prostate.npz, sha256: pending}
+      - {path: sandbox/data/MD-SEG-001/heart.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/MD-SEG-001/hidden.npz.enc, sha256_plain: pending, keys: "<task>_test_img(_shape) (given after training); unseen_train_* and unseen_config (given to the unseen task's training stage); <task>_test_seg(_shape) (evaluator only)"}
+    sources:
+      - name: "Medical Segmentation Decathlon Task04_Hippocampus, Task05_Prostate, Task02_Heart, Task09_Spleen (tar files of the msd-for-monai bucket)"
+        url: https://msd-for-monai.s3-us-west-2.amazonaws.com/
+        license: CC-BY-SA 4.0
+        verified: "2026-10-23: URLs and md5 checksums from MONAI's DecathlonDataset (monai/apps/datasets.py); the files are downloaded and checked by the operator"
+  submission:
+    kind: code_only
+    entry: network.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, network.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA and torch versions frozen at activation)"
+    seeds: [1809]
+    baseline: harness/baselines/unet

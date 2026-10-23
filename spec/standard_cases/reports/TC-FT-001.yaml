@@ -1,9 +1,9 @@
 case: TC-FT-001
-title: 'Hashed n-gram Linear Classifier: A CPU Baseline for Topic Classification'
+title: 'Hashed n-gram Linear Classifier: A CPU Baseline for Review-Rating Classification'
 author_note: Standard reference for task statement standard v2.1 (a baseline that does not aim to be best)
-abstract: This submission gives a baseline for CPU-budgeted topic classification. Following the anchor's observation that
-  a linear model over a bag of n-grams is a strong and fast text classifier [@joulin2017fasttext], documents are mapped to
-  a fixed 2^20-dimensional space of unigram and bigram counts with the hashing trick [@weinberger2009hashing], re-weighted
+abstract: This submission gives a baseline for CPU-budgeted review-rating classification. Following the anchor's observation
+  that a linear model over a bag of n-grams is a strong and fast text classifier [@joulin2017fasttext], documents are mapped
+  to a fixed 2^20-dimensional space of unigram and bigram counts with the hashing trick [@weinberger2009hashing], re-weighted
   with sublinear tf-idf [@salton1988tfidf], and classified by a linear model trained with stochastic gradient descent on the
   modified Huber loss [@zhang2004sgd] with iterate averaging [@polyak1992averaging]. Training is a single streaming pass structure
   with no vocabulary to build, and prediction is one sparse matrix product.
@@ -13,7 +13,7 @@ sections:
   - The task rewards accuracy under a minimum prediction throughput on eight CPU cores, with the model trained once in the
     sandbox. Both favour models whose cost is linear in the number of tokens and whose parameters fit in memory without a
     vocabulary pass. Bag-of-n-gram linear models satisfy both and are known to be competitive with much larger neural encoders
-    on news topic classification [@joulin2017fasttext;@zhang2015charcnn].
+    on topic and review-rating classification (the anchor reports 63.9% on Yelp Review Full with bigrams) [@joulin2017fasttext;@zhang2015charcnn].
   - As a reference version this submission uses only mature components; its purpose is to be complete in interface, timing
     and report format and to leave the room for improvement to the entries.
 - title: Related Work
@@ -106,7 +106,7 @@ references:
   year: 2015
   venue: NeurIPS
   arxiv: '1509.01626'
-  used_for: Source of the AG News dataset and n-gram baselines
+  used_for: Source of the Yelp Review Full dataset and n-gram baselines
   code_location: null
 - id: pedregosa2011sklearn
   title: 'Scikit-learn: Machine Learning in Python'

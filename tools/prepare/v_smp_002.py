@@ -21,6 +21,8 @@ from prepare.common import Frozen, check
 
 REV = "267b167dc01f0e4e61923ea244e8b988f84deb80"
 INCEPTION = "pt_inception-2015-12-05-6726825d.pth"
+SECRET_SEED_ENV = "ABENCH_V_SMP_SEED"          # escrowed by tools/prepare/run.py next to the hidden-set key
+
 SOURCES = [
     {"name": "ddpm-cifar10-32/", "url": f"https://huggingface.co/google/ddpm-cifar10-32/tree/{REV}", "license": "Apache-2.0",
      "files": ["config.json", "diffusion_pytorch_model.safetensors", "scheduler_config.json", "model_index.json"]},
@@ -60,6 +62,8 @@ def _stats(imgs: np.ndarray, inception_file: Path) -> tuple[np.ndarray, np.ndarr
 def build(raw: Path) -> Frozen:
     sums = {f"ddpm-cifar10-32/{f}": check(raw / "ddpm-cifar10-32" / f) for f in SOURCES[0]["files"]}
     sums[INCEPTION] = check(raw / INCEPTION)
+    if not sums[INCEPTION].startswith("6726825d"):      # torch-hub naming: the suffix is the start of the file's sha256
+        raise SystemExit(f"{INCEPTION}: sha256 {sums[INCEPTION]} does not start with 6726825d")
     sums["cifar-10-python.tar.gz"] = check(raw / "cifar-10-python.tar.gz", md5=SOURCES[2]["md5"])
     mu, sigma = _stats(_train_images(raw), raw / INCEPTION)
     seed = int(os.environ.get("ABENCH_V_SMP_SEED", "0"))

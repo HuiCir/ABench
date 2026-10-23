@@ -8,7 +8,7 @@ def predict(models_dir: str, task: str, state: dict, sentence1: list[str], sente
     """Rebuild the model from the frozen base and `state` (this task's entry of checkpoint/states.pt, on CPU)
     and return int labels (len(sentence1),).
 
-    task in ("rte", "mrpc", "cola", "sst2"); models_dir contains roberta-base/ (frozen)
+    task in ("sst2", "cola", "mnli", "qnli"); MNLI has 3 labels, the others 2; models_dir contains roberta-base/ (frozen)
     """
 ```
 
@@ -17,7 +17,7 @@ def predict(models_dir: str, task: str, state: dict, sentence1: list[str], sente
 
 ## Training program: `train.py`
 
-Write a `train.py` that produces `checkpoint/` from the files in `$ABENCH_DATA_DIR` (`glue_train.npz`: `<task>_<column>`, `<task>_label` and `<task>_dev_idx`) and `$ABENCH_MODELS_DIR/roberta-base`; it must save `{task: {name: torch.Tensor}}` to `checkpoint/states.pt`, for example
+Write a `train.py` that produces `checkpoint/` from the files in `$ABENCH_DATA_DIR` (`glue_train.npz`: packed `<task>_<column>` texts, `<task>_label` and `<task>_dev_idx`) and `$ABENCH_MODELS_DIR/roberta-base`; it must save `{task: {name: torch.Tensor}}` to `checkpoint/states.pt`, for example
 `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`. The evaluator does not run it;
 it is kept with the submission so the checkpoint can be audited and reproduced. The reference implementation under
 `interface/baseline/` (its `peft.py` and `train.py`) is a working starting point you may improve on or replace.
@@ -25,7 +25,7 @@ it is kept with the submission so the checkpoint can be audited and reproduced. 
 ## Evaluator code you can read
 
 `stages.py` (the evaluation stage, the dev split, time limits), `metrics.py` and `abench_metrics.py` (GLUE metrics),
-`abench_stage.py` (process and timing protocol) and `selfcheck.py`.
+`abench_stage.py` (process and timing protocol), `textpack.py` (packed texts) and `selfcheck.py`.
 
 ## Available software
 

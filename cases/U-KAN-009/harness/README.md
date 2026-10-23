@@ -1,11 +1,35 @@
-# U-KAN-009 harness contract
+# U-KAN-009 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+U-KAN-009 pipeline: the evaluator trains the fixed three-layer networks of layerbench.py with your layer and with the
+MLP layer at equal parameter budgets, on held-out function-fitting tasks and on Fashion-MNIST, and scores both on
+held-out test points (evaluator and self-check use this same file).
+
+Two stages, each in a new process on one GPU (both import layer.py):
+  functions  before: the training and validation points of the held-out functions (held_pre.npz, untimed);
+             timed: for each function, layerbench.fit_task for your layer and for the MLP (width per budget, learning
+             rate chosen on validation, training); finish: predictions on the test points (given after the timed phase)
+  image      setup: the public Fashion-MNIST training images (55,000 for training, the last 5,000 of a fixed
+             permutation for validation); timed: fit_task for both layers; finish: predictions on the held-out
+             test images
+The run's seed (ctx.seed) seeds every training run.
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/layer.py`
+- `interface.md`
+- `layerbench.py`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

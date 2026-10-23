@@ -1,0 +1,122 @@
+id: PH-WELL-002
+title: "One surrogate for three physical systems: autoregressive prediction on The Well at 64 x 64, with unseen physical parameters"
+template: X-GRPO-002
+anchor: {authors: "Ruben Ohana, Michael McCabe, Lucas Meyer, Rudy Morel, Fruzsina J. Agocs, Miguel Beneitez, Marsha Berger, Blakesley Burkhart, Keaton Burns, Stuart B. Dalziel, Drummond B. Fielding, Daniel Fortunato, Jared A. Goldberg, Keiya Hirashima, Yan-Fei Jiang, Rich R. Kerswell, Suryanarayana Maddu, Jonah Miller, Payel Mukhopadhyay, Stefan S. Nixon, Jeff Shen, Romain Watteaux, Bruno Régaldo-Saint Blancard, François Rozet, Liam H. Parker, Miles Cranmer, Shirley Ho", title: "The Well: a Large-Scale Collection of Diverse Physics Simulations for Machine Learning", arxiv: "2412.00568"}
+baseline: "one Fourier neural operator shared by the three systems (per-system input and output layers, FiLM conditioning on the parameters), trained jointly on one-step and two-step losses (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Partly executed: the rollout loop (with a persistence stand-in), VRMSE, window construction, the unseen-parameter split rules (on the real file names) and the self-check data path were run in the build container on synthetic trajectories. The Well files (about 210 GB for the three datasets) were not downloaded here and PyTorch is not available: the operator prepares the data and trains and runs the reference at activation."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/wellsurr.py]
+task: |
+  Design a **single learned surrogate for several physical systems** — architecture (neural operators, U-Nets, transformers, hybrids), how one network handles systems with different fields and physics, conditioning on physical parameters, normalisation, training for stable autoregressive rollouts (unrolled or noise-injected training, multi-step losses) — that predicts the evolution of **three systems of The Well**: a turbulent radiative layer, active matter and Gray-Scott reaction-diffusion, including at **parameter values never seen in training**.
+
+  - Train one model in the sandbox on the public trajectories and submit the checkpoint with the code. The evaluator gives it 4 consecutive frames and the system's parameters and rolls its next-frame prediction out for 10 frames, on held-out trajectories of the training parameters and on trajectories with unseen parameters.
+  - One network for all three systems: its parameters are shared except for input and output layers and conditioning, which together may hold at most 10% of them; at most 100 million numbers in the checkpoint.
+  - No pretrained weights, no data other than the public trajectories.
+  - You may build on any public work (FNO, U-Net and CNextU-Net baselines of The Well, Poseidon, DPOT, Multiple Physics Pretraining, PDE-Refiner, pushforward training, AFNO, Transolver), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only): `turbulent_radiative.npz`, `active_matter.npz`, `gray_scott.npz` with `trajectories` (N, T, C, 64, 64) float16, `params` (N, P) and `split` (0: The Well's training split, 1: its validation split), for every parameter set except the unseen ones. The Well (Ohana et al. 2024; `polymathic-ai/turbulent_radiative_layer_2D` @2ee77565, `active_matter` @dc3e9135, `gray_scott_reaction_diffusion` @913ef567; CC-BY 4.0), resampled to 64 x 64 by block averaging; Gray-Scott at every 10th step. Channels and parameters per system are listed in `interface/wellsurr.py`.
+
+  The held-out set has two parts per system, each with two 14-frame windows per trajectory (start frames from a secret seed): **in-distribution**, The Well's test split of the public parameter sets; **unseen parameters**, every trajectory of parameter sets absent from the public data (two cooling times of the radiative layer, one activity value of active matter, one Gray-Scott regime).
+interface: "Implement `load(checkpoint_dir, device)` in `model.py`, returning an object with `predict(system, history, params)`: `system` is one of `turbulent_radiative`, `active_matter`, `gray_scott`; `history` float32 (B, 4, C, 64, 64) in physical units (oldest frame first); `params` float32 (B, P); it returns the next frame (B, C, 64, 64). Write a `train.py` that produces `checkpoint/` from the public data."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean rollout VRMSE** (primary) | VRMSE (The Well's variance-scaled RMSE, averaged over fields) of the 10 predicted frames, averaged over windows, then over the six system-set pairs; lower is better | — |
+  | Per set | Mean rollout VRMSE on in-distribution and on unseen-parameter windows; the gap between them | reported |
+  | Per system | Rollout, one-step and final-frame VRMSE of each system and set | reported |
+  | Size | Numbers stored in `checkpoint/` | Threshold: ≤ 100,000,000 |
+
+  **Measurement and decision**
+
+  - One run (prediction is deterministic). A non-finite predicted frame counts as VRMSE 10, and VRMSE is capped at 10 per frame.
+  - A submission is valid if it loads within 600 s, every prediction has the right shape, all rollouts finish within 1,800 s and the checkpoint holds at most 100,000,000 numbers; otherwise it is invalid.
+  - The primary metric is reported with a 95% bootstrap interval over windows; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by mean rollout VRMSE, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 10
+  dev_budget: "8 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), NumPy, SciPy, safetensors"
+  notes: |
+    - `selfcheck.py` rolls your model out on the public validation trajectories; one public parameter set per system plays the unseen part, which is optimistic unless you leave it out of training (`--quick`: 8 windows per part).
+    - The public data take about 3 GB; they fit in GPU memory as float16.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load()
+    ├── train.py            # required: produces checkpoint/ from the public data
+    ├── checkpoint/         # required: trained weights, at most 1 GB
+    ├── src/                # optional: other .py modules
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - Predictions must come from the history and parameters alone: no tables of trajectories or frames inside the checkpoint or code, and no state kept between calls.
+  - The checkpoint must be trained in the sandbox from the public data, with no pretrained weights.
+interface_md: |
+  # PH-WELL-002 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, device: str):
+      """Return an object with predict(system, history, params) -> next frame."""
+  ```
+
+  - `history`: float32 (B, 4, C, 64, 64), physical units, oldest frame first; `params`: float32 (B, P) in the order
+    of `wellsurr.SYSTEMS[system]["params"]`. The evaluator calls `predict` 10 times per window, feeding each
+    prediction back as the newest frame.
+  - `train.py --data "$ABENCH_DATA_DIR" --out checkpoint` must reproduce the checkpoint.
+
+  ## Evaluator code you can read
+
+  `wellsurr.py` (systems, channels, rollout, VRMSE), `stages.py`, `metrics.py`, `abench_metrics.py`,
+  `abench_stage.py`, `selfcheck.py`, and the reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), NumPy, SciPy, safetensors. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 10}
+  data:
+    public_dir: sandbox/data/PH-WELL-002
+    public:
+      - {path: sandbox/data/PH-WELL-002/turbulent_radiative.npz, sha256: pending}
+      - {path: sandbox/data/PH-WELL-002/active_matter.npz, sha256: pending}
+      - {path: sandbox/data/PH-WELL-002/gray_scott.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/PH-WELL-002/hidden.npz.enc, sha256_plain: pending, keys: "<system>_<id|unseen>_x, _params (given after the timed phase); <system>_<id|unseen>_y (evaluator only)"}
+    sources:
+      - name: "The Well: turbulent_radiative_layer_2D (polymathic-ai)"
+        url: https://huggingface.co/datasets/polymathic-ai/turbulent_radiative_layer_2D
+        revision: 2ee7756575ff6f90981d0308cbcb6a2ab5995bdc
+        license: CC-BY-4.0
+        verified: "2026-10-23: revision, licence and file list (9 cooling times x train/valid/test) from the Hugging Face API"
+      - name: "The Well: active_matter (polymathic-ai)"
+        url: https://huggingface.co/datasets/polymathic-ai/active_matter
+        revision: dc3e9135a75b4e5a0d979086219fc97fe668f7a3
+        license: CC-BY-4.0
+        verified: "2026-10-23: revision, licence and file list (zeta x alpha grid per split) from the Hugging Face API"
+      - name: "The Well: gray_scott_reaction_diffusion (polymathic-ai)"
+        url: https://huggingface.co/datasets/polymathic-ai/gray_scott_reaction_diffusion
+        revision: 913ef5679d5c4b4ccd6fcd52c055509dfbf190f9
+        license: CC-BY-4.0
+        verified: "2026-10-23: revision, licence and file list (6 regimes per split) from the Hugging Face API"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 1073741824
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 1075741824
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA and torch versions frozen at activation)"
+    seeds: [0]
+    code_audit: "the operator checks the 10% limit on system-specific parameters and that nothing in the checkpoint is a table of trajectories"

@@ -1,0 +1,106 @@
+id: V-3DG-005
+title: "Sparse-view novel-view synthesis in ten minutes per scene: 24 views of unbounded Mip-NeRF 360 scenes"
+template: A-LCTX-006
+anchor: {authors: "Bernhard Kerbl, Georgios Kopanas, Thomas Leimkühler, George Drettakis", title: "3D Gaussian Splatting for Real-Time Radiance Field Rendering", arxiv: "2308.04079"}
+baseline: "plain 3D Gaussian splatting with the gsplat rasteriser from a random initialisation (7,000 steps, L1 + D-SSIM, gsplat's default densification), run by the evaluator under identical conditions (`interface/baselines/gs3d/`)"
+baseline_run: "Under exactly the same conditions (hardware, views, budget), the evaluator also runs plain 3D Gaussian splatting from `interface/baselines/gs3d/` on every scene and reports your PSNR relative to it."
+reference_verification: "Partly executed: the COLMAP reader (on hand-built binary files), the view split, PSNR and SSIM, and the self-check data path were run in the build container on synthetic scenes. The Mip-NeRF 360 files could not be downloaded here and neither PyTorch nor gsplat is available: the operator prepares the scenes and runs the baseline and the reference at activation."
+mode: judge_trains
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/nvs.py, harness/baselines/gs3d/method.py]
+task: |
+  Design a **scene-reconstruction method for sparse views** — representation (3D Gaussians, radiance fields, hybrids), initialisation without structure-from-motion points, regularisation of unseen regions, densification and pruning, appearance and depth priors computed from the views themselves — that, **fitted in at most 600 seconds** to **24 posed photographs** of an unbounded scene, renders **held-out viewpoints** as accurately as possible.
+
+  - Submit code only: `method.py` with `fit(views, budget_seconds, device)` and `render(state, cameras)`. For each of six held-out Mip-NeRF 360 scenes the evaluator calls `fit` on 24 training views (images, intrinsics, camera poses) and then `render` at the test cameras; it runs plain 3D Gaussian splatting the same way.
+  - Nothing else is given: no point cloud, no depth, no test images. The gsplat rasteriser is installed; any other component must be written in the submission.
+  - No pretrained networks (no monocular-depth or diffusion priors) and no external data.
+  - You may build on any public work (3D Gaussian splatting, Mip-Splatting, FSGS, DNGaussian, SparseGS, CoR-GS, RegNeRF, FreeNeRF, Instant-NGP, Zip-NeRF), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only): `dev_bonsai.npz`, `dev_flowers.npz`, `dev_treehill.npz` — three Mip-NeRF 360 scenes (Barron et al. 2022; `storage.googleapis.com/gresearch/refraw360`, no licence stated on the project page) with every image at the published 1/8 resolution (`images` uint8 (N, H, W, 3)) and its camera (`K` (N, 3, 3) in pixels, `w2c` (N, 4, 4) world-to-camera, OpenCV convention) from the dataset's COLMAP reconstruction.
+
+  The held-out set is the six other scenes of the main release (outdoor and indoor, in a secret order): for each, the 24 training views (spread evenly over the images that are not test views, `interface/nvs.py: split`) are given to `fit`; the test cameras (every 8th image) to `render`; the test images are never given.
+interface: "Implement in `method.py`: `fit(views, budget_seconds, device)` returning any state, where `views` has `images` uint8 (24, H, W, 3), `K` (24, 3, 3) and `w2c` (24, 4, 4); and `render(state, cameras)` returning uint8 (M, H, W, 3), where `cameras` has `K` (M, 3, 3), `w2c` (M, 4, 4), `height` and `width`."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean PSNR** (primary) | PSNR of each rendered test view against the photograph, averaged per scene and then over the six scenes; higher is better | — |
+  | PSNR relative to 3DGS | Mean PSNR minus plain 3D Gaussian splatting's in the same run; per scene | reported |
+  | SSIM | Structural similarity (11 x 11 Gaussian window), averaged the same way | reported |
+  | Fitting time | Seconds spent in `fit` per scene | Threshold: ≤ 630 s on every scene |
+
+  **Measurement and decision**
+
+  - One run; each scene has about 20 to 40 test views at roughly 1/8 of the original resolution.
+  - A submission is valid if `fit` returns within 630 s (the 600 s budget plus 5%) on every scene and `render` returns images of the right size within 300 s; otherwise it is invalid.
+  - The final ABench score is driven mainly by mean PSNR, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "4 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), gsplat, NumPy, SciPy"
+  notes: |
+    - `selfcheck.py` fits and renders the three public scenes, each twice with different test views (`--quick`: a 60 s budget per scene).
+    - The budget is wall-clock time on the reference GPU and includes everything `fit` does.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── method.py           # required: fit(), render()
+    ├── src/                # optional: helper modules, .py only
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - `fit` may only use the views it is given; `render` may only use the state returned by `fit` and the cameras. No files from other scenes, no pretrained weights, no network.
+  - All computation must happen inside `fit` and `render`; nothing may be computed in advance for the held-out scenes.
+interface_md: |
+  # V-3DG-005 interface
+
+  ## Entry point: `method.py`
+
+  ```python
+  def fit(views: dict, budget_seconds: float, device: str):
+      """views: images uint8 (24, H, W, 3), K (24, 3, 3), w2c (24, 4, 4) (OpenCV: x right, y down, z forward).
+      Return any state; at most budget_seconds (600) of wall-clock time."""
+
+  def render(state, cameras: dict) -> "uint8 array (M, H, W, 3)":
+      """cameras: K (M, 3, 3), w2c (M, 4, 4), height, width."""
+  ```
+
+  ## Evaluator code you can read
+
+  `nvs.py` (camera convention, view split, PSNR, SSIM), `stages.py`, `metrics.py`, `abench_metrics.py`,
+  `abench_stage.py`, `selfcheck.py`, the 3DGS baseline under `baselines/gs3d/` and the reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), gsplat, NumPy, SciPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 4.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/V-3DG-005
+    public:
+      - {path: sandbox/data/V-3DG-005/dev_bonsai.npz, sha256: pending}
+      - {path: sandbox/data/V-3DG-005/dev_flowers.npz, sha256: pending}
+      - {path: sandbox/data/V-3DG-005/dev_treehill.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/V-3DG-005/hidden.npz.enc, sha256_plain: pending, keys: "scene<i>_train_* (given before fit), scene<i>_test_K, _w2c, _hw (given after fit), scene<i>_test_images (evaluator only)"}
+    sources:
+      - name: "Mip-NeRF 360 dataset, parts 1 and 2 (360_v2.zip, 360_extra_scenes.zip)"
+        url: https://jonbarron.info/mipnerf360/
+        license: "not stated on the project page (research benchmark)"
+        verified: "2026-10-23: download URLs and the absence of a licence statement from the project page; files downloaded and hashed by the operator"
+  submission:
+    kind: code_only
+    entry: method.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, method.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and gsplat versions frozen at activation)"
+    seeds: [2308]
+    baseline: harness/baselines/gs3d

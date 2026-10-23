@@ -58,8 +58,8 @@ def oj_summary(cid: str) -> dict:
         "judge_metrics": ([judge["metrics"]] if isinstance(judge.get("metrics"), str) else list(judge.get("metrics") or [])),
         "judge_planned": judge.get("planned"), "handcrafted": bool(oj.get("handcrafted")),
         "standard": bool(oj.get("standard")), "activation": judge.get("activation"),
-        "task_statement": oj.get("task_statement"), "mode": oj.get("mode"),
-        "required_files": sub.get("required_files") or [], "knowledge_cutoff": oj.get("knowledge_cutoff"),
+        "task_statement": oj.get("task_statement"), "mode": oj.get("mode"), "template": oj.get("template"),
+        "required_files": sub.get("required_files") or [], "agent_budget": oj.get("agent_budget") or {},
         "checkpoint_max_bytes": sub.get("checkpoint_max_bytes"),
         "public_rows": sum(int(d.get("rows") or 0) for d in data.get("public") or []),
         "hidden_rows": int((data.get("hidden") or {}).get("rows") or 0),
@@ -160,8 +160,20 @@ def display_q(raw: dict) -> dict:
     return q
 
 
+def registry() -> dict:
+    """verify.csv rows by case id: the hand-maintained design and verification state shown in the case browser."""
+    import csv
+    p = ROOT / "verify.csv"
+    if not p.is_file():
+        return {}
+    keep = ("design", "mode", "device", "data_source", "ref_run", "ref_result", "data_frozen", "activation",
+            "review_tier", "review_note", "blockers", "next_step", "last_update")
+    return {r["case_id"]: {k: r.get(k, "") for k in keep} for r in csv.DictReader(open(p, newline="", encoding="utf-8"))}
+
+
 def main():
     index = yaml.safe_load((ROOT / "index.yaml").read_text(encoding="utf-8"))
+    reg = registry()
 
     # Keep the browser view honest about scaffold readiness.  The index status
     # describes the repository artifact (all current entries are ``scaffold``),
@@ -176,6 +188,7 @@ def main():
             item["readiness"] = (card or {}).get("readiness", "contract_only")
             item["anchor_status"] = (card or {}).get("status")
             item["oj"] = oj_summary(str(cid))
+            item["registry"] = reg.get(str(cid), {})
 
     # ---- paper snapshot (hero citation graph)
     snap = jl(CASE / "case/paper_snapshot/seed_neighborhood.jsonl") + jl(CASE / "case/paper_snapshot/resolver_cache.jsonl")
@@ -259,8 +272,25 @@ def main():
         "standard": standard_cases(index),
         "launch": {"case": "TC-FT-001", "script": "sandbox/run_local_claude_tc_ft_001.sh",
                    "steps": ["preflight", "key", "data", "mock", "agent", "judge"],
-                   "verified": "all six steps run in a cloud container with synthetic data and a stub claude CLI (2026-10-20)",
-                   "pending": "a run on the operator's Mac with the real claude CLI and the real AG News data"},
+                   "verified": "all six steps run in a cloud container with synthetic data and a stub claude CLI (2026-10-20); "
+                               "the runner and judge path calibrated end to end on 2026-10-23 (see Calibration runs)",
+                   "pending": "the real Yelp Review Full data (Hugging Face) and a run with the real claude CLI"},
+        "calibration": {
+            "date": "2026-10-23",
+            "runs": [
+                {"case": "TC-FT-001", "data": "synthetic (Yelp not reachable here)", "primary": "accuracy 1.000 [1.000, 1.000]",
+                 "agent": "train.py 2 s"},
+                {"case": "DS-PIPE-002", "data": "synthetic (OpenML not reachable here)",
+                 "primary": "mean accuracy 0.904 [0.896, 0.911]", "agent": "train.py 6 s"},
+                {"case": "FN-LTSF-005", "data": "real ETT + electricity",
+                 "primary": "MSE ratio 0.999 [0.993, 1.007]", "agent": "train.py --final 4.7 min"},
+            ],
+            "note": ("Code-only OJ calibration (sandbox/calibration/calibrate.sh): the case's reference submission is trained with "
+                     "its own train.py and judged by tools/oj_eval.py on the held-out split, with the submission's code "
+                     "running as abench-judge in a network namespace; no agent is involved. The record gives the base score "
+                     "of the case and its interval. Calibration runs are never scorable (synthetic data, or a case awaiting "
+                     "its data freeze)."),
+        },
         "reports": copy_reports(),
         "case": {
             "id": "B-OPT-001",

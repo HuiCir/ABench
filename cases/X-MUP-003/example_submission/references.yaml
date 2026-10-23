@@ -1,0 +1,43 @@
+schema: abench.references/v2
+references:
+- id: yang2022tp5
+  title: 'Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer'
+  authors: Greg Yang, Edward J. Hu, Igor Babuschkin, Szymon Sidor, Xiaodong Liu, David Farhi, Nick Ryder, Jakub
+    Pachocki, Weizhu Chen and Jianfeng Gao
+  year: 2022
+  venue: arXiv
+  arxiv: '2203.03466'
+  used_for: 'Anchor: μP for Adam (initialisation, learning rates, output multiplier, attention scale)'
+  code_location: 'param.py: MuP'
+- id: yang2021tp4
+  title: 'Tensor Programs IV: Feature Learning in Infinite-Width Neural Networks'
+  authors: Greg Yang and Edward J. Hu
+  year: 2021
+  venue: ICML
+  arxiv: '2011.14522'
+  used_for: Derivation of the maximal-update scaling
+  code_location: null
+- id: blake2024umup
+  title: 'u-μP: The Unit-Scaled Maximal Update Parametrization'
+  authors: Charlie Blake et al.
+  year: 2024
+  venue: arXiv
+  arxiv: '2407.17465'
+  used_for: Related work (unit scaling)
+  code_location: null
+- id: yang2023depthmup
+  title: 'Tensor Programs VI: Feature Learning in Infinite-Depth Neural Networks'
+  authors: Greg Yang, Dingli Yu, Chen Zhu and Soufiane Hayou
+  year: 2023
+  venue: arXiv
+  arxiv: '2310.02244'
+  used_for: Related work (depth scaling)
+  code_location: null
+- id: wortsman2023proxies
+  title: Small-scale proxies for large-scale Transformer training instabilities
+  authors: Mitchell Wortsman et al.
+  year: 2024
+  venue: ICLR
+  arxiv: '2309.14322'
+  used_for: Learning-rate sensitivity across scale
+  code_location: null

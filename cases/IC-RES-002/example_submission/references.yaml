@@ -1,0 +1,51 @@
+schema: abench.references/v2
+references:
+- id: he2016resnet
+  title: Deep Residual Learning for Image Recognition
+  authors: Kaiming He, Xiangyu Zhang, Shaoqing Ren and Jian Sun
+  year: 2016
+  venue: CVPR
+  arxiv: '1512.03385'
+  used_for: 'Anchor: ResNet-18 and ResNet-50'
+  code_location: 'model.py: ResNet, Basic, Bottleneck'
+- id: he2019bag
+  title: Bag of Tricks for Image Classification with Convolutional Neural Networks
+  authors: Tong He, Zhi Zhang, Hang Zhang, Zhongyue Zhang, Junyuan Xie and Mu Li
+  year: 2019
+  venue: CVPR
+  arxiv: '1812.01187'
+  used_for: ResNet-D shortcuts
+  code_location: 'model.py: shortcut'
+- id: goyal2017imagenet
+  title: 'Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour'
+  authors: Priya Goyal, Piotr Dollár, Ross Girshick, Pieter Noordhuis, Lukasz Wesolowski, Aapo Kyrola, Andrew Tulloch,
+    Yangqing Jia and Kaiming He
+  year: 2017
+  venue: arXiv
+  arxiv: '1706.02677'
+  used_for: Zero-initialised residual branches
+  code_location: 'model.py: Basic, Bottleneck, ResNet.__init__'
+- id: sandler2018mobilenetv2
+  title: 'MobileNetV2: Inverted Residuals and Linear Bottlenecks'
+  authors: Mark Sandler, Andrew Howard, Menglong Zhu, Andrey Zhmoginov and Liang-Chieh Chen
+  year: 2018
+  venue: CVPR
+  arxiv: '1801.04381'
+  used_for: Related work
+  code_location: null
+- id: tan2019efficientnet
+  title: 'EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks'
+  authors: Mingxing Tan and Quoc V. Le
+  year: 2019
+  venue: ICML
+  arxiv: '1905.11946'
+  used_for: Related work
+  code_location: null
+- id: liu2022convnext
+  title: A ConvNet for the 2020s
+  authors: Zhuang Liu, Hanzi Mao, Chao-Yuan Wu, Christoph Feichtenhofer, Trevor Darrell and Saining Xie
+  year: 2022
+  venue: CVPR
+  arxiv: '2201.03545'
+  used_for: Related work
+  code_location: null

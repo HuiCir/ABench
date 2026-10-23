@@ -12,7 +12,7 @@ Each row corresponds to a known or foreseeable way of gaming the score.
 | 6 | Read the validation set or loss signals | The update-rule signature receives only (params, grads, step, state); the sandbox has no network and training data is mounted read-only | harness |
 | 7 | Cherry-pick seeds | Run by the benchmark operator with fixed, multiple seeds; seed variance gives a lower bound on speedup | S5 |
 | 8 | Pad with highly cited papers to inflate "reference quality" | Judges rate usage per entry (core/partial/decorative), decorative citations count 0; only the top 8 count; saturating aggregation | S5 Q |
-| 9 | Fabricate or cite post-cutoff papers | Source resolution + first-release date check, each violation multiplies by 0.8; the retrieval tools already block post-cutoff papers | S1, S5 |
+| 9 | Fabricate sources | Source resolution check, each violation multiplies by 0.8 | S1, S5 |
 | 10 | Sacrifice generalization for in-distribution loss | OOD loss (wikitext, code) degrading by more than 1% fails | S5 threshold |
 | 11 | Bring a custom scheduler to bypass the shared schedule | Allowed, but must be declared via `owns_schedule=True`, and the benchmark operator gives Schedule-Free in the reference pool the same treatment | harness |
 | 12 | Hide training collapse with restarts/gradient clipping | Shared gradient-clipping threshold; loss spikes (> 1.5× the mean of the previous 100 steps) are reported, NaN fails outright | S4 |

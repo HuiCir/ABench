@@ -1,7 +1,0 @@
-discoveries:
-  - module: confidence_gated_sign
-    problem: "Lion's sign uses the same magnitude for weak noise and strong signals, so updates jitter when directions flip on the fixed stream."
-    source: {id: "arXiv:2407.07972", year: 2024, field: ml}
-    transferred: "Add a finite-primitive confidence gate |z|/(|z|+tau) after sign, with z extrapolated from fast and slow EMAs."
-    code: "optimizer.py: the four lines z, confidence, gate, u"
-    ablation_fallback: "Remove confidence and fall back to sign(z)"

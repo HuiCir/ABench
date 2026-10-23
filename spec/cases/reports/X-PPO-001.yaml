@@ -1,0 +1,134 @@
+case: X-PPO-001
+title: 'PPO with Bootstrapped Time Limits, Parallel Rollouts and KL Early Stopping'
+abstract: >-
+  This submission is the clipped-surrogate PPO of the anchor [@schulman2017ppo] in the configuration that CleanRL
+  documents for continuous control [@huang2022cleanrl], with three changes. Episodes cut by the time limit are
+  bootstrapped with the value of their final observation instead of being treated as terminal [@pardo2018timelimits];
+  rollouts are collected from 8 parallel environments of 256 steps instead of one environment of 2,048; and each update
+  stops its epochs early once the approximate KL divergence to the rollout policy exceeds 0.02. It has not been run
+  yet: it needs PyTorch, which was not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Policy-gradient methods for continuous control are judged at a fixed number of environment steps, where both
+    sample efficiency and stability across seeds matter. PPO [@schulman2017ppo] became the default because its clipped
+    surrogate allows several epochs of minibatch updates per rollout without a second-order trust-region step
+    [@schulman2015trpo]. Its performance depends on implementation details that are often undocumented
+    [@engstrom2020implementation; @andrychowicz2021matters].
+- title: Related Work
+  paras:
+  - >-
+    Generalised advantage estimation [@schulman2016gae] supplies PPO's advantages. Large empirical studies isolated
+    the choices that matter for on-policy methods: observation normalisation, advantage normalisation, the network
+    initialisation and the handling of time limits [@engstrom2020implementation; @andrychowicz2021matters]. Pardo et
+    al. showed that treating a time-limit cut as a terminal state biases the value targets [@pardo2018timelimits].
+    Off-policy actor-critic methods such as SAC [@haarnoja2018sac] are usually more sample-efficient on these tasks
+    and are a natural alternative for entries.
+- title: Method
+  subsections:
+  - title: Baseline configuration
+    paras:
+    - >-
+      Tanh MLPs with two hidden layers of 64 units for policy mean and value, a state-independent log standard deviation,
+      orthogonal initialisation, running observation normalisation clipped at 10, rewards scaled by the running standard
+      deviation of the discounted return, Adam at 3e-4 annealed linearly, γ = 0.99, GAE λ = 0.95, clip 0.2, 10 epochs of
+      32 minibatches, value coefficient 0.5 and gradient norm 0.5 [@huang2022cleanrl].
+  - title: Changes
+    paras:
+    - >-
+      When an environment reaches its episode limit, the temporal-difference target of the last step uses γ·V(s_final)
+      computed from `env.final_obs`, and the GAE recursion still stops there. Rollouts come from 8 environments of 256
+      steps (2,048 samples per update, as before). Within an update, the mean approximate KL divergence of each epoch is
+      tracked and the remaining epochs are skipped once it exceeds 0.02.
+    algorithm_caption: Target of step t for one environment
+    algorithm:
+    - if terminated, target ← r_t
+    - else if truncated, target ← r_t + γ · V(final observation)
+    - else target ← r_t + γ · V(s_{t+1}); GAE accumulates only while not done
+- title: Design Rationale
+  paras:
+  - >-
+    Pendulum never terminates, so every episode end is a time limit; treating it as terminal teaches the critic that
+    the value drops to zero after 200 steps, which corrupts the advantages of late steps. Parallel environments reduce
+    the correlation within a batch at the same sample count, and KL early stopping caps how far the late epochs can move
+    the policy when the clipped objective no longer constrains it.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The method remains on-policy: each sample is used for one update only, which limits sample efficiency at 200,000
+    steps; exploration is plain Gaussian noise, which is weak on the sparse-reward Mountain Car; and the changes have
+    not been run yet.
+references:
+- id: schulman2017ppo
+  title: Proximal Policy Optimization Algorithms
+  authors: John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford and Oleg Klimov
+  year: 2017
+  venue: arXiv
+  arxiv: '1707.06347'
+  used_for: 'Anchor: clipped surrogate objective'
+  code_location: 'src/ppo_core.py: train'
+- id: schulman2015trpo
+  title: Trust Region Policy Optimization
+  authors: John Schulman, Sergey Levine, Philipp Moritz, Michael I. Jordan and Pieter Abbeel
+  year: 2015
+  venue: ICML
+  arxiv: '1502.05477'
+  used_for: Related work (trust regions)
+  code_location: null
+- id: schulman2016gae
+  title: High-Dimensional Continuous Control Using Generalized Advantage Estimation
+  authors: John Schulman, Philipp Moritz, Sergey Levine, Michael Jordan and Pieter Abbeel
+  year: 2016
+  venue: ICLR
+  arxiv: '1506.02438'
+  used_for: Advantage estimation
+  code_location: 'src/ppo_core.py: train (GAE loop)'
+- id: pardo2018timelimits
+  title: Time Limits in Reinforcement Learning
+  authors: Fabio Pardo, Arash Tavakoli, Vitaly Levdik and Petar Kormushev
+  year: 2018
+  venue: ICML
+  arxiv: '1712.00378'
+  used_for: Bootstrapping at time limits
+  code_location: 'src/ppo_core.py: train (bootstrap_truncation)'
+- id: huang2022cleanrl
+  title: 'CleanRL: High-quality Single-file Implementations of Deep Reinforcement Learning Algorithms'
+  authors: Shengyi Huang, Rousslan Fernand Julien Dossa, Chang Ye, Jeff Braga, Dipam Chakraborty, Kinal Mehta and João G. M. Araújo
+  year: 2022
+  venue: JMLR
+  arxiv: '2111.08819'
+  used_for: Baseline configuration
+  code_location: 'src/ppo_core.py'
+- id: engstrom2020implementation
+  title: 'Implementation Matters in Deep Policy Gradients: A Case Study on PPO and TRPO'
+  authors: Logan Engstrom, Andrew Ilyas, Shibani Santurkar, Dimitris Tsipras, Firdaus Janoos, Larry Rudolph and Aleksander Madry
+  year: 2020
+  venue: ICLR
+  arxiv: '2005.12729'
+  used_for: Implementation details
+  code_location: null
+- id: andrychowicz2021matters
+  title: 'What Matters In On-Policy Reinforcement Learning? A Large-Scale Empirical Study'
+  authors: Marcin Andrychowicz, Anton Raichuk, Piotr Stańczyk, Manu Orsini, Sertan Girgin, Raphael Marinier, Léonard Hussenot, Matthieu Geist, Olivier Pietquin, Marcin Michalski, Sylvain Gelly and Olivier Bachem
+  year: 2021
+  venue: ICLR
+  arxiv: '2006.05990'
+  used_for: Implementation details
+  code_location: null
+- id: haarnoja2018sac
+  title: 'Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor'
+  authors: Tuomas Haarnoja, Aurick Zhou, Pieter Abbeel and Sergey Levine
+  year: 2018
+  venue: ICML
+  arxiv: '1801.01290'
+  used_for: Related work (off-policy alternative)
+  code_location: null
+changes:
+- text: Time-limit truncations are bootstrapped with the value of the final observation instead of being treated as
+    terminal states.
+  code: 'src/ppo_core.py: train (bootstrap_truncation)'
+- text: Rollouts come from 8 parallel environments of 256 steps instead of one environment of 2,048 steps.
+  code: 'agent.py: train'
+- text: Each update stops its epochs early when the mean approximate KL divergence exceeds 0.02.
+  code: 'src/ppo_core.py: train (target_kl)'

@@ -1,0 +1,51 @@
+schema: abench.references/v2
+references:
+- id: rafailov2023dpo
+  title: 'Direct Preference Optimization: Your Language Model is Secretly a Reward Model'
+  authors: Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning and Chelsea Finn
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.18290'
+  used_for: 'Anchor: the objective'
+  code_location: 'train.py: main'
+- id: hu2022lora
+  title: 'LoRA: Low-Rank Adaptation of Large Language Models'
+  authors: Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang and Weizhu
+    Chen
+  year: 2022
+  venue: ICLR
+  arxiv: '2106.09685'
+  used_for: Low-rank updates
+  code_location: src/lora.py
+- id: cui2024ultrafeedback
+  title: 'UltraFeedback: Boosting Language Models with Scaled AI Feedback'
+  authors: Ganqu Cui et al.
+  year: 2024
+  venue: ICML
+  arxiv: '2310.01377'
+  used_for: The preference pairs
+  code_location: null
+- id: azar2024ipo
+  title: A General Theoretical Paradigm to Understand Learning from Human Preferences
+  authors: Mohammad Gheshlaghi Azar et al.
+  year: 2024
+  venue: AISTATS
+  arxiv: '2310.12036'
+  used_for: Related work
+  code_location: null
+- id: meng2024simpo
+  title: 'SimPO: Simple Preference Optimization with a Reference-Free Reward'
+  authors: Yu Meng, Mengzhou Xia and Danqi Chen
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2405.14734'
+  used_for: Related work
+  code_location: null
+- id: dubois2024lcae
+  title: 'Length-Controlled AlpacaEval: A Simple Way to Debias Automatic Evaluators'
+  authors: Yann Dubois, Balázs Galambosi, Percy Liang and Tatsunori B. Hashimoto
+  year: 2024
+  venue: COLM
+  arxiv: '2404.04475'
+  used_for: Length control
+  code_location: null

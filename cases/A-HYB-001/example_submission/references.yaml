@@ -1,0 +1,51 @@
+schema: abench.references/v2
+references:
+- id: gu2023mamba
+  title: 'Mamba: Linear-Time Sequence Modeling with Selective State Spaces'
+  authors: Albert Gu and Tri Dao
+  year: 2023
+  venue: arXiv
+  arxiv: '2312.00752'
+  used_for: 'Anchor: linear-time mixers'
+  code_location: null
+- id: arora2023zoology
+  title: 'Zoology: Measuring and Improving Recall in Efficient Language Models'
+  authors: Simran Arora, Sabri Eyuboglu, Aman Timalsina, Isys Johnson, Michael Poli, James Zou, Atri Rudra and Christopher
+    Ré
+  year: 2023
+  venue: arXiv
+  arxiv: '2312.04927'
+  used_for: Associative recall and MQAR
+  code_location: null
+- id: lieber2024jamba
+  title: 'Jamba: A Hybrid Transformer-Mamba Language Model'
+  authors: Opher Lieber et al.
+  year: 2024
+  venue: arXiv
+  arxiv: '2403.19887'
+  used_for: Related work (hybrid layouts)
+  code_location: null
+- id: beltagy2020longformer
+  title: 'Longformer: The Long-Document Transformer'
+  authors: Iz Beltagy, Matthew E. Peters and Arman Cohan
+  year: 2020
+  venue: arXiv
+  arxiv: '2004.05150'
+  used_for: Local attention windows combined with global attention
+  code_location: 'src/local_attention.py: LocalAttention'
+- id: gemma2024gemma2
+  title: 'Gemma 2: Improving Open Language Models at a Practical Size'
+  authors: Gemma Team
+  year: 2024
+  venue: arXiv
+  arxiv: '2408.00118'
+  used_for: Interleaving local and global attention layers
+  code_location: 'model.py: build'
+- id: yang2023gla
+  title: Gated Linear Attention Transformers with Hardware-Efficient Training
+  authors: Songlin Yang, Bailin Wang, Yikang Shen, Rameswar Panda and Yoon Kim
+  year: 2023
+  venue: arXiv
+  arxiv: '2312.06635'
+  used_for: Related work (linear-time mixers)
+  code_location: null

@@ -1,11 +1,30 @@
-# LG-LONG-001 harness contract
+# LG-LONG-001 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+LG-LONG-001 pipeline: multi-label classification of long European Court of Human Rights cases (LexGLUE ECtHR task A;
+evaluator and self-check use this same file).
+
+The evaluator does not train. One stage, "predict" (the frozen legal-bert-base-uncased is available):
+  timed   import model.py, load(checkpoint_dir, models_dir, device) -> model                 (load time, killed at 300 s)
+  finish  predict(model, texts) -> (M, 10) 0/1 decisions for the 10 articles, on the held-out cases       (≤ 600 s)
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/model.py`
+- `baseline/train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+- `textpack.py`
+
+The held-out data, keys and judge configuration are never in this directory.

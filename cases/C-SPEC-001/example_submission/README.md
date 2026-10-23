@@ -1,3 +1,3 @@
-# Example submission contract — C-SPEC-001
+# C-SPEC-001 reference submission
 
-No executable or simulated baseline is included. A real submission must provide `submission_manifest.yaml`, implementation files required by the task, and reproducibility hashes.
+`model.py`: speculative decoding with the provided 0.5B draft, greedy verification and an adaptive draft length; `train.py` only writes the settings to `checkpoint/`. Design report: `report/index.html`; references: `references.yaml`.

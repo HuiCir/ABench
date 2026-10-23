@@ -9,29 +9,29 @@ reference_verification: 'Not executed yet: the stage code and reference submissi
   available where the case was built; the operator runs them at activation.'
 n_seeds: 1
 task: |
-  Design a **parameter-efficient fine-tuning method** for the frozen encoder roberta-base that, with **at most 1,000,000 task-specific parameters per task** (everything that is not the frozen base, including any head), reaches the **highest average score on four GLUE tasks** (RTE, MRPC, CoLA, SST-2). Develop and train it on one 24GB GPU in the sandbox, then submit the trained task-specific tensors.
+  Design a **parameter-efficient fine-tuning method** for the frozen encoder roberta-base that, with **at most 1,000,000 task-specific parameters per task** (everything that is not the frozen base, including any head), reaches the **highest average score on four GLUE tasks** (SST-2, CoLA, MNLI, QNLI). Develop and train it on one 24GB GPU in the sandbox, then submit the trained task-specific tensors.
 
   - Submit your model code (`peft.py`), the trained checkpoint `checkpoint/states.pt` (per task, only its task-specific tensors) and the training program that produced it. The evaluator gives each task's tensors to your `predict()` together with the frozen base model and the held-out sentences; it never retrains.
   - The base weights may not be changed or stored: only the tensors in `states.pt` carry information from training to prediction, and they count against the cap.
-  - You may build on any public work from before the cutoff (LoRA and its variants, adapters, prefix and prompt tuning, (IA)³, BitFit, weight-decomposed or orthogonal adaptation), but the design report must state what you borrowed and what you changed.
+  - You may build on any public work (LoRA and its variants, adapters, prefix and prompt tuning, (IA)³, BitFit, weight-decomposed or orthogonal adaptation), but the design report must state what you borrowed and what you changed.
 data: |
   `$ABENCH_DATA_DIR/glue_train.npz` (read-only), the training splits of four GLUE tasks (Hugging Face `nyu-mll/glue`):
 
-  | Task | Keys | Labels |
-  |---|---|---|
-  | RTE | `rte_sentence1`, `rte_sentence2`, `rte_label` | 0 entailment, 1 not entailment |
-  | MRPC | `mrpc_sentence1`, `mrpc_sentence2`, `mrpc_label` | 1 paraphrase |
-  | CoLA | `cola_sentence`, `cola_label` | 1 acceptable |
-  | SST-2 | `sst2_sentence`, `sst2_label` | 1 positive |
+  | Task | Text columns | Labels | Training rows |
+  |---|---|---|---|
+  | SST-2 | `sst2_sentence` | `sst2_label`: 1 positive | 67,349 |
+  | CoLA | `cola_sentence` | `cola_label`: 1 acceptable | 8,551 |
+  | MNLI | `mnli_premise`, `mnli_hypothesis` | `mnli_label`: 0 entailment, 1 neutral, 2 contradiction | 392,702 |
+  | QNLI | `qnli_question`, `qnli_sentence` | `qnli_label`: 0 entailment, 1 not entailment | 104,743 |
 
-  Each task also has `<task>_dev_idx` (10% per class, used only by `selfcheck.py`). `$ABENCH_MODELS_DIR/roberta-base/` holds the frozen encoder and tokenizer (Hugging Face `FacebookAI/roberta-base`, MIT). The held-out sets are the official GLUE validation splits (the test labels are not public); they are not in the sandbox.
+  Each text column `<task>_<column>` is stored packed as `<task>_<column>_utf8` (uint8) and `<task>_<column>_offsets` (int64, rows + 1): row i is `utf8[offsets[i]:offsets[i + 1]]` decoded as UTF-8; `interface/textpack.py` has `unpack()`. Each task also has `<task>_dev_idx` (10% per class, used only by `selfcheck.py`). `$ABENCH_MODELS_DIR/roberta-base/` holds the frozen encoder and tokenizer (Hugging Face `FacebookAI/roberta-base`, MIT). The held-out sets are the official GLUE validation splits (SST-2 872, CoLA 1,043, MNLI matched 9,815, QNLI 5,463; the test labels are not public); they are not in the sandbox.
 interface: 'Implement `predict(models_dir, task, state, sentence1, sentence2, device) -> labels` in `peft.py` (`sentence2`
-  is `None` for CoLA and SST-2) and write a `train.py` that saves `{task: {name: tensor}}` to `checkpoint/states.pt` with
-  `torch.save`.'
+  is `None` for SST-2 and CoLA; for MNLI and QNLI the two text columns are passed in table order) and write a `train.py` that
+  saves `{task: {name: tensor}}` to `checkpoint/states.pt` with `torch.save`.'
 metrics: |
   | Metric | Definition | Requirement |
   |---|---|---|
-  | **GLUE average** (primary) | Mean over the four tasks of the GLUE validation metric — RTE accuracy, MRPC mean of accuracy and F1, CoLA Matthews correlation, SST-2 accuracy; higher is better | — |
+  | **GLUE average** (primary) | Mean over the four tasks of the GLUE validation metric — SST-2 accuracy, CoLA Matthews correlation, MNLI-matched accuracy, QNLI accuracy; higher is better | — |
   | Per-task metrics | Each task's metric | reported |
   | Task-specific parameters | Elements of all tensors stored for a task in `states.pt`; the largest over tasks | Threshold: ≤ 1,000,000 |
   | Load time | Seconds from the start signal until `states.pt` is loaded and `peft.py` imported | reported (killed at 180 s) |
@@ -39,16 +39,17 @@ metrics: |
   **Timing and decision**
 
   - Evaluation runs in a new process with empty caches (`interface/abench_stage.py`), with `states.pt` loaded by the evaluator (`torch.load(..., weights_only=True)`). Prediction of all four validation splits must finish within 600 s.
-  - A submission is valid only if the parameter threshold holds and `checkpoint/` contains nothing but `states.pt`; valid submissions are ranked by GLUE average.
+  - A submission is valid only if the parameter threshold holds and `checkpoint/` contains nothing but `states.pt`; valid submissions are ranked by GLUE average. Differences inside the 95% interval reported with the score are treated as ties.
   - If loading or prediction crashes, exceeds a time limit, or `states.pt` holds something other than named tensors per task, or labels have the wrong length, the submission is invalid.
   - The final ABench score is driven mainly by the GLUE average, and also considers how different the method is from existing PEFT methods and the quality of the sources cited in the design report; the exact weights are not published.
 hardware:
   kind: gpu
-  session_hours: 4
-  dev_budget: 3 GPU-hours
+  session_hours: 5
+  dev_budget: 5 GPU-hours (the whole session on one GPU)
   software: Python 3, PyTorch (CUDA, Triton), NumPy, and Hugging Face transformers, tokenizers and safetensors (versions frozen
     at activation; offline)
   notes: |
+    - MNLI is large (392,702 pairs): one epoch at batch 32 (as in `interface/baseline/train.py`) is about 12,000 steps; plan the budget across tasks.
     - Load the base only from `models_dir + "/roberta-base"`; `HF_HUB_OFFLINE=1` is set.
     - Anything you need at prediction time beyond the frozen base (classifier heads, adapter weights, learned prompts, statistics) must be among the tensors in `states.pt`.
     - The self-check scores your `states.pt` on the dev rows (`<task>_dev_idx`). Leave them out of training (the reference `train.py` does by default) for an unbiased estimate; you may include them in the final checkpoint.
@@ -80,7 +81,7 @@ interface_md: |
       """Rebuild the model from the frozen base and `state` (this task's entry of checkpoint/states.pt, on CPU)
       and return int labels (len(sentence1),).
 
-      task in ("rte", "mrpc", "cola", "sst2"); models_dir contains roberta-base/ (frozen)
+      task in ("sst2", "cola", "mnli", "qnli"); MNLI has 3 labels, the others 2; models_dir contains roberta-base/ (frozen)
       """
   ```
 
@@ -89,7 +90,7 @@ interface_md: |
 
   ## Training program: `train.py`
 
-  Write a `train.py` that produces `checkpoint/` from the files in `$ABENCH_DATA_DIR` (`glue_train.npz`: `<task>_<column>`, `<task>_label` and `<task>_dev_idx`) and `$ABENCH_MODELS_DIR/roberta-base`; it must save `{task: {name: torch.Tensor}}` to `checkpoint/states.pt`, for example
+  Write a `train.py` that produces `checkpoint/` from the files in `$ABENCH_DATA_DIR` (`glue_train.npz`: packed `<task>_<column>` texts, `<task>_label` and `<task>_dev_idx`) and `$ABENCH_MODELS_DIR/roberta-base`; it must save `{task: {name: torch.Tensor}}` to `checkpoint/states.pt`, for example
   `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`. The evaluator does not run it;
   it is kept with the submission so the checkpoint can be audited and reproduced. The reference implementation under
   `interface/baseline/` (its `peft.py` and `train.py`) is a working starting point you may improve on or replace.
@@ -97,15 +98,15 @@ interface_md: |
   ## Evaluator code you can read
 
   `stages.py` (the evaluation stage, the dev split, time limits), `metrics.py` and `abench_metrics.py` (GLUE metrics),
-  `abench_stage.py` (process and timing protocol) and `selfcheck.py`.
+  `abench_stage.py` (process and timing protocol), `textpack.py` (packed texts) and `selfcheck.py`.
 
   ## Available software
 
   Python 3, PyTorch (CUDA, Triton), NumPy, transformers, tokenizers, safetensors (offline). Nothing can be installed.
 oj:
   agent_budget:
-    gpu_hours: 3.0
-    session_hours: 4.0
+    gpu_hours: 5.0
+    session_hours: 5.0
   data:
     public_dir: sandbox/data/X-LORA-004
     public:
@@ -114,7 +115,7 @@ oj:
     hidden:
       path: sandbox/hidden/X-LORA-004/hidden.npz.enc
       sha256_plain: pending
-      keys: <task>_<column> and <task>_label of the validation splits
+      keys: packed <task>_<column> texts and <task>_label of the validation splits (MNLI validation_matched)
     models_dir: sandbox/models/X-LORA-004
     models:
     - name: roberta-base
@@ -123,11 +124,13 @@ oj:
       revision: e2da8e2f811d1448a5b465c236feacd80ffbac7b
       license: MIT
     sources:
-    - name: 'GLUE (Wang et al. 2019), Hugging Face nyu-mll/glue: rte, mrpc, cola, sst2'
+    - name: 'GLUE (Wang et al. 2019), Hugging Face nyu-mll/glue: sst2, cola, mnli, qnli'
       url: https://huggingface.co/datasets/nyu-mll/glue
       revision: bcdcba79d07bc864c1c254ccfcedcce55bcc9a8c
-      license: per-task terms; the dataset card lists 'other' (research use)
-      verified: '2026-10-19: revision, config names and parquet paths of the four tasks from the Hugging Face API'
+      license: per-task terms; the dataset card lists 'other' (research use); QNLI derives from SQuAD (CC BY-SA 4.0)
+      verified: '2026-10-19: revision and parquet paths of sst2 and cola; 2026-10-21: mnli/train, mnli/validation_matched,
+        qnli/train and qnli/validation parquet paths and LFS sha256 at this revision from the Hugging Face API tree'
+      replaces: 'RTE and MRPC (2026-10-21 audit: 277 and 408 validation examples, noise larger than method differences)'
     - name: roberta-base, Hugging Face FacebookAI/roberta-base
       url: https://huggingface.co/FacebookAI/roberta-base
       revision: e2da8e2f811d1448a5b465c236feacd80ffbac7b
@@ -162,3 +165,5 @@ oj:
     seeds:
     - 2106
 mode: checkpoint
+extra_interface:
+- harness/textpack.py

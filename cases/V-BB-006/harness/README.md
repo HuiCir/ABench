@@ -1,11 +1,33 @@
-# V-BB-006 harness contract
+# V-BB-006 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+V-BB-006 pipeline: the evaluator trains your vision-transformer backbone at two compute budgets on Imagenette with a fixed
+recipe and measures test accuracy (evaluator and self-check use this same file).
+
+For each variant v in VARIANTS ("small", "large"), one stage "train_<v>" (imports model.py):
+  setup   load the training images (untimed)
+  timed   build(v, num_classes=10) with the seed; train with RECIPE (img_train.py:
+          AdamW, warm-up and cosine decay, label smoothing, clipping, random resized crops and flips at 160 pixels)
+  finish  forward FLOPs per image at 160 pixels (FlopCounterMode) against the variant's budget; the test images arrive
+          (held_out.npz) and their logits are returned
+The evaluator runs the ViT baseline (baselines/vit: ViT-Ti/16 and ViT-S/16) through the same stages and seeds.
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baselines/vit/model.py`
+- `img_train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

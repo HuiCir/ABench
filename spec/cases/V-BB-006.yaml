@@ -1,0 +1,121 @@
+id: V-BB-006
+title: "A vision-transformer backbone for small data at two compute budgets (Imagenette, 160 pixels, 30 epochs)"
+template: V-BB-006
+anchor: {authors: "Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby", title: "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale", arxiv: "2010.11929"}
+baseline: "ViT-Ti/16 (small budget) and ViT-S/16 (large budget), run by the evaluator under the same recipe (`interface/baselines/vit/`)"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, recipe), the evaluator also trains ViT-Ti/16 and ViT-S/16 from `interface/baselines/vit/` and reports your accuracies relative to them."
+reference_verification: "Not executed yet: the stage code, baseline and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The forward FLOPs at 160 pixels were computed analytically: baseline 1.20 G and 4.54 G, reference 1.27 G and 4.51 G (its large variant drops one block to pay for the convolutional stem), within the budgets of 1.4 G and 4.8 G. The Imagenette archive is pinned by fastai's own size and first-MiB md5."
+mode: judge_trains
+n_seeds: 3
+kit_extra:
+  - vision/img_train.py
+extra_interface:
+  - harness/baselines/vit/model.py
+task: |
+  Design a **vision-transformer backbone** that, trained from scratch by the evaluator for 30 epochs on the 9,469 training images of Imagenette at 160 pixels, reaches the **highest test accuracy at two compute budgets**: at most 1.4 GFLOPs and at most 4.8 GFLOPs per image (ViT-Ti/16 and ViT-S/16 sizes). Transformers lack the inductive biases of convolutions, which matters at this data size.
+
+  - Submit code only (`model.py` with `build(variant, num_classes)` for `"small"` and `"large"`). At evaluation the evaluator trains each variant with the same fixed recipe, once for each of 3 seeds unknown to you, then classifies the 3,925 held-out test images. It trains the ViT baselines the same way.
+  - The evaluator measures each variant's forward FLOPs on one 160 × 160 image (FlopCounterMode); a variant above its budget makes the submission invalid. Parameters are reported, not limited.
+  - The primary metric is the mean of the two accuracies — two points of the accuracy–FLOPs curve.
+  - This is a calibration task with a mature anchor; improvements must hold at both budgets. You may build on any public work (data-efficient training of transformers, hybrid stems, token pooling, position encodings, attention variants), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/train.npz` (read-only): the training split of Imagenette (fastai, the 160-pixel release of December 2019; 10 ImageNet classes), centre-cropped to 160 × 160.
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `x` | (9469, 160, 160, 3) | uint8 | RGB images |
+  | `y` | (9469,) | int64 | Class 0–9 (WordNet ids in sorted order: tench, English springer, cassette player, chain saw, church, French horn, garbage truck, gas pump, golf ball, parachute) |
+
+  The held-out set is the official validation split (3,925 images); it is not in the sandbox. The self-check holds out 150 training images per class.
+interface: "Implement `build(variant, num_classes=10) -> nn.Module` in `model.py`; `variant` is `\"small\"` or `\"large\"`. The module maps normalised images (B, 3, 160, 160) to logits (B, 10). Training, augmentation and evaluation are the evaluator's (`interface/img_train.py`)."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean accuracy** (primary) | Test accuracy of the small and the large variant on the 3,925 held-out images, averaged over the two variants and the 3 seeds; higher is better | — |
+  | Accuracy per variant | The same per variant; differences to ViT-Ti/16 and ViT-S/16 | reported |
+  | Compute | Forward FLOPs per 160 × 160 image divided by the variant's budget (1.4 G, 4.8 G), the larger of the two | Threshold: ≤ 1.0 |
+  | Parameters | Per variant | reported |
+  | Training time | Seconds of one variant's training (parent clock), the larger | Threshold: ≤ 2,400 s |
+  | Divergence | 1 if a training loss became non-finite | Threshold: 0 |
+
+  **Fixed recipe** (`interface/img_train.py`, `interface/stages.py`): 30 epochs, batches of 128, AdamW (β = 0.9, 0.999) with peak learning rate 1e-3, five warm-up epochs then cosine decay, weight decay 0.05 on weights with more than one dimension, gradient clipping at 1.0, label smoothing 0.1, bf16 autocast; augmentation is a random resized crop (35–100% of the area, aspect 3/4–4/3) to 160 pixels and a horizontal flip; test images are used at 160 pixels.
+
+  **Decision**
+
+  - A submission is valid only if every threshold holds for the 3-seed means; valid submissions are ranked by mean accuracy. Differences inside the 95% interval over test images reported with the score are treated as ties.
+  - If any run crashes or exceeds a time limit (a stage is killed at 2,520 s), the whole submission is invalid.
+  - The final ABench score is driven mainly by mean accuracy relative to the baseline, and also considers how different the backbone is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 5
+  dev_budget: "5 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy"
+  notes: |
+    - No vision library is installed; the baseline shows a complete ViT in plain PyTorch.
+    - `selfcheck.py --quick` trains both variants for 2 epochs on the self-check split and prints accuracy and FLOPs.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: build(variant, num_classes)
+    ├── src/                # optional: other .py modules imported by model.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total; no trained parameters.
+rules: |
+  - The backbone must be a vision transformer: after the stem, every block must mix tokens by self-attention (convolutions are allowed only in the stem, at most a quarter of the forward FLOPs); checked by inspecting `model.py` and `src/`.
+  - The backbone must be built from `build()` alone and trained by the evaluator; no pretrained weights, files or network access.
+  - All computation must use PyTorch operators that the FLOP counter sees (no custom Triton or CUDA kernels).
+  - The model must not change the recipe, the augmentation or the data (for example by training itself inside `forward`).
+interface_md: |
+  # V-BB-006 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  import torch.nn as nn
+
+  def build(variant: str, num_classes: int = 10) -> nn.Module:
+      """variant "small" (≤ 1.4 GFLOPs) or "large" (≤ 4.8 GFLOPs) per 160 x 160 image; logits (B, num_classes)."""
+  ```
+
+  - Inputs are normalised with ImageNet statistics, channels-last, bf16 autocast during training and evaluation.
+  - FLOPs are counted by `torch.utils.flop_counter.FlopCounterMode` on one image in eval mode (convolutions and
+    matrix multiplications; normalisation and activations are not counted).
+
+  ## Evaluator code you can read
+
+  `img_train.py` (recipe, augmentation, prediction, FLOP count), `stages.py`, `metrics.py`, `baselines/vit/model.py`,
+  `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 5.0, session_hours: 5}
+  data:
+    public_dir: sandbox/data/V-BB-006
+    public:
+      - {path: sandbox/data/V-BB-006/train.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/V-BB-006/hidden.npz.enc, sha256_plain: pending, keys: [x_test, y_test]}
+    sources:
+      - name: "Imagenette, 160-pixel release (fastai), imagenette2-160.tgz"
+        url: https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-160.tgz
+        revision: "2019-12 release; size 99,003,388 bytes, md5 of the first MiB c475f8f7617a200ba35b9facc48443c3 (fastai/data/download_checks.py @ 46231bdc)"
+        license: "Apache-2.0 (github.com/fastai/imagenette @ ba8db395, LICENSE); the images are a subset of ImageNet"
+        verified: "2026-10-22: fastai/imagenette cloned (README download links, licence, 9,469 / 3,925 split from noisy_imagenette.csv) and fastai's checksum entry read at commit 46231bdc"
+  submission:
+    kind: code_only
+    entry: model.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, model.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [2010, 11929, 2021]          # kept secret by the operator
+    baseline: harness/baselines/vit
+    code_audit: "the operator checks that the backbone is a vision transformer (convolutions only in the stem)"

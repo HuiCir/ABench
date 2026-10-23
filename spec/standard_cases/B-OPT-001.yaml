@@ -2,7 +2,7 @@ id: B-OPT-001
 title: "An optimizer for small language-model pretraining"
 anchor: {authors: "Diederik P. Kingma, Jimmy Ba", title: "Adam: A Method for Stochastic Optimization", arxiv: "1412.6980"}
 baseline: "AdamW (Loshchilov & Hutter 2019), run by the evaluator under identical conditions (`interface/baselines/adamw/`)"
-baseline_run: "Under exactly the same conditions (hardware, seeds, data, schedule), the evaluator also trains the model with the AdamW baseline in `interface/baselines/adamw/` and reports your loss and step time relative to it."
+baseline_run: 'Under exactly the same conditions (hardware, seeds, data, schedule), the evaluator also trains the model with the AdamW baseline in `interface/baselines/adamw/` and reports your loss and step time relative to it. AdamW is tuned, not left at its defaults: before activation the operator sweeps its peak learning rate over {1e-3, 2e-3, 3e-3, 4.5e-3, 6e-3} and weight decay over {0.05, 0.1} with the same schedule on the self-check split and freezes the best pair in `interface/baselines/adamw/hparam_space.yaml`; until then the values shown there (3e-3, 0.1) are placeholders.'
 reference_verification: "Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation. The baseline and example update rules were run on NumPy arrays through optim_api.Ops; the PyTorch training loop has not run."
 mode: judge_trains
 n_seeds: 3

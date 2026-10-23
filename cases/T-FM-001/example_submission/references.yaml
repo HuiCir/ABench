@@ -1,0 +1,50 @@
+schema: abench.references/v2
+references:
+- id: lipman2023flow
+  title: Flow Matching for Generative Modeling
+  authors: Yaron Lipman, Ricky T. Q. Chen, Heli Ben-Hamu, Maximilian Nickel and Matt Le
+  year: 2023
+  venue: ICLR
+  arxiv: '2210.02747'
+  used_for: 'Anchor: conditional flow-matching objective'
+  code_location: 'train.py: main (loss)'
+- id: liu2023flow
+  title: 'Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow'
+  authors: Xingchao Liu, Chengyue Gong and Qiang Liu
+  year: 2023
+  venue: ICLR
+  arxiv: '2209.03003'
+  used_for: Straight-line probability path
+  code_location: 'train.py: main (x_t)'
+- id: chi2023diffusion
+  title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'
+  authors: Cheng Chi, Zhenjia Xu, Siyuan Feng, Eric Cousineau, Yilun Du, Benjamin Burchfiel, Russ Tedrake and Shuran
+    Song
+  year: 2023
+  venue: RSS
+  arxiv: '2303.04137'
+  used_for: Generative action heads and receding-horizon execution on PushT
+  code_location: 'policy.py: _Policy.act'
+- id: zhao2023act
+  title: Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware
+  authors: Tony Z. Zhao, Vikash Kumar, Sergey Levine and Chelsea Finn
+  year: 2023
+  venue: RSS
+  arxiv: '2304.13705'
+  used_for: Action chunking
+  code_location: 'policy.py: HORIZON, EXECUTE'
+- id: black2024pi0
+  title: 'π0: A Vision-Language-Action Flow Model for General Robot Control'
+  authors: Kevin Black, Noah Brown, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai and others
+  year: 2024
+  arxiv: '2410.24164'
+  used_for: Related work (flow-matching action experts)
+  code_location: null
+- id: prasad2024consistency
+  title: 'Consistency Policy: Accelerated Visuomotor Policies via Consistency Distillation'
+  authors: Aaditya Prasad, Kevin Lin, Jimmy Wu, Linqi Zhou and Jeannette Bohg
+  year: 2024
+  venue: RSS
+  arxiv: '2405.07503'
+  used_for: Related work (one-step policies by distillation)
+  code_location: null

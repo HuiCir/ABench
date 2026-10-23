@@ -1,0 +1,27 @@
+schema: abench.references/v2
+references:
+- id: chen2021finqa
+  title: 'FinQA: A Dataset of Numerical Reasoning over Financial Data'
+  authors: Zhiyu Chen, Wenhu Chen, Charese Smiley, Sameena Shah, Iana Borova, Dylan Langdon, Reema Moussa, Matt
+    Beane, Ting-Hao Huang, Bryan Routledge and William Yang Wang
+  year: 2021
+  venue: EMNLP
+  arxiv: '2109.00122'
+  used_for: 'Anchor: the dataset, the program language and the retriever-generator split'
+  code_location: src/finqa_exec.py
+- id: chen2023pot
+  title: 'Program of Thoughts Prompting: Disentangling Computation from Reasoning for Numerical Reasoning Tasks'
+  authors: Wenhu Chen, Xueguang Ma, Xinyi Wang and William W. Cohen
+  year: 2023
+  venue: TMLR
+  arxiv: '2211.12588'
+  used_for: Generating a program and executing it instead of answering in text
+  code_location: 'pipeline.py: answer'
+- id: liu2022makes
+  title: What Makes Good In-Context Examples for GPT-3?
+  authors: Jiachang Liu, Dinghan Shen, Yizhe Zhang, Bill Dolan, Lawrence Carin and Weizhu Chen
+  year: 2022
+  venue: DeeLIO Workshop
+  arxiv: '2101.06804'
+  used_for: Choosing few-shot examples by similarity to the question
+  code_location: 'src/retrieve.py: nearest'

@@ -1,0 +1,35 @@
+schema: abench.references/v2
+references:
+- id: li2025eagle3
+  title: 'EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test'
+  authors: Yuhui Li, Fangyun Wei, Chao Zhang and Hongyang Zhang
+  year: 2025
+  venue: arXiv
+  arxiv: '2503.01840'
+  used_for: 'Anchor: fused multi-layer features, one-layer drafter, training-time test'
+  code_location: 'train.py: Draft, main'
+- id: leviathan2023spec
+  title: Fast Inference from Transformers via Speculative Decoding
+  authors: Yaniv Leviathan, Matan Kalman and Yossi Matias
+  year: 2023
+  venue: ICML
+  arxiv: '2211.17192'
+  used_for: Exact verification of drafted tokens
+  code_location: 'serve.py: main'
+- id: ding2023ultrachat
+  title: Enhancing Chat Language Models by Scaling High-quality Instructional Conversations
+  authors: Ning Ding, Yulin Chen, Bokai Xu, Yujia Qin, Zhi Zheng, Shengding Hu, Zhiyuan Liu, Maosong Sun and Bowen
+    Zhou
+  year: 2023
+  venue: EMNLP
+  arxiv: '2305.14233'
+  used_for: The training prompts (UltraChat)
+  code_location: 'train.py: main'
+- id: yang2025qwen3
+  title: Qwen3 Technical Report
+  authors: An Yang and others (Qwen Team)
+  year: 2025
+  venue: arXiv
+  arxiv: '2505.09388'
+  used_for: The target model and its chat template
+  code_location: 'train.py: main'

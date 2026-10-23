@@ -13,7 +13,7 @@ task: |
 
   - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and calls `predict()` on the test nodes with the public graph; it never retrains.
   - The setting is transductive: the whole graph and every node's features are available, as are the labels of the train (≤ 2017) and valid (2018) nodes. Test labels are held out.
-  - Only the provided data may be used: no pretrained language models over titles or abstracts, no external citation data. You may build on any public work from before the cutoff (message passing, propagation-based models, label propagation and its post-processing variants), but the design report must state what you borrowed and what you changed.
+  - Only the provided data may be used: no pretrained language models over titles or abstracts, no external citation data. You may build on any public work (message passing, propagation-based models, label propagation and its post-processing variants), but the design report must state what you borrowed and what you changed.
 data: |
   `$ABENCH_DATA_DIR/graph.npz` (read-only), the official ogbn-arxiv release (OGB, ODC-BY):
 

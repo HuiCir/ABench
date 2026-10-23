@@ -1,11 +1,34 @@
-# FN-QA-004 harness contract
+# FN-QA-004 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+FN-QA-004 pipeline: numerical questions over financial reports answered by a submitted pipeline around the frozen
+Qwen2.5-1.5B-Instruct (evaluator and self-check use this same file).
+
+One stage, "answer" (the frozen model is under models/Qwen2.5-1.5B-Instruct):
+  timed   import pipeline.py, load(checkpoint_dir, models_dir, device) -> state                   (killed at 600 s)
+  finish  answer(state, items) on the held-out questions in batches of 32, in a fixed shuffled order; each item is
+          {id, question, pre_text, post_text, table} and each result an answer value and/or a FinQA program, which
+          this stage executes on the item's table (finqa.execute)                                       (≤ 3,600 s)
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/pipeline.py`
+- `baseline/src/finqa_exec.py`
+- `baseline/src/retrieve.py`
+- `baseline/train.py`
+- `finqa.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

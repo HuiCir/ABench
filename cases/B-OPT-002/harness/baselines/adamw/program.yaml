@@ -1,0 +1,9 @@
+# AdamW in the primitive language: the baseline the evaluator trains next to every submission.
+# lr and wd are placeholders until the operator's pre-activation sweep (as for B-OPT-001's AdamW).
+state: [m, v]
+constants: {b1: 0.9, b2: 0.95, wd: 0.1}
+lr: 3.0e-3
+program:
+  - m = interp(m, g, b1)
+  - v = interp(v, square(g), b2)
+  - update = add(div(div(m, bias(b1)), add(sqrt(div(v, bias(b2))), 1.0e-8)), mul(wd, p))

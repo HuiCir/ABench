@@ -1,3 +1,3 @@
-# Example submission contract — C-FA-004
+# C-FA-004 reference submission
 
-No executable or simulated baseline is included. A real submission must provide `submission_manifest.yaml`, implementation files required by the task, and reproducibility hashes.
+`kernel.py`: blockwise attention with a recomputing backward pass in plain PyTorch. Design report: `report/index.html`; references: `references.yaml`.

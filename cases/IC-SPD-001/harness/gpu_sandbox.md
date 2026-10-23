@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | GPU | One 24GB reference card (RTX 4090 class). Evaluation runs on the same model of card |
-| Network | None. You cannot download data or models or install packages |
+| Network | Online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run. Data comes only from `$ABENCH_DATA_DIR` |
 | Software | Python 3, PyTorch (CUDA, Triton), NumPy; trust the versions reported in the sandbox |
 | Session length | At most 3 hours wall clock; the deadline is in `$ABENCH_DEADLINE` (Unix seconds), and all processes are killed at that time |
 | GPU usage | At most 1 GPU-hour during development; the sandbox records GPU time, and exceeding it is a violation |

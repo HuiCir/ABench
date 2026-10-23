@@ -1,0 +1,72 @@
+case: FN-QA-004
+title: 'Nearest-Neighbour Program Prompting with TF-IDF Evidence Retrieval'
+abstract: >-
+  This submission follows FinQA's retriever-generator split [@chen2021finqa] without training either part. Table
+  rows are turned into sentences and ranked together with the report's text by TF-IDF similarity to the question;
+  the eight best facts and the four training questions most similar to the question, each with its gold evidence and
+  program, form a few-shot prompt [@liu2022makes] from which the frozen model writes one FinQA program, in the spirit
+  of program-of-thought prompting [@chen2023pot]. The case's executor computes the answer. On the dev split the
+  retriever places all gold evidence in its top eight facts for 81.7% of the questions.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    FinQA questions need a few arithmetic steps over numbers spread across a table and its surrounding text. A small
+    model can rarely do the arithmetic reliably in text; writing a short program and executing it separates finding
+    the numbers from computing with them.
+- title: Related Work
+  paras:
+  - >-
+    FinQANet retrieves facts with a BERT classifier and generates programs with a sequence decoder
+    [@chen2021finqa]. Program-of-thought prompting has the model write code that an interpreter runs
+    [@chen2023pot]; choosing in-context examples by similarity to the query improves few-shot prompting
+    [@liu2022makes].
+- title: Method
+  paras:
+  - >-
+    Facts are table rows rendered as "the <column> of <row> is <value>" and text sentences. Inverse document
+    frequencies come from the training questions and the facts of 2,000 training reports. The prompt lists the
+    instruction, four exemplars (facts, question, program) and the question's top eight facts; decoding is greedy
+    with at most 96 new tokens, and the first line is taken as the program.
+- title: Design Rationale
+  paras:
+  - >-
+    Nearest-neighbour exemplars show programs of the same shape as the question (a percentage change, a ratio,
+    a table average), which a 1.5B model copies more reliably than an abstract description of the language.
+- title: Scope and Limitations
+  paras:
+  - >-
+    TF-IDF misses evidence phrased differently from the question (18% of dev questions lack some gold fact in the top
+    eight), there is no repair of invalid programs and no self-consistency. The frozen model has not been run here.
+references:
+- id: chen2021finqa
+  title: 'FinQA: A Dataset of Numerical Reasoning over Financial Data'
+  authors: Zhiyu Chen, Wenhu Chen, Charese Smiley, Sameena Shah, Iana Borova, Dylan Langdon, Reema Moussa, Matt Beane, Ting-Hao Huang, Bryan Routledge and William Yang Wang
+  year: 2021
+  venue: EMNLP
+  arxiv: '2109.00122'
+  used_for: 'Anchor: the dataset, the program language and the retriever-generator split'
+  code_location: 'src/finqa_exec.py'
+- id: chen2023pot
+  title: 'Program of Thoughts Prompting: Disentangling Computation from Reasoning for Numerical Reasoning Tasks'
+  authors: Wenhu Chen, Xueguang Ma, Xinyi Wang and William W. Cohen
+  year: 2023
+  venue: TMLR
+  arxiv: '2211.12588'
+  used_for: Generating a program and executing it instead of answering in text
+  code_location: 'pipeline.py: answer'
+- id: liu2022makes
+  title: What Makes Good In-Context Examples for GPT-3?
+  authors: Jiachang Liu, Dinghan Shen, Yizhe Zhang, Bill Dolan, Lawrence Carin and Weizhu Chen
+  year: 2022
+  venue: DeeLIO Workshop
+  arxiv: '2101.06804'
+  used_for: Choosing few-shot examples by similarity to the question
+  code_location: 'src/retrieve.py: nearest'
+changes:
+- text: Exemplars are chosen per question by TF-IDF similarity among all training questions and shown with their gold
+    evidence, instead of FinQANet's trained generator.
+  code: 'pipeline.py: build_prompt'
+- text: Table rows are linearised into sentences and ranked together with the text by TF-IDF, with no trained
+    retriever.
+  code: 'src/retrieve.py: facts, top_facts'

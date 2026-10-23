@@ -1,0 +1,109 @@
+case: B-OPT-004
+title: 'LAMB with Square-Root Learning-Rate Scaling as a Large-Batch Reference'
+abstract: >-
+  This submission reproduces the anchor's layer-wise adaptive optimizer, LAMB [@you2020lamb], as the calibration
+  reference for training a small language model on a fixed token budget at three batch sizes. Each weight matrix
+  receives an Adam direction [@kingma2015adam] with decoupled weight decay [@loshchilov2019adamw], rescaled by the trust
+  ratio between the norms of the parameter and the update, so that every layer moves by a set fraction of its size.
+  The peak learning rate grows with the square root of the batch size. Rules for adapting the schedule or the
+  trust ratio to the noise scale of the gradient [@mccandlish2018empirical] are left to entries.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    For a fixed number of training tokens, larger batches mean fewer sequential steps, but below the critical batch
+    size each step makes less progress per token [@mccandlish2018empirical]. An optimizer for large batches must keep
+    the loss reached per token close to that of small batches while taking larger steps.
+- title: Related Work
+  paras:
+  - >-
+    Linear scaling of the learning rate with warm-up keeps SGD accurate up to moderately large batches
+    [@goyal2017accurate]. LARS normalises each layer's step by the ratio of its weight norm to its gradient norm
+    [@you2017lars], and LAMB applies the same trust ratio to the Adam direction [@you2020lamb]. The gradient noise scale
+    predicts the batch size beyond which these gains vanish [@mccandlish2018empirical].
+  - >-
+    Trust ratios fix the relative step size per layer but not how it should change as steps become fewer and less
+    noisy; that coupling between batch size, schedule and per-layer step is the gap left open.
+- title: Method
+  subsections:
+  - title: Update rule
+    paras:
+    - >-
+      For each parameter tensor the rule keeps Adam's first and second moments (β₁ = 0.9, β₂ = 0.99, ε = 1e-6) with bias
+      correction. For a matrix the direction u = m̂ / (√v̂ + ε) + 0.1 · p is scaled by min(‖p‖ / ‖u‖, 10); vector
+      parameters use m̂ / (√v̂ + ε) without weight decay or trust ratio. The declared peak learning rate 0.002 is
+      multiplied by (B / 32)^0.5 for a batch of B sequences, and the framework applies warm-up and cosine decay.
+    algorithm_caption: Update of one matrix parameter
+    algorithm:
+    - m ← β₁ m + (1 − β₁) g; v ← β₂ v + (1 − β₂) g²; bias-correct to m̂, v̂
+    - u ← m̂ / (√v̂ + ε) + wd · p
+    - Δ ← −lr · min(‖p‖ / ‖u‖, 10) · u
+  - title: Complexity
+    paras:
+    - >-
+      Two state tensors per parameter (2x the parameter count) and two norms per tensor per step, on top of Adam's
+      element-wise cost.
+- title: Design Rationale
+  paras:
+  - >-
+    The trust ratio removes the dependence of the step size on the scale of each layer's gradient, which is what
+    otherwise forces the learning rate down as the batch grows; square-root scaling follows the anchor's recipe for
+    Adam-type updates.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The scaling exponent and warm-up fraction are fixed rather than derived from the batch size or the gradient noise,
+    and at 512 sequences the 187 optimizer steps leave little room for warm-up.
+references:
+- id: you2020lamb
+  title: 'Large Batch Optimization for Deep Learning: Training BERT in 76 minutes'
+  authors: Yang You, Jing Li, Sashank Reddi, Jonathan Hseu, Sanjiv Kumar, Srinadh Bhojanapalli, Xiaodan Song, James Demmel, Kurt Keutzer and Cho-Jui Hsieh
+  year: 2020
+  venue: ICLR
+  arxiv: '1904.00962'
+  used_for: 'Anchor: the LAMB update and square-root learning-rate scaling'
+  code_location: 'optimizer.py: LAMB.update; hparam_space.yaml: lr_batch_exponent'
+- id: you2017lars
+  title: Large Batch Training of Convolutional Networks
+  authors: Yang You, Igor Gitman and Boris Ginsburg
+  year: 2017
+  arxiv: '1708.03888'
+  used_for: Layer-wise trust ratio
+  code_location: 'optimizer.py: LAMB.update (trust)'
+- id: goyal2017accurate
+  title: 'Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour'
+  authors: Priya Goyal, Piotr Dollár, Ross Girshick, Pieter Noordhuis, Lukasz Wesolowski, Aapo Kyrola, Andrew Tulloch, Yangqing Jia and Kaiming He
+  year: 2017
+  arxiv: '1706.02677'
+  used_for: Related work (learning-rate scaling with warm-up)
+  code_location: null
+- id: mccandlish2018empirical
+  title: An Empirical Model of Large-Batch Training
+  authors: Sam McCandlish, Jared Kaplan, Dario Amodei and OpenAI Dota Team
+  year: 2018
+  arxiv: '1812.06162'
+  used_for: Related work (critical batch size, gradient noise scale)
+  code_location: null
+- id: kingma2015adam
+  title: 'Adam: A Method for Stochastic Optimization'
+  authors: Diederik P. Kingma and Jimmy Ba
+  year: 2015
+  venue: ICLR
+  arxiv: '1412.6980'
+  used_for: Moment estimates with bias correction
+  code_location: 'optimizer.py: LAMB.update'
+- id: loshchilov2019adamw
+  title: Decoupled Weight Decay Regularization
+  authors: Ilya Loshchilov and Frank Hutter
+  year: 2019
+  venue: ICLR
+  arxiv: '1711.05101'
+  used_for: Decoupled weight decay inside the trust-ratio direction
+  code_location: 'optimizer.py: LAMB.update (wd)'
+changes:
+- text: The trust ratio is capped at 10 and not applied to vector parameters, which use the plain Adam direction.
+  code: 'optimizer.py: LAMB.update'
+- text: Square-root scaling of the peak learning rate from a base batch of 32 sequences, declared in hparam_space.yaml.
+  code: 'hparam_space.yaml: lr_batch_exponent'
+- text: The anchor's polynomial decay is replaced by the framework's warm-up and cosine schedule.
+  code: 'hparam_space.yaml: owns_schedule'

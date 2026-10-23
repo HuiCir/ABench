@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | Hardware | One 24GB reference GPU (RTX 4090 class); the evaluation uses the same GPU model |
-| Network | None. You cannot download data or models or install packages |
+| Network | Online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run. Data and pretrained weights come only from the directories below |
 | Software | Python 3, PyTorch (CUDA, Triton), NumPy, and Hugging Face transformers, tokenizers and safetensors (versions frozen at activation; offline); trust the versions reported in the sandbox |
-| Session length | At most 4 hours wall clock; the deadline is in `$ABENCH_DEADLINE` (Unix seconds), and all processes are killed at that time |
-| Compute | At most 3 GPU-hours during development; the sandbox records usage, and exceeding it is a violation |
+| Session length | At most 5 hours wall clock; the deadline is in `$ABENCH_DEADLINE` (Unix seconds), and all processes are killed at that time |
+| Compute | At most 5 GPU-hours (the whole session on one GPU) during development; the sandbox records usage, and exceeding it is a violation |
 
 Check the environment first:
 
@@ -39,7 +39,7 @@ python3 -c "import os,time; print(round((int(os.environ['ABENCH_DEADLINE'])-time
 cd "$ABENCH_WORKSPACE"
 ls -la "$ABENCH_DATA_DIR" "$ABENCH_MODELS_DIR"
 # ... develop, train and test in the workspace ...
-python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<topic of the anchor>"   # related work before the cutoff
+python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<topic or problem>"     # related work, at any point
 python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" show <arXiv id>                  # title, authors, date, abstract
 mkdir -p "$ABENCH_SUBMISSION_DIR"      # copy the deliverables listed in the task statement here
 python3 "$ABENCH_SUBMISSION_DIR/train.py" --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"   # your training program (the evaluator only loads the checkpoint)
@@ -54,6 +54,7 @@ the held-out metrics, not a promise.
 
 ## 4. Case notes
 
+- MNLI is large (392,702 pairs): one epoch at batch 32 (as in `interface/baseline/train.py`) is about 12,000 steps; plan the budget across tasks.
 - Load the base only from `models_dir + "/roberta-base"`; `HF_HUB_OFFLINE=1` is set.
 - Anything you need at prediction time beyond the frozen base (classifier heads, adapter weights, learned prompts, statistics) must be among the tensors in `states.pt`.
 - The self-check scores your `states.pt` on the dev rows (`<task>_dev_idx`). Leave them out of training (the reference `train.py` does by default) for an unbiased estimate; you may include them in the final checkpoint.

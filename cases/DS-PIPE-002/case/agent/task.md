@@ -1,7 +1,5 @@
 # DS-PIPE-002: A tabular learning pipeline across six OpenML datasets on CPU
 
-Knowledge cutoff: **2026-07-01**. You may only rely on material that was public and verifiable before that date.
-
 Anchor: Nick Erickson, Jonas Mueller, Alexander Shirkov, Hang Zhang, Pedro Larroy, Mu Li, Alexander Smola, *AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data* (arXiv:2003.06505). Baseline used for comparison: histogram gradient-boosted trees with early stopping (`interface/baseline/`).
 
 ## Task
@@ -10,28 +8,28 @@ Design one tabular learning pipeline (preprocessing, features, models, ensemblin
 
 - Submit your model code, the trained checkpoint (one fitted model per dataset) and the training program that produced it. The evaluator loads the checkpoint and predicts each dataset's held-out rows; it never retrains.
 - Only the provided training rows may be used: no pretrained models and no external data. `train.py` must apply the same procedure to every dataset; choices made automatically from the data (for example by validation) are fine, hand-picked per-dataset settings are not.
-- You may build on any public work from before the cutoff (gradient-boosted trees, neural tabular models, stacking, AutoML search), but the design report must state what you borrowed and what you changed. The task tests robust design under the sandbox's compute budget.
+- You may build on any public work (gradient-boosted trees, neural tabular models, stacking, AutoML search), but the design report must state what you borrowed and what you changed. The task tests robust design under the sandbox's compute budget.
 
 ### Workflow
 
-1. **Retrieve.** Study the anchor and find related work published before the cutoff with the offline paper search tool: `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` (titles and abstracts of arXiv papers up to the cutoff). Every call is logged automatically; the log is kept with your run.
-2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address. This is Section 2 (Related Work) of the design report.
+1. **Research (throughout).** Study the anchor and related work, and come back to the literature whenever your experiments raise a question (an unexpected failure, a bottleneck, a result you cannot explain). The sandbox is online for papers, code and documentation, and the offline paper search `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` answers quickly from arXiv titles and abstracts. Searches and connections are logged with your run.
+2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address, and keep this up to date as you learn. It becomes Section 2 (Related Work) of the design report.
 3. **Design.** Propose an improvement over the anchor and the baseline: at least one change you can state precisely and point to in your code. List every change, with its code location, in the report's "Changes relative to the anchor" list (`<ol id="changes">`); a report without it fails the format check.
 4. **Develop and verify.** Implement it, write a `train.py` that produces your checkpoint from the provided data, train in the sandbox, check the checkpoint on the dev split with `selfcheck.py`, and iterate as your budget allows. The reference code in `interface/baseline/` (model code and `train.py`) runs as is and is a starting point. The checkpoint you submit is exactly what the evaluator scores; it does not retrain.
 5. **Submit** the deliverables below. Submission is one-shot.
 
 ## Data
 
-`$ABENCH_DATA_DIR/d<id>.npz` (read-only), one file per dataset of OpenML suite 337 ("Tabular benchmark numerical classification", Grinsztajn et al. 2022). All features are numeric (float32, NaN allowed); labels are 0/1.
+`$ABENCH_DATA_DIR/d<id>.npz` (read-only), one file per dataset of the numerical-classification tabular benchmark of Grinsztajn et al. 2022 (OpenML suite 337). All features are numeric (float32, NaN allowed); labels are 0/1.
 
 | File | Dataset | Instances in OpenML | Features |
 |---|---|---|---|
-| `d44120.npz` | electricity | 38,474 | 7 |
 | `d44122.npz` | pol | 10,082 | 26 |
 | `d44123.npz` | house_16H | 13,488 | 16 |
 | `d44125.npz` | MagicTelescope | 13,376 | 10 |
 | `d44126.npz` | bank-marketing | 10,578 | 7 |
 | `d44128.npz` | MiniBooNE | 72,998 | 50 |
+| `d45021.npz` | jannis | 57,580 | 54 |
 
 Each file has `x` (N, F) float32, `y` (N,) int64 and `dev_idx` (10% per class, used only by `selfcheck.py`). Per dataset, the held-out split is a stratified min(30%, 5,000) rows and the public training split is min(rest, 10,000) rows, drawn with a fixed seed. The held-out rows are not in the sandbox.
 
@@ -64,18 +62,21 @@ No threshold applies to any metric: a submission is valid if it loads, runs with
 ## Evaluation
 
 1. When your session ends, the sandbox collects only the allowed files from `ABENCH_SUBMISSION_DIR`; the workspace is deleted.
-2. The evaluator runs outside the sandbox: it checks the submission format, then loads your submitted checkpoint with your model code and runs inference through the stages in `interface/stages.py`, once, on the evaluation hardware; it never retrains your model and never runs `train.py`.
+2. The evaluator runs outside the sandbox: it checks the submission format, then loads your submitted checkpoint with your model code and runs inference through the stages in `interface/stages.py`, once, on the evaluation hardware; it never retrains your model to evaluate it (`train.py` is only re-run in the audit below).
 3. Held-out inputs are copied into the run directory only after the timed phase has ended, and never with their labels or reference values; those stay in the evaluator process, which computes the metrics with `interface/metrics.py`.
-4. You receive no evaluation results during your session.
+4. The primary metric is reported with a 95% bootstrap interval over the held-out examples (`RESAMPLE` in `interface/metrics.py`; `selfcheck.py` prints the same interval on the dev split). Submissions whose intervals overlap are ranked as tied on the primary metric.
+5. Audit: the operator re-runs your `train.py` from scratch for the top-ranked submissions and for a random sample of the others. If the re-trained checkpoint's primary metric falls outside your submitted checkpoint's 95% interval, widened by the run-to-run spread the operator measures for the reference `train.py`, the submission is invalid.
+6. You receive no evaluation results during your session.
 
 ## Sandbox Guide
 
 The full guide is `interface/sandbox_guide.md`. Key points:
 
-- 8 CPU cores, no GPU; the evaluation uses the same CPU allotment. No network and no package installation; available software: Python 3, NumPy, SciPy, scikit-learn.
-- The session lasts at most 4 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 16 CPU-core-hours (two hours of the 8-core allotment).
+- 8 CPU cores, no GPU; the evaluation uses the same CPU allotment. Available software: Python 3, NumPy, SciPy, scikit-learn; your submission may depend only on it (packages you install while developing are not available to the evaluator).
+- Network: online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run.
+- The session lasts at most 4 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 16 CPU-core-hours (two hours of the 8-core allotment); the runner meters it (GPU-busy time, CPU time of your processes) and a run that exceeds it is not scored.
 - Data is read-only under `$ABENCH_DATA_DIR`. Write code and run experiments in `$ABENCH_WORKSPACE`; put the final files in `$ABENCH_SUBMISSION_DIR`.
-- Paper search (offline, cutoff-filtered, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
+- Offline paper search (arXiv titles and abstracts, fast, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
 - Self-check: `python3 "$ABENCH_VIEW_DIR/interface/selfcheck.py" --quick` (interface, small slice), then without `--quick` on the full dev split with your checkpoint.
 
 ## Deliverables

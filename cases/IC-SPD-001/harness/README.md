@@ -1,14 +1,28 @@
-# IC-SPD-001 harness contract
+# IC-SPD-001 harness
 
-This scaffold defines the server-side contract only; it does not run training or create synthetic results.
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same timing parent on the dev split.
 
-## Required interface
+## Timing parent (`speedrun_runner.py`)
 
-- Read the immutable manifest supplied by the benchmark.
-- Write deterministic metrics.json and run_metadata.json.
-- Record seed, input/resource hashes, wall-clock time, peak memory and exit status.
-- Keep network and filesystem access within case/eval_protocol.yaml sandbox policy.
+```
+IC-SPD-001 timing parent process: starts speedrun_harness.py and times with the parent's own clock.
 
-## Pending
+The judge (outside the sandbox) and selfcheck.py (inside the sandbox) both call run_once() here, with exactly the same timing rules:
 
-The benchmark maintainer must freeze the executable runner, container image, resource hashes and failure semantics before accepting submissions.
+  - every run is a fresh process; HOME, TMPDIR and the torch.compile / Triton / CUDA cache directories point to
+    empty directories owned by this run alone, so compiled results or any caches cannot be reused across runs;
+  - training time = interval between receiving handshake byte R and receiving T (parent clock);
+  - inference time = interval from T to P, which must not exceed predict_cap seconds;
+  - the interval from T to process exit must not exceed predict_cap + tail_slack seconds, so training cannot be moved after T;
+  - the handshake must be exactly the three bytes R, T, P in the right order.
+```
+
+## Files
+
+- `gpu_sandbox.md`
+- `interface.md`
+- `selfcheck.py`
+- `speedrun_harness.py`
+- `speedrun_runner.py`
+
+The held-out data, keys and judge configuration are never in this directory.

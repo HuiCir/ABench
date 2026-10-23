@@ -1,0 +1,11 @@
+rule: LAMB
+tunable:                      # at most 4; the evaluator uses the defaults only
+  lr:   {default: 0.002, range: [0.0005, 0.01], scale: log}     # peak relative step at the base batch of 32 sequences
+  wd:   {default: 0.1,   range: [0.0, 0.2],     scale: linear}
+fixed:
+  b1: 0.9
+  b2: 0.99
+  eps: 1.0e-6
+  max_trust: 10.0
+lr_batch_exponent: 0.5        # peak lr = lr * (B / 32) ** 0.5 (square-root scaling, as in the anchor)
+owns_schedule: false

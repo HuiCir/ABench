@@ -8,6 +8,8 @@ from abench_metrics import OutputError, accuracy, need  # noqa: F401
 PRIMARY = {"metric": "test_accuracy", "goal": "max"}
 GATES: list = []          # validity = no crash, time limits respected, well-formed scores
 
+# examples resampled together for the bootstrap 95% interval of the primary metric (abench_metrics.bootstrap_ci)
+RESAMPLE = [{"reference": ["y_test"], "outputs": [["predict", "scores"]]}]
 
 def score(outputs: dict, reference: dict, params: dict, seconds: dict) -> dict:
     y = np.asarray(reference["y_test"]).astype(np.int64)

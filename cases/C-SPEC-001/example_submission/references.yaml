@@ -1,0 +1,50 @@
+schema: abench.references/v2
+references:
+- id: leviathan2023spec
+  title: Fast Inference from Transformers via Speculative Decoding
+  authors: Yaniv Leviathan, Matan Kalman and Yossi Matias
+  year: 2023
+  venue: ICML
+  arxiv: '2211.17192'
+  used_for: 'Anchor: speculative decoding'
+  code_location: 'model.py: generate'
+- id: chen2023spec
+  title: Accelerating Large Language Model Decoding with Speculative Sampling
+  authors: Charlie Chen, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre and John Jumper
+  year: 2023
+  venue: arXiv
+  arxiv: '2302.01318'
+  used_for: Speculative decoding
+  code_location: 'model.py: generate'
+- id: cai2024medusa
+  title: 'Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads'
+  authors: Tianle Cai, Yuhong Li, Zhengyang Geng, Hongwu Peng, Jason D. Lee, Deming Chen and Tri Dao
+  year: 2024
+  venue: ICML
+  arxiv: '2401.10774'
+  used_for: Related work
+  code_location: null
+- id: li2024eagle
+  title: 'EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty'
+  authors: Yuhui Li, Fangyun Wei, Chao Zhang and Hongyang Zhang
+  year: 2024
+  venue: ICML
+  arxiv: '2401.15077'
+  used_for: Related work
+  code_location: null
+- id: miao2024specinfer
+  title: 'SpecInfer: Accelerating Large Language Model Serving with Tree-based Speculative Inference and Verification'
+  authors: Xupeng Miao et al.
+  year: 2024
+  venue: ASPLOS
+  arxiv: '2305.09781'
+  used_for: Related work
+  code_location: null
+- id: fu2024lookahead
+  title: Break the Sequential Dependency of LLM Inference Using Lookahead Decoding
+  authors: Yichao Fu, Peter Bailis, Ion Stoica and Hao Zhang
+  year: 2024
+  venue: ICML
+  arxiv: '2402.02057'
+  used_for: Related work
+  code_location: null

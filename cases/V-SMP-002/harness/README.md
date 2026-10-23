@@ -1,11 +1,33 @@
-# V-SMP-002 harness contract
+# V-SMP-002 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+V-SMP-002 pipeline: training-free sampling from a frozen CIFAR-10 DDPM at small NFE, scored by FID.
+
+Stage "sample" (imports sampler.py)
+  setup   load the frozen UNet to the GPU (untimed)
+  timed   import sampler.py
+  finish  for each NFE in (5, 10, 20): N images from sample(denoiser, ...) in batches, each batch with its own
+          seeded generator; the denoiser refuses calls beyond the NFE budget; images saved as uint8 for the next stage
+Stage "fid" (does not import your code; receives only the image files)
+  finish  Inception-v3 pool features (pytorch-fid weights) → mean and covariance per NFE; the evaluator computes FID
+          against the CIFAR-10 training-set statistics
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baselines/ddim/sampler.py`
+- `diffusion.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

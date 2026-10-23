@@ -1,0 +1,69 @@
+schema: abench.references/v2
+references:
+- id: schulman2017ppo
+  title: Proximal Policy Optimization Algorithms
+  authors: John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford and Oleg Klimov
+  year: 2017
+  venue: arXiv
+  arxiv: '1707.06347'
+  used_for: 'Anchor: clipped surrogate objective'
+  code_location: 'src/ppo_core.py: train'
+- id: schulman2015trpo
+  title: Trust Region Policy Optimization
+  authors: John Schulman, Sergey Levine, Philipp Moritz, Michael I. Jordan and Pieter Abbeel
+  year: 2015
+  venue: ICML
+  arxiv: '1502.05477'
+  used_for: Related work (trust regions)
+  code_location: null
+- id: schulman2016gae
+  title: High-Dimensional Continuous Control Using Generalized Advantage Estimation
+  authors: John Schulman, Philipp Moritz, Sergey Levine, Michael Jordan and Pieter Abbeel
+  year: 2016
+  venue: ICLR
+  arxiv: '1506.02438'
+  used_for: Advantage estimation
+  code_location: 'src/ppo_core.py: train (GAE loop)'
+- id: pardo2018timelimits
+  title: Time Limits in Reinforcement Learning
+  authors: Fabio Pardo, Arash Tavakoli, Vitaly Levdik and Petar Kormushev
+  year: 2018
+  venue: ICML
+  arxiv: '1712.00378'
+  used_for: Bootstrapping at time limits
+  code_location: 'src/ppo_core.py: train (bootstrap_truncation)'
+- id: huang2022cleanrl
+  title: 'CleanRL: High-quality Single-file Implementations of Deep Reinforcement Learning Algorithms'
+  authors: Shengyi Huang, Rousslan Fernand Julien Dossa, Chang Ye, Jeff Braga, Dipam Chakraborty, Kinal Mehta and
+    João G. M. Araújo
+  year: 2022
+  venue: JMLR
+  arxiv: '2111.08819'
+  used_for: Baseline configuration
+  code_location: src/ppo_core.py
+- id: engstrom2020implementation
+  title: 'Implementation Matters in Deep Policy Gradients: A Case Study on PPO and TRPO'
+  authors: Logan Engstrom, Andrew Ilyas, Shibani Santurkar, Dimitris Tsipras, Firdaus Janoos, Larry Rudolph and
+    Aleksander Madry
+  year: 2020
+  venue: ICLR
+  arxiv: '2005.12729'
+  used_for: Implementation details
+  code_location: null
+- id: andrychowicz2021matters
+  title: What Matters In On-Policy Reinforcement Learning? A Large-Scale Empirical Study
+  authors: Marcin Andrychowicz, Anton Raichuk, Piotr Stańczyk, Manu Orsini, Sertan Girgin, Raphael Marinier, Léonard
+    Hussenot, Matthieu Geist, Olivier Pietquin, Marcin Michalski, Sylvain Gelly and Olivier Bachem
+  year: 2021
+  venue: ICLR
+  arxiv: '2006.05990'
+  used_for: Implementation details
+  code_location: null
+- id: haarnoja2018sac
+  title: 'Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor'
+  authors: Tuomas Haarnoja, Aurick Zhou, Pieter Abbeel and Sergey Levine
+  year: 2018
+  venue: ICML
+  arxiv: '1801.01290'
+  used_for: Related work (off-policy alternative)
+  code_location: null

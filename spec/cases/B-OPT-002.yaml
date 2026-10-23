@@ -1,0 +1,115 @@
+id: B-OPT-002
+title: "An optimizer found by searching a primitive language: novel against known rules, trained on the fixed micro-LM"
+template: B-OPT-001
+anchor: {authors: "Xiangning Chen, Chen Liang, Da Huang, Esteban Real, Kaiyuan Wang, Yao Liu, Hieu Pham, Xuanyi Dong, Thang Luong, Cho-Jui Hsieh, Yifeng Lu, Quoc V. Le", title: "Symbolic Discovery of Optimization Algorithms", arxiv: "2302.06675"}
+baseline: "AdamW written in the primitive language (`interface/baselines/adamw/program.yaml`), trained by the evaluator under identical conditions; its learning rate and weight decay are tuned by the operator before activation"
+baseline_run: "Under exactly the same conditions (hardware, seeds, data, schedule), the evaluator also trains the model with the AdamW program and reports your loss and step time relative to it. AdamW is tuned, not left at its defaults: before activation the operator sweeps its learning rate over {1e-3, 2e-3, 3e-3, 4.5e-3, 6e-3} and weight decay over {0.05, 0.1} on the self-check split and freezes the best pair in the baseline's program.yaml; until then 3e-3 and 0.1 are placeholders."
+reference_verification: "Partly executed: the primitive language was checked against B-OPT-001's reference rules on NumPy (AdamW written in it matches to 2e-9, Lion exactly); the screen and the reference's search ran in the build container (120 candidates in 42 s; the chosen program's largest similarity to a known optimizer is 0.78 on the public stream and 0.77 on another seed). Training needs PyTorch and a GPU, which were not available here; the operator runs the reference and the tuned AdamW at activation."
+mode: judge_trains
+n_seeds: 3
+show_baseline: true
+extra_interface: [harness/primitive_dsl.py, harness/behaviour.py, harness/optim_api.py, harness/reference_rules.py, harness/lm_model.py, harness/token_data.py, harness/baselines/adamw/program.yaml]
+task: |
+  **Search for an optimizer** in a small **primitive language** — momenta, element-wise maps, normalisations, orthogonalisation, bias corrections — as Lion was found, and submit the program that trains the **fixed 32M-parameter language model of B-OPT-001 to the lowest held-out loss** while being **genuinely new**: its updates must differ from every known optimizer's.
+
+  - Submit `program.yaml`, written in the language of `interface/primitive_dsl.py` (at most 2 state tensors, 6 constants, 20 assignments and 40 primitive calls), with your search code and its log. The evaluator never runs your Python: it compiles the program, screens it, and trains the model with it.
+  - On a gradient stream from a seed you do not know, the program's updates are compared with AdamW, Lion, Signum, SGD with momentum (over a grid of their momentum constants), Adafactor, AdEMAMix, MARS, Cautious AdamW and Muon; a mean cosine above 0.98 to any of them makes the submission invalid. It must also stay finite when gradients are scaled by 1e-6 or 1e6.
+  - Then the evaluator trains the model exactly as in B-OPT-001 (3,000 steps of 32 × 1,024 tokens, warm-up and cosine decay, your program's learning rate), three times with different seeds, and next to it the tuned AdamW program.
+  - You may build on any public work (symbolic discovery of optimizers, evolutionary and regularised search, sign-based and orthogonalised updates, learned optimizers), but the design report must state what you borrowed, how you searched and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only): the B-OPT-001 training shards `fineweb_train_000001.bin` and `fineweb_train_000002.bin` (FineWeb-10B GPT-2 tokens, `kjj0/fineweb10B-gpt2` @889765ea, MIT; text ODC-BY), 100M tokens each.
+
+  `interface/behaviour.py` generates gradient streams from any seed (a slowly rotating low-rank signal, noise and heavy-tailed spikes); the self-check uses seed 17. The held-out part is 4,194,305 tokens of `fineweb_val_000000.bin` and the evaluator's screen seed.
+interface: "Write `program.yaml` in the primitive language of `interface/primitive_dsl.py`: `state` (≤ 2 names), `constants` (≤ 6), `lr` (peak learning rate) and `program` (≤ 20 assignments `name = expression` over g, p, state, constants and earlier names, assigning `update`); the parameter moves by −lr × schedule × update. `primitive_dsl.validate` checks a program as the evaluator does."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Held-out loss** (primary) | Mean next-token cross-entropy on 4,194,304 held-out tokens after training, mean of the three runs; lower is better | — |
+  | Novelty | Largest mean cosine similarity between your updates and any known optimizer's on the gradient stream | Threshold: ≤ 0.98 |
+  | Stability | Finite updates on the gradient stream and at gradient scales 1e-6 and 1e6 | Threshold: finite |
+  | Divergence | Any run with a non-finite or > 20 training loss | Threshold: = 0 |
+  | Step time | Training seconds relative to the AdamW program in the same run | Threshold: ≤ 1.25 |
+  | Relative to AdamW | Loss difference to the tuned AdamW program; descent cosine and program size | reported |
+
+  **Measurement and decision**
+
+  - A submission is valid if its program parses, passes the novelty, stability, divergence and step-time thresholds, and trains within 1,500 s per run; otherwise it is invalid. Valid submissions are ranked by held-out loss; differences below the spread of the AdamW program over the three seeds are ties.
+  - The final ABench score is driven mainly by held-out loss relative to AdamW, and also considers how different the rule is from existing ones, the auditability of the search and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 10
+  dev_budget: "8 GPU-hours"
+  software: "Python 3, NumPy, PyYAML; PyTorch (CUDA) for your own training runs"
+  notes: |
+    - The screen runs in NumPy on the CPU in seconds, so you can screen thousands of programs before training any; `selfcheck.py` runs all three stages with the public screen seed (`--quick`: 300 training steps).
+    - The B-OPT-001 harness (`optim_api.py`, `lm_model.py`) is included for your own short training runs.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── program.yaml        # required: the optimizer
+    ├── search.py           # required: the search that produced it
+    ├── search_log.jsonl    # required: one line per evaluated candidate
+    ├── src/                # optional: helper modules of the search, .py only
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.jsonl`, `.md` and `.txt` files, at most 2,000,000 bytes in total (the search log may be long).
+rules: |
+  - The optimizer is the program only: no Python of yours runs at evaluation, and the program may use only the language's primitives.
+  - The search must be reproducible from `search.py` and the public data; `search_log.jsonl` lists what it evaluated.
+interface_md: |
+  # B-OPT-002 interface
+
+  ## `program.yaml`
+
+  ```yaml
+  state: [m, v]
+  constants: {b1: 0.9, b2: 0.99, wd: 0.1}
+  lr: 3.0e-4
+  program:
+    - c = interp(m, g, b1)
+    - m = interp(m, g, b2)
+    - update = add(sign(c), mul(wd, p))      # this is Lion: it would fail the novelty threshold
+  ```
+
+  Primitives: add, sub, mul, div, max, min, neg, abs, sign, square, sqrt, rsqrt, clip, interp, bias, rms, normalize,
+  orth, rownorm (definitions in `primitive_dsl.py`).
+
+  ## Evaluator code you can read
+
+  `primitive_dsl.py` (language and compiler), `behaviour.py` (stream, known optimizers, similarity), `stages.py`,
+  `metrics.py`, `optim_api.py`, `reference_rules.py`, `lm_model.py`, `token_data.py`, `abench_metrics.py`,
+  `abench_stage.py`, `selfcheck.py`, the AdamW program under `baselines/adamw/` and the reference under `baseline/`.
+
+  ## Available software
+
+  Python 3, NumPy, PyYAML, PyTorch (CUDA). Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 10}
+  data:
+    public_dir: sandbox/data/B-OPT-002
+    public:
+      - {path: sandbox/data/B-OPT-002/fineweb_train_000001.bin, sha256: pending}
+      - {path: sandbox/data/B-OPT-002/fineweb_train_000002.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/B-OPT-002/hidden.npz.enc, sha256_plain: pending, keys: "tokens, stream_seed (given after the timed phase)"}
+    sources:
+      - name: "FineWeb 10B pre-tokenized with GPT-2 BPE, Hugging Face kjj0/fineweb10B-gpt2 (as B-OPT-001)"
+        url: https://huggingface.co/datasets/kjj0/fineweb10B-gpt2
+        revision: 889765ea1f903759787add96995d81171b632d0c
+        license: "MIT on the token repository; the underlying FineWeb text is ODC-BY"
+        verified: "2026-10-19: revision, licence and file list from the Hugging Face API (B-OPT-001)"
+  submission:
+    kind: code_only
+    entry: program.yaml
+    checkpoint_dir: null
+    allowed_top_level: [README.md, program.yaml, search.py, search_log.jsonl, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .jsonl, .md, .txt]
+    code_max_bytes: 2000000
+    max_bytes: 4000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA and torch versions frozen at activation)"
+    seeds: [2302, 6675, 1729]
+    baseline: harness/baselines/adamw
+    code_audit: "the operator replays search.py on the public data and checks that program.yaml is among its results"

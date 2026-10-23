@@ -3,7 +3,6 @@ schema: abench.oj/v2
 case_id: V-SMP-002
 standard: true
 task_statement: v2.1
-knowledge_cutoff: '2026-07-01'
 mode: no_training
 agent_visible:
   task: case/agent/task.md

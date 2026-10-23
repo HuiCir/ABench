@@ -1,11 +1,33 @@
-# BI-PROT-001 harness contract
+# BI-PROT-001 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+BI-PROT-001 pipeline: fitness prediction for single-substitution mutants of 30 held-out deep mutational scanning
+assays from ProteinGym, with a frozen ESM-2 and 64 labelled mutants per assay (evaluator and self-check use this same
+file).
+
+The evaluator does not train. One stage, "predict":
+  timed   import model.py, load(checkpoint_dir, models_dir, device) -> model           (load time, killed at 300 s)
+  finish  for each held-out assay: predict(model, assay) -> one score per query mutant, where assay holds the
+          wild-type sequence, the query mutants, 64 labelled mutants (few-shot) and the coarse selection type
+                                                                                          (all 30 ≤ 1,800 s)
+The labels of the query mutants never leave the evaluator.
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/model.py`
+- `baseline/train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

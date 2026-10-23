@@ -1,0 +1,26 @@
+schema: abench.references/v2
+references:
+- id: guha2023legalbench
+  title: 'LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models'
+  authors: Neel Guha, Julian Nyarko, Daniel E. Ho, Christopher Ré, Adam Chilton et al.
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2308.11462'
+  used_for: 'Anchor: the tasks, base prompts and balanced accuracy'
+  code_location: 'pipeline.py: fill'
+- id: zhao2021calibrate
+  title: 'Calibrate Before Use: Improving Few-Shot Performance of Language Models'
+  authors: Tony Z. Zhao, Eric Wallace, Shi Feng, Dan Klein and Sameer Singh
+  year: 2021
+  venue: ICML
+  arxiv: '2102.09690'
+  used_for: Related work (label bias of few-shot classifiers)
+  code_location: null
+- id: qwen2024qwen25
+  title: Qwen2.5 Technical Report
+  authors: An Yang et al. (Qwen Team)
+  year: 2024
+  venue: arXiv
+  arxiv: '2412.15115'
+  used_for: The frozen model
+  code_location: null

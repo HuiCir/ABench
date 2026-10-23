@@ -1,11 +1,35 @@
-# MD-SEG-001 harness contract
+# MD-SEG-001 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+MD-SEG-001 pipeline: the evaluator trains your 3D segmentation network with the fixed recipe of seg3d.py on four
+Medical Segmentation Decathlon tasks, one stage per task, and segments their held-out volumes (evaluator and
+self-check use this same file).
+
+Stages "hippocampus", "prostate", "heart" and "unseen" (imports network.py):
+  setup   load the task's preprocessed training volumes: the public files for the first three; for "unseen" they and
+          its configuration arrive in ctx.pre_dir (held_pre.npz) (untimed)
+  timed   net = make_network(in_channels, num_classes, patch_size, spacing); seg3d.train with the task's iterations
+  finish  sliding-window segmentation of the task's held-out volumes (given after the timed phase); parameters,
+          peak GPU memory, divergence                                                         (≤ 900 s per task)
+The evaluator trains the nnU-Net-style U-Net of baselines/unet through the same stages on the same seed.
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/network.py`
+- `baselines/unet/network.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `seg3d.py`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

@@ -1,0 +1,68 @@
+case: MD-SEG-001
+title: 'A Scaled-Down Residual-Encoder U-Net'
+abstract: >-
+  This submission keeps nnU-Net's planning of downsampling and kernel sizes from the patch size and spacing
+  [@isensee2018nnunet] and replaces the plain encoder by residual blocks, after the residual-encoder presets that
+  nnU-Net Revisited found to be the most reliable improvement over the plain U-Net [@isensee2024revisited]
+  [@he2016resnet]. The layout is scaled down (1, 2, 3, 4, 4, 4 blocks per stage, features capped at 256) to stay below
+  64 million parameters on every task, and the decoder has a single convolution per stage.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Under a fixed recipe, many proposed 3D architectures fail to beat a well-configured U-Net; deeper residual
+    encoders are among the few changes that held up in a controlled comparison [@isensee2024revisited].
+- title: Related Work
+  paras:
+  - >-
+    nnU-Net configures a plain U-Net from dataset properties [@isensee2018nnunet]; nnU-Net Revisited compares CNN and
+    transformer networks under one recipe and introduces residual-encoder presets [@isensee2024revisited]; residual
+    connections ease the training of deep convolutional networks [@he2016resnet].
+- title: Method
+  paras:
+  - >-
+    Each residual block has two convolutions with instance normalisation and leaky ReLU and an identity or
+    average-pool plus 1 x 1 projection shortcut. The first block of a stage carries its stride. The decoder upsamples by
+    transposed convolution, concatenates the skip and applies one convolution block; every decoder stage has a 1 x 1
+    segmentation head for deep supervision.
+- title: Design Rationale
+  paras:
+  - >-
+    Extra depth goes to the encoder, where the receptive field and the representation are built; a lighter decoder
+    pays for it in memory. Capping the features at 256 keeps the prostate and heart networks at 41 and 54 million
+    parameters.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Only the encoder changes; normalisation, kernel sizes and the handling of anisotropy are nnU-Net's. Nothing here
+    has been trained in this build.
+references:
+- id: isensee2018nnunet
+  title: 'nnU-Net: Self-adapting Framework for U-Net-Based Medical Image Segmentation'
+  authors: Fabian Isensee, Jens Petersen, Andre Klein, David Zimmerer, Paul F. Jaeger, Simon Kohl, Jakob Wasserthal, Gregor Koehler, Tobias Norajitra, Sebastian Wirkert and Klaus H. Maier-Hein
+  year: 2018
+  venue: arXiv
+  arxiv: '1809.10486'
+  used_for: 'Anchor: planning strides and kernels from the patch size and spacing; the U-Net layout'
+  code_location: 'network.py: plan'
+- id: isensee2024revisited
+  title: 'nnU-Net Revisited: A Call for Rigorous Validation in 3D Medical Image Segmentation'
+  authors: Fabian Isensee, Tassilo Wald, Constantin Ulrich, Michael Baumgartner, Saikat Roy, Klaus Maier-Hein and Paul F. Jaeger
+  year: 2024
+  venue: MICCAI
+  arxiv: '2404.09556'
+  used_for: The residual-encoder layout with more blocks in deeper stages
+  code_location: 'network.py: BLOCKS, ResEncUNet'
+- id: he2016resnet
+  title: Deep Residual Learning for Image Recognition
+  authors: Kaiming He, Xiangyu Zhang, Shaoqing Ren and Jian Sun
+  year: 2016
+  venue: CVPR
+  arxiv: '1512.03385'
+  used_for: Residual blocks with projection shortcuts
+  code_location: 'network.py: Res'
+changes:
+- text: Residual encoder blocks (1, 2, 3, 4, 4, 4 per stage) replace the two plain convolutions per stage.
+  code: 'network.py: Res, ResEncUNet'
+- text: Features are capped at 256 instead of 320 and the decoder uses one convolution per stage.
+  code: 'network.py: ResEncUNet'

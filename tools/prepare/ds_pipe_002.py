@@ -1,4 +1,9 @@
-"""DS-PIPE-002: six binary numerical-feature datasets of OpenML suite 337 (Grinsztajn et al. 2022, January 2023 version).
+"""DS-PIPE-002: six binary numerical-feature datasets of the Grinsztajn et al. (2022) tabular benchmark on OpenML
+(suite 337, numerical classification). jannis (45021) replaces electricity (44120), which is a time series whose
+shuffled split leaks temporal neighbours (2026-10-21 audit). The jannis id is taken from the dataset card of
+huggingface.co/datasets/inria-soda/tabular-benchmark (clf_num_jannis: OpenML d/41168 -> d/45021, 57,580 rows, 54
+features); its licence, target column and suite membership are checked by the operator at freeze (build() fails
+loudly on a wrong target column or a non-binary target).
 
 Per dataset: rows are shuffled with a fixed seed; the held-out split takes min(30%, 5,000) rows (stratified), and the
 public training split takes min(remaining, 10,000) rows, mirroring the benchmark's medium-size regime.
@@ -12,14 +17,14 @@ import numpy as np
 from prepare.common import Frozen, check, dev_indices
 
 DATASETS = {  # OpenML data id: (name, target column, licence as listed by OpenML on 2026-10-19)
-    44120: ("electricity", "class", "Public"),
     44122: ("pol", "binaryClass", "Public"),
     44123: ("house_16H", "binaryClass", "Public"),
     44125: ("MagicTelescope", "class", "Public"),
     44126: ("bank-marketing", "Class", "Public"),
     44128: ("MiniBooNE", "signal", "CC0"),
+    45021: ("jannis", "class", "to_verify (OpenML 41168 / 45021; ChaLearn AutoML challenge data)"),
 }
-SOURCES = [{"name": f"dataset_{d}.pq", "url": f"https://data.openml.org/datasets/0004/{d}/dataset_{d}.pq",
+SOURCES = [{"name": f"dataset_{d}.pq", "url": f"https://data.openml.org/datasets/{d // 10000:04d}/{d}/dataset_{d}.pq",
             "openml": f"https://www.openml.org/d/{d}", "dataset": v[0], "target": v[1], "license": v[2]}
            for d, v in DATASETS.items()]
 SPLIT_SEED, DEV_FRAC, DEV_SEED = 337, 0.1, 20260701

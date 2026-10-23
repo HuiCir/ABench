@@ -1,0 +1,34 @@
+schema: abench.references/v2
+references:
+- id: kerbl2023gaussian
+  title: 3D Gaussian Splatting for Real-Time Radiance Field Rendering
+  authors: Bernhard Kerbl, Georgios Kopanas, Thomas Leimkühler and George Drettakis
+  year: 2023
+  venue: ACM Transactions on Graphics (SIGGRAPH)
+  arxiv: '2308.04079'
+  used_for: 'Anchor: the representation, losses, learning rates and densification schedule'
+  code_location: 'src/gs3d.py: fit'
+- id: xie2024physgaussian
+  title: 'PhysGaussian: Physics-Integrated 3D Gaussians for Generative Dynamics'
+  authors: Tianyi Xie, Zeshun Zong, Yuxing Qiu, Xuan Li, Yutao Feng, Yin Yang and Chenfanfu Jiang
+  year: 2024
+  venue: CVPR
+  arxiv: '2311.12198'
+  used_for: The penalty on the ratio of a Gaussian's largest to smallest scale
+  code_location: 'method.py: _anisotropy'
+- id: zhu2024fsgs
+  title: 'FSGS: Real-Time Few-shot View Synthesis using Gaussian Splatting'
+  authors: Zehao Zhu, Zhiwen Fan, Yifan Jiang and Zhangyang Wang
+  year: 2024
+  venue: ECCV
+  arxiv: '2312.00451'
+  used_for: The sparse-view setting with evenly spread training views on Mip-NeRF 360
+  code_location: 'method.py: fit'
+- id: barron2022mipnerf360
+  title: 'Mip-NeRF 360: Unbounded Anti-Aliased Neural Radiance Fields'
+  authors: Jonathan T. Barron, Ben Mildenhall, Dor Verbin, Pratul P. Srinivasan and Peter Hedman
+  year: 2022
+  venue: CVPR
+  arxiv: '2111.12077'
+  used_for: The scenes
+  code_location: 'method.py: fit'

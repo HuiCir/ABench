@@ -13,7 +13,7 @@ task: |
 
   - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and rolls out 1,000 held-out trajectories on the 256-point grid and again on a 512-point grid; it never retrains.
   - Only the provided trajectories may be used: no pretrained weights, no external simulation data. Calling a numerical PDE solver at prediction time is not allowed; the model must be learned.
-  - You may build on any public work from before the cutoff (neural operators, convolutional and attention surrogates, autoregressive training schemes, physics-informed losses), but the design report must state what you borrowed and what you changed.
+  - You may build on any public work (neural operators, convolutional and attention surrogates, autoregressive training schemes, physics-informed losses), but the design report must state what you borrowed and what you changed.
 data: |
   `$ABENCH_DATA_DIR/train.npz` (read-only), from PDEBench (Takamoto et al. 2022), file `1D_Burgers_Sols_Nu0.001.hdf5` (10,000 trajectories on 1,024 points × 201 time steps), subsampled every 4th point in space and every 5th step in time:
 

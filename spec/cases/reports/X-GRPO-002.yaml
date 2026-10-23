@@ -1,0 +1,73 @@
+case: X-GRPO-002
+title: 'GRPO with LoRA and a Small Format Reward'
+abstract: >-
+  This submission applies Group Relative Policy Optimization [@shao2024deepseekmath] to Qwen2.5-0.5B-Instruct through
+  low-rank adapters [@hu2022lora]. For each prompt, eight responses are sampled; their verifier rewards are
+  standardised within the group to give advantages, and the policy takes one on-policy gradient step on the
+  token-level objective without a KL penalty, as later practice such as DAPO recommends [@yu2025dapo]. Half the
+  prompts are Countdown instances from the case's generator, half GSM8K training problems [@cobbe2021gsm8k].
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Verifiable rewards let a small model learn from its own correct and incorrect attempts without a reward model.
+    The case asks how to turn them into the largest accuracy gain within a fixed rollout budget.
+- title: Related Work
+  paras:
+  - >-
+    GRPO replaces PPO's value function with group-normalised rewards [@shao2024deepseekmath]; DAPO drops the KL
+    term, decouples clipping and filters prompts whose groups carry no signal [@yu2025dapo]. GSM8K provides
+    grade-school problems with numeric answers [@cobbe2021gsm8k].
+- title: Method
+  paras:
+  - >-
+    Reward 1 for a verified answer, 0.1 for a single well-formed but wrong answer block, 0 otherwise. Sixteen prompts
+    per step, eight samples each at temperature 1 and at most 384 new tokens; advantages are the group-standardised
+    rewards; the loss is the advantage-weighted log-probability of the response tokens averaged over all tokens of
+    the batch; AdamW at 2e-5 on rank-16 LoRA parameters, 200 steps; steps whose groups all tie are skipped.
+- title: Design Rationale
+  paras:
+  - >-
+    The small format reward keeps the answer block from disappearing early in training; LoRA keeps memory low so that
+    the budget goes to rollouts.
+- title: Scope and Limitations
+  paras:
+  - >-
+    One update per batch (no clipping needed, but sample-inefficient), no length control and no curriculum. It has not
+    been run here.
+references:
+- id: shao2024deepseekmath
+  title: 'DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models'
+  authors: Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, Y.K. Li, Y. Wu and Daya Guo
+  year: 2024
+  venue: arXiv
+  arxiv: '2402.03300'
+  used_for: 'Anchor: GRPO'
+  code_location: 'train.py: main'
+- id: yu2025dapo
+  title: 'DAPO: An Open-Source LLM Reinforcement Learning System at Scale'
+  authors: Qiying Yu, Zheng Zhang, Ruofei Zhu et al.
+  year: 2025
+  venue: arXiv
+  arxiv: '2503.14476'
+  used_for: Token-level averaging and no KL term
+  code_location: 'train.py: main'
+- id: cobbe2021gsm8k
+  title: Training Verifiers to Solve Math Word Problems
+  authors: Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian et al.
+  year: 2021
+  venue: arXiv
+  arxiv: '2110.14168'
+  used_for: GSM8K
+  code_location: null
+- id: hu2022lora
+  title: 'LoRA: Low-Rank Adaptation of Large Language Models'
+  authors: Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang and Weizhu Chen
+  year: 2022
+  venue: ICLR
+  arxiv: '2106.09685'
+  used_for: Low-rank adapters
+  code_location: 'src/lora.py'
+changes:
+- text: A 0.1 reward for a single well-formed but wrong answer block is added to the verifier reward.
+  code: 'train.py: reward'

@@ -1,0 +1,137 @@
+id: LG-LONG-001
+title: "Classifying long court decisions: violated articles in European Court of Human Rights cases"
+template: TC-FT-001
+anchor: {authors: "Ilias Chalkidis, Abhik Jana, Dirk Hartung, Michael Bommarito, Ion Androutsopoulos, Daniel Martin Katz, Nikolaos Aletras", title: "LexGLUE: A Benchmark Dataset for Legal Language Understanding in English", arxiv: "2110.00976"}
+baseline: "tf-idf over the whole case with one logistic regression per article (`example_submission/`)"
+reference_verification: "The reference submission and the whole pipeline (dev split, stage runner, metrics) run end to end on synthetic data in tests/test_standard_cases.py, with the checkpoint built by the reference train.py. Nothing has been run on the real frozen data yet."
+mode: checkpoint
+n_seeds: 1
+extra_interface: [harness/textpack.py]
+task: |
+  Design a **long-document classification architecture** that, given the facts of a European Court of Human Rights case (often several thousand tokens), predicts which of ten articles of the Convention the court found violated, with the **highest mean of micro- and macro-F1** on held-out cases. Develop and train it on one 24GB GPU in the sandbox, then submit the trained model.
+
+  - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and labels the 1,000 held-out cases; it never retrains.
+  - Most cases exceed the 512-token window of the provided encoder: how you cover the rest of the document (hierarchical encoding of paragraphs, sparse or sliding attention, retrieval of the relevant paragraphs, or no encoder at all) is the design question.
+  - Only the provided data and the provided legal-bert-base-uncased may be used: no other pretrained model, no external data, no case law outside the training split.
+  - You may build on any public work (hierarchical transformers, Longformer-style attention, label-wise attention, linear models over n-grams), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/ecthr_a.npz` (read-only), LexGLUE ECtHR task A (Hugging Face `coastalcph/lex_glue`, config `ecthr_a`, CC BY 4.0):
+
+  | Key | Shape | Type | Description |
+  |---|---|---|---|
+  | `train_text_utf8`, `train_text_offsets` | packed, 9,000 cases | uint8, int64 | Facts of each case, paragraphs separated by a blank line; `interface/textpack.py` has `unpack()` |
+  | `train_y` | (9000, 10) | int8 | 1 if the court found the article violated; a row may be all zero |
+  | `val_text_utf8`, `val_text_offsets`, `val_y` | 1,000 cases | as above | The public validation split |
+  | `labels` | (10,) | str | Articles 2, 3, 5, 6, 8, 9, 10, 11, 14 and Article 1 of Protocol 1 |
+
+  `$ABENCH_MODELS_DIR/legal-bert-base-uncased/` holds the encoder and tokenizer (Hugging Face `nlpaueb/legal-bert-base-uncased`, CC BY-SA 4.0; 512-token positions). The held-out set is the official LexGLUE test split (1,000 cases, judged later than the training cases); it is not in the sandbox. The self-check uses the validation split as its held-out set.
+interface: "Implement `load(checkpoint_dir, models_dir, device)` and `predict(model, texts)` in `model.py`; `predict` receives a list of case texts and returns an (M, 10) array of 0/1 decisions. Your `train.py` writes `checkpoint/`."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean F1** (primary) | Mean of micro-F1 and macro-F1 over the 10 articles plus a "no violation" label that is 1 when a row has no positive label (computed separately for gold and prediction, as in LexGLUE); higher is better | — |
+  | Micro-F1, macro-F1 | The two components | reported |
+  | Load time, prediction time | Seconds to `load()` and to label the 1,000 cases | reported (load killed at 300 s) |
+
+
+  No threshold applies to any metric: a submission is valid if it loads, runs within the time limits and returns well-formed outputs (see below).
+
+  **Timing and decision**
+
+  - Loading and prediction run in a new process with empty cache directories, on the same GPU model, timed by the evaluator's parent process (`interface/abench_stage.py`); creating the CUDA context is not timed. `predict()` runs after the timed phase and must finish within 600 seconds.
+  - If loading or prediction crashes, exceeds a time limit, or returns an array of the wrong shape or values other than 0/1, the submission is invalid; valid submissions are ranked by mean F1. Differences inside the 95% interval reported with the score are treated as ties.
+  - The final ABench score is driven mainly by mean F1, and also considers how different the architecture is from existing long-document models and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 4
+  dev_budget: "4 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, and Hugging Face transformers, tokenizers and safetensors (versions frozen at activation; offline)"
+  notes: |
+    - Load the encoder only from `models_dir + "/legal-bert-base-uncased"` (its weights are `pytorch_model.bin`); `HF_HUB_OFFLINE=1` is set.
+    - The reference submission uses NumPy and SciPy only (CPU); the encoder and the GPU are there for your design.
+    - The self-check scores your checkpoint on the validation split. Train without it (the reference `train.py` does by default) if you want an unbiased dev estimate; you may use it in the final checkpoint.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and predict()
+    ├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+    ├── checkpoint/         # required: trained parameters, any file types, at most 1,000 MiB
+    ├── src/                # optional: other .py modules imported by model.py or train.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights other than the provided legal-bert-base-uncased, no external data and no hand-set parameters copied from elsewhere.
+  - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
+  - `predict()` labels each case on its own; it may not fit or adapt anything to the held-out cases.
+interface_md: |
+  # LG-LONG-001 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, models_dir: str, device: str):
+      """Load your trained classifier (and, if you use it, the encoder from models_dir/legal-bert-base-uncased)."""
+
+  def predict(model, texts: list[str]) -> numpy.ndarray:
+      """texts: the facts of each case, paragraphs separated by a blank line. Return int (len(texts), 10) 0/1
+      decisions in the order of the labels array: articles 2, 3, 5, 6, 8, 9, 10, 11, 14, P1-1."""
+  ```
+
+  - The evaluator calls `load` inside the timed phase and `predict` once, on all held-out cases, after it.
+  - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Training program: `train.py`
+
+  Write a `train.py` that produces `checkpoint/` from `$ABENCH_DATA_DIR/ecthr_a.npz` (and, if you use it,
+  `$ABENCH_MODELS_DIR/legal-bert-base-uncased`), for example
+  `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`. The evaluator does not run it;
+  it is kept with the submission so the checkpoint can be audited and reproduced. The reference implementation under
+  `interface/baseline/` (its `model.py` and `train.py`) is a working starting point you may improve on or replace.
+
+  ## Evaluator code you can read
+
+  `stages.py` (pipeline, dev split, time limits), `metrics.py` and `abench_metrics.py` (micro- and macro-F1 with the
+  "no violation" label), `abench_stage.py` (process and timing protocol), `textpack.py` and `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, transformers, tokenizers, safetensors (offline). Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 4.0, session_hours: 4.0}
+  data:
+    public_dir: sandbox/data/LG-LONG-001
+    public:
+      - {path: sandbox/data/LG-LONG-001/ecthr_a.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/LG-LONG-001/hidden.npz.enc, sha256_plain: pending, keys: [text_utf8, text_offsets, y]}
+    models_dir: sandbox/models/LG-LONG-001
+    models:
+      - {name: legal-bert-base-uncased, path: sandbox/models/LG-LONG-001/legal-bert-base-uncased, tree_sha256: pending, revision: 15b570cbf88259610b082a167dacc190124f60f6, license: CC BY-SA 4.0}
+    sources:
+      - name: "LexGLUE ECtHR task A (Chalkidis et al. 2022), Hugging Face coastalcph/lex_glue, config ecthr_a"
+        url: https://huggingface.co/datasets/coastalcph/lex_glue
+        revision: c23fdff1a6bf74e0e1a71cb86f1e781d37da888c
+        files: [ecthr_a/train-00000-of-00001.parquet, ecthr_a/validation-00000-of-00001.parquet, ecthr_a/test-00000-of-00001.parquet]
+        license: CC BY 4.0
+        verified: "2026-10-22: revision, licence and file list from the Hugging Face API; features (text: list of paragraphs; labels: 10 articles) and split sizes 9,000 / 1,000 / 1,000 from the dataset viewer API"
+      - name: "LEGAL-BERT base uncased (Chalkidis et al. 2020), Hugging Face nlpaueb/legal-bert-base-uncased"
+        url: https://huggingface.co/nlpaueb/legal-bert-base-uncased
+        revision: 15b570cbf88259610b082a167dacc190124f60f6
+        license: CC BY-SA 4.0
+        verified: "2026-10-22: revision, licence and file list from the Hugging Face API"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    checkpoint_dir: checkpoint
+    allowed_top_level: [README.md, model.py, train.py, checkpoint, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 1050575872
+    checkpoint_max_bytes: 1048576000
+    required_files: [train.py]
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [2110]

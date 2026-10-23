@@ -1,6 +1,6 @@
 # ABench demo site
 
-An animated demo of how ABench is built, its evaluation modes, local discovery, verification modes and resource tiers, with a browser for all cases. All 98 cases in the current index have a bench scaffold; the page's demo data still comes from the historical process sample of B-OPT-001 and does not represent real evaluation.
+An animated demo of how ABench is built, its evaluation modes, local discovery, verification modes and resource tiers, with a browser for all 73 cases of the current index. The flow and scoring demo uses the historical process sample of B-OPT-001 (simulated values, not real evaluation); the calibration runs in the OJ section are real records of 2026-10-23.
 
 ## Starting
 
@@ -14,10 +14,10 @@ The first time you double-click `start.command`, macOS may say it "cannot verify
 
 | Section | What it shows |
 |---|---|
-| Hero | The paper neighborhood of B-OPT-001 growing over time, the cutoff line dropping, and the example method linking to the sources it actually uses |
+| Hero | The paper neighborhood of B-OPT-001 growing over time, the session start of the example run, and the example method linking to the sources it actually uses |
 | Build flow | S0 issue view → S5 submit (inside the sandbox), S6 OJ evaluation → S8 scoring (outside the sandbox), animated step by step, with autoplay |
-| Standard cases | The three evaluation modes (checkpoint / evaluator trains / no training), the five-step Workflow every standard task statement requires (retrieve, synthesise, design with a changes list, develop and verify, submit), the 20 standard cases with primary metric, gates and plumbing status, and the launch path of TC-FT-001 |
-| OJ evaluation | Side-by-side files of the agent view and the judge; the full path of one run, switchable among five scenarios: normal submission, smuggled self-reported metrics, a report with an experiments section, smoke, and benchmark without isolation |
+| Standard cases | The three evaluation modes (checkpoint / evaluator trains / no training), the five-step Workflow every task statement requires (research throughout, synthesise, design with a changes list, develop and verify, submit), the standard cases with primary metric, gates and plumbing status, and the launch path of TC-FT-001 |
+| OJ evaluation | Side-by-side files of the agent view and the judge; the full path of one run, switchable among six scenarios: normal submission, smuggled self-reported metrics, a report with an experiments section, smoke, fetching the test set online (denied by the egress policy), and benchmark without isolation; run modes and isolation, the research egress policy, and the calibration runs of 2026-10-23 |
 | Design report | Live preview of arXiv-style reports (RankGate example, design template, judgment template), reading the anchors and LaTeXML structure from the preview in real time |
 | Evaluation modes | Thresholds, reference envelope, behavioral similarity, source contributions and local-discovery ablations of three submissions (the example and two negatives) |
 | Local discovery | Sinkhorn–Knopp iteration projecting a positive matrix onto a doubly stochastic matrix (the classic result DeepSeek mHC brought in) |

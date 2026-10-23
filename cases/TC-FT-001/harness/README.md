@@ -1,14 +1,29 @@
-# TC-FT-001 harness contract
+# TC-FT-001 harness
 
-This scaffold defines the server-side contract only; it does not run training or create synthetic results.
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-## Required interface
+## Pipeline (`stages.py`)
 
-- Read the immutable manifest supplied by the benchmark.
-- Write deterministic metrics.json and run_metadata.json.
-- Record seed, input/resource hashes, wall-clock time, peak memory and exit status.
-- Keep network and filesystem access within case/eval_protocol.yaml sandbox policy.
+```
+TC-FT-001 pipeline: score a submitted text classifier on Yelp Review Full (evaluator and self-check use this same file).
 
-## Pending
+The evaluator does not train. One stage, "predict":
+  timed   import model.py, load(checkpoint_dir) -> model                     (load time, ≤ 120 s)
+  finish  read the held-out texts, predict(model, texts) -> labels         (≤ 60 s; throughput threshold)
+```
 
-The benchmark maintainer must freeze the executable runner, container image, resource hashes and failure semantics before accepting submissions.
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/model.py`
+- `baseline/train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+- `textpack.py`
+
+The held-out data, keys and judge configuration are never in this directory.

@@ -12,9 +12,9 @@ n_seeds: 3
 task: |
   Design an **action-generation policy** for the PushT task — push a T-shaped block into a target pose with a circular end-effector — learned by imitation from 206 human demonstrations with keypoint observations. Develop and train it on one 24GB GPU in the sandbox; the trained policy should achieve the **highest target-area coverage** in closed-loop rollouts from held-out initial states.
 
-  - Submit your policy code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and lets the policy control the simulator for 50 episodes from reset seeds you do not know, three times over (stochastic policies are averaged over the three runs); it never retrains.
+  - Submit your policy code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and lets the policy control the simulator for 150 episodes from reset seeds you do not know, three times over (stochastic policies are averaged over the three runs); it never retrains.
   - Only the provided demonstrations may be used: no pretrained weights, no reinforcement learning in the simulator during training, no scripted controller that solves the task.
-  - You may build on any public work from before the cutoff (diffusion and flow-matching action heads, action chunking with transformers, energy-based or mixture policies, temporal ensembling), but the design report must state what you borrowed and what you changed.
+  - You may build on any public work (diffusion and flow-matching action heads, action chunking with transformers, energy-based or mixture policies, temporal ensembling), but the design report must state what you borrowed and what you changed.
 data: |
   `$ABENCH_DATA_DIR/demos.npz` (read-only), from Hugging Face `lerobot/pusht_keypoints` (Apache-2.0; 206 episodes, 25,650 frames at 10 Hz):
 
@@ -25,14 +25,14 @@ data: |
   | `action` | (25650, 2) | float32 | Commanded target position of the end-effector |
   | `episode`, `frame` | (25650,) | int64 | Episode index and frame index within the episode |
 
-  The simulator is `gym-pusht` (`gym_pusht/PushT-v0`, observation type `environment_state_agent_pos`). The held-out set is 50 reset seeds; it is not in the sandbox. The self-check rolls out on public seeds.
+  The simulator is `gym-pusht` (`gym_pusht/PushT-v0`, observation type `environment_state_agent_pos`). The held-out set is 150 reset seeds; it is not in the sandbox. The self-check rolls out on public seeds.
 interface: 'Implement `load(checkpoint_dir, device)` and `make_policy(model)` in `policy.py`. The policy object has `reset()`
   (called at the start of each episode) and `act(obs) -> action`, where `obs` is `{"agent_pos": (2,), "environment_state":
   (16,)}` and the action is a target position (2,) in [0, 512]. Your `train.py` writes `checkpoint/`.'
 metrics: |
   | Metric | Definition | Requirement |
   |---|---|---|
-  | **Mean max reward** (primary) | Per episode, the maximum over time of the simulator's reward, clip(coverage / 0.95, 0, 1), where coverage is the fraction of the target area covered by the block; averaged over the 50 held-out episodes, then over 3 evaluation runs (each with its own seed, which you can use for any sampling in the policy); higher is better | — |
+  | **Mean max reward** (primary) | Per episode, the maximum over time of the simulator's reward, clip(coverage / 0.95, 0, 1), where coverage is the fraction of the target area covered by the block; averaged over the 150 held-out episodes, then over 3 evaluation runs (each with its own seed, which you can use for any sampling in the policy); higher is better | — |
   | Success rate | Fraction of episodes in which coverage exceeded 95% (the simulator then ends the episode) | reported |
   | Load time | Seconds from the start signal to the return of `load()` (includes importing `policy.py`) | reported (killed at 120 s) |
 
@@ -40,8 +40,8 @@ metrics: |
   No threshold applies to any metric: a submission is valid if it loads, runs within the time limits and returns well-formed outputs (see below).
   **Timing and decision**
 
-  - Each run is a new process with empty cache directories, timed by the evaluator's parent process (`interface/abench_stage.py`). Rollouts run after the timed phase: 50 episodes of at most 300 steps, all within 900 seconds.
-  - If any run crashes, exceeds a time limit, or the policy returns a non-finite action, the submission is invalid; valid submissions are ranked by mean max reward. Actions are clipped to [0, 512].
+  - Each run is a new process with empty cache directories, timed by the evaluator's parent process (`interface/abench_stage.py`). Rollouts run after the timed phase: 150 episodes of at most 300 steps, all within 2,700 seconds (18 s per episode on average).
+  - If any run crashes, exceeds a time limit, or the policy returns a non-finite action, the submission is invalid; valid submissions are ranked by mean max reward; differences inside the 95% interval reported with the score are treated as ties. Actions are clipped to [0, 512].
   - The final ABench score is driven mainly by mean max reward, and also considers how different the method is from existing policies and the quality of the sources cited in the design report; the exact weights are not published.
 hardware:
   kind: gpu
@@ -49,7 +49,7 @@ hardware:
   dev_budget: 6 GPU-hours
   software: Python 3, PyTorch (CUDA, Triton), NumPy, gymnasium and gym-pusht (versions frozen at activation)
   notes: |
-    - The simulator runs on the CPU; keep `act()` fast (the 15,000 calls of an evaluation share the 900-second rollout budget with physics and your model).
+    - The simulator runs on the CPU; keep `act()` fast (the up to 45,000 calls of a run share the 2,700-second rollout budget with physics and your model).
     - You may use the simulator in the sandbox to test your policy; it may not be used to generate training data or rewards for `train.py`.
 deliverables:
   tree: |
@@ -114,7 +114,7 @@ oj:
     hidden:
       path: sandbox/hidden/E-ACT-001/hidden.npz.enc
       sha256_plain: pending
-      rows: 50
+      rows: 150
       keys:
       - reset_seeds
     sources:

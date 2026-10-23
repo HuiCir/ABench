@@ -13,9 +13,9 @@ import numpy as np
 
 from abench_stage import Context, Stage
 
-DATASETS = [44120, 44122, 44123, 44125, 44126, 44128]
-NAMES = {44120: "electricity", 44122: "pol", 44123: "house_16H", 44125: "MagicTelescope",
-         44126: "bank-marketing", 44128: "MiniBooNE"}
+DATASETS = [44122, 44123, 44125, 44126, 44128, 45021]
+NAMES = {44122: "pol", 44123: "house_16H", 44125: "MagicTelescope", 44126: "bank-marketing", 44128: "MiniBooNE",
+         45021: "jannis"}
 PARAMS = {"datasets": DATASETS}
 HELD_OUT_KEYS = [f"x_{d}" for d in DATASETS]
 PIPELINE = [{"stage": "predict", "timeout": 120 + 120, "finish_cap": 120, "tail_slack": 5, "threads": 8,

@@ -1,0 +1,86 @@
+case: X-DATA-007
+title: 'Exact and MinHash Deduplication with a Target-Example Classifier Filter'
+abstract: >-
+  This submission chains the two standard steps of web-data preparation. It removes exact duplicates by normalised-text
+  hashes and near-duplicates by MinHash over word 5-shingles with 20 bands of 5 rows [@broder1997resemblance;
+  @lee2022dedup]. It then ranks the remaining documents with a logistic regression on hashed word 1-2-grams trained to
+  separate the 5,000 target examples from random pool documents, in the spirit of classifier-based quality filters
+  [@brown2020gpt3; @penedo2024fineweb], and keeps the best documents, each once, until the token budget is reached. It
+  runs on the CPU in the select stage and was run in the build container on a synthetic pool.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    A fixed model trained on a fixed number of tokens learns more from some documents than from others; duplicated
+    text wastes budget, and text far from the target distribution teaches little about it. The case isolates the data
+    decision by fixing the model and the recipe.
+- title: Related Work
+  paras:
+  - >-
+    Lee et al. show that exact and near-duplicate removal improves language models [@lee2022dedup]; MinHash estimates
+    Jaccard similarity of shingle sets [@broder1997resemblance]; GPT-3 and FineWeb-Edu filter with classifiers trained
+    on reference text [@brown2020gpt3; @penedo2024fineweb]; data-constrained scaling quantifies the value of repetition
+    [@muennighoff2023scaling].
+- title: Method
+  paras:
+  - >-
+    Normalise (lower-case, strip punctuation, collapse spaces) and hash; keep the first of each hash. Compute 100
+    MinHash values per document (at most 2,000 shingles sampled per long document), drop a document if any of its 20
+    five-row bands collides with a kept document. Train the classifier (C = 1) on the target examples against four
+    times as many pool documents, score every remaining document and take them in descending score until the
+    cumulative tokens exceed the budget.
+- title: Design Rationale
+  paras:
+  - >-
+    Taking each kept document once avoids repetition entirely; the classifier ties the filter to the target
+    distribution using only the provided examples.
+- title: Scope and Limitations
+  paras:
+  - >-
+    No repetition of the best documents, no mixing across dumps, and the classifier's negatives include some good
+    documents. The real pool has not been processed yet.
+references:
+- id: lee2022dedup
+  title: Deduplicating Training Data Makes Language Models Better
+  authors: Katherine Lee, Daphne Ippolito, Andrew Nystrom, Chiyuan Zhang, Douglas Eck, Chris Callison-Burch and Nicholas Carlini
+  year: 2022
+  venue: ACL
+  arxiv: '2107.06499'
+  used_for: 'Anchor: exact and near-duplicate removal'
+  code_location: 'src/dedup.py'
+- id: broder1997resemblance
+  title: On the Resemblance and Containment of Documents
+  authors: Andrei Z. Broder
+  year: 1997
+  venue: Compression and Complexity of Sequences
+  doi: 10.1109/SEQUEN.1997.666900
+  used_for: MinHash
+  code_location: 'src/dedup.py: minhash, near_keep'
+- id: brown2020gpt3
+  title: Language Models are Few-Shot Learners
+  authors: Tom B. Brown et al.
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2005.14165'
+  used_for: Classifier-based quality filtering
+  code_location: 'pipeline.py: select'
+- id: penedo2024fineweb
+  title: 'The FineWeb Datasets: Decanting the Web for the Finest Text Data at Scale'
+  authors: Guilherme Penedo et al.
+  year: 2024
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2406.17557'
+  used_for: The pool and the educational target
+  code_location: null
+- id: muennighoff2023scaling
+  title: Scaling Data-Constrained Language Models
+  authors: Niklas Muennighoff et al.
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.16264'
+  used_for: Related work (value of repetition)
+  code_location: null
+changes:
+- text: The quality filter is trained on the provided target examples against pool documents, and documents are taken
+    once in score order until the budget.
+  code: 'pipeline.py: select'

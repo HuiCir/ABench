@@ -1,0 +1,122 @@
+id: PH-SYM-005
+title: "Discovering the governing equations of 20 unseen dynamical systems from noisy trajectories"
+template: U-LOOP-003
+anchor: {authors: "Steven L. Brunton, Joshua L. Proctor, J. Nathan Kutz", title: "Discovering governing equations from data by sparse identification of nonlinear dynamical systems", arxiv: "1509.03580"}
+baseline: "the anchor's SINDy with sequentially thresholded least squares (threshold 0.1, finite-difference derivatives), run by the evaluator on the same systems (`interface/baselines/stlsq/`)"
+baseline_run: "The evaluator also runs the anchor's STLSQ baseline in `interface/baselines/stlsq/` on the same 20 systems and reports your recovery rate, term F1 and extrapolation error relative to it."
+reference_verification: "The reference submission and the STLSQ baseline were run in the build container (CPU, 2 cores) on three development sets of 20 systems drawn by the case's generator with public seeds 1, 2 and 3 (not the secret held-out seed): recovery rate 0.65 / 0.35 / 0.50 for the reference against 0.30 / 0.35 / 0.50 for STLSQ, mean term F1 0.83 / 0.72 / 0.81 against 0.73 / 0.63 / 0.73, mean extrapolation error 0.11 / 0.08 / 0.07 against 0.28 / 0.30 / 0.18, discovery time 21 to 75 s for 20 systems. These are calibration checks of the case (headroom remains: most 4-variable random sparse systems are missed by both), not results. The full pipeline (generator, stage runner, metrics, extrapolation) runs end to end in tests/test_standard_cases.py."
+mode: judge_trains
+n_seeds: 1
+show_baseline: false
+extra_interface:
+  - harness/systems.py
+  - harness/baselines/stlsq/discover.py
+task: |
+  Design a method that **discovers the governing equations** of a dynamical system from a few noisy trajectories, and that gets the **structure exactly right** — which terms appear in which equation — on the largest fraction of **20 systems it has never seen**.
+
+  - Submit code only (`discover.py` with `discover()`). At evaluation the evaluator gives it, system by system, 8 trajectories of each of 20 held-out systems and receives a coefficient matrix over a fixed term library (constant, monomials up to degree 3, sin and cos of each variable).
+  - The held-out systems come from the generator in `interface/systems.py` with a seed you do not know: 11 come from known families (oscillators, predator-prey, chemical and neural oscillators, chaotic attractors) with random parameters, a random order of the variables and random variable scales; 9 are random sparse polynomial systems in 3 or 4 variables. You never see which family a system comes from; the generator itself is yours to use for development with any other seed.
+  - Measurement noise varies between systems (0 to 1% of each variable's standard deviation) and is not given to you.
+  - You may build on any public work (sparse regression, model selection, weak or integral formulations, ensembles, derivative estimation), but the design report must state what you borrowed and what you changed.
+data: |
+  There is no data directory: all training and development data come from `interface/systems.py`.
+
+  | Function | Returns |
+  |---|---|
+  | `systems.sample_set(seed, n)` | `n` systems drawn as the held-out set is drawn (no known family repeats, at least `n // 3` random sparse) |
+  | `systems.sample_system(rng, family=None)` | one system: `coef` (true coefficients), `t` (1,000 time points), `x` (8, 1,000, d) noisy trajectories, `noise`, `family`, `test_x0` |
+  | `systems.library(d)`, `systems.term_names(d)`, `systems.eval_library(x)` | the term library of a d-variable system, its readable names, and the term matrix Θ(x) |
+  | `systems.simulate(coef, x0, duration)` | integrates a coefficient matrix from an initial condition |
+
+  The evaluator's 20 systems are drawn with a secret seed; their true coefficients, held-out initial conditions and family labels are never in the sandbox. The self-check uses 20 systems from a fixed development seed.
+interface: "Implement `discover(t, x, seed) -> coef` in `discover.py`: `t` is a (1000,) float64 array of uniformly spaced times, `x` a float64 array (8, 1000, d) of noisy states of 8 trajectories, and `coef` a float array (n_terms(d), d) with `dx_i/dt = Σ_k coef[k, i] · term_k(x)` over `systems.library(d)`. Terms you consider absent must be exactly 0."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Recovery rate** (primary) | Fraction of the 20 systems for which the set of non-zero coefficients equals the true set in every equation; higher is better | — |
+  | Term F1 | F1 of the non-zero terms against the true terms, per system, averaged | reported |
+  | Extrapolation error | The discovered and the true system are integrated from 4 new initial conditions over the training duration; RMS difference divided by the true trajectory's standard deviation, averaged over variables, capped at 1 (1 if the discovered system leaves ten times the true range or cannot be integrated); mean over systems | reported |
+  | Coefficient error | ‖Ĉ − C‖ / ‖C‖, median over systems | reported |
+  | Discovery time | Seconds of the 20 `discover()` calls (parent clock) | Threshold: ≤ 1,200 s |
+
+  **Timing and decision**
+
+  - The run is a new process with empty cache directories and 8 CPU threads, timed by the evaluator's parent process (`interface/abench_stage.py`); loading the trajectories is not timed, importing `discover.py` and the 20 `discover()` calls are.
+  - A submission is valid only if the time threshold holds; valid submissions are ranked by recovery rate, ties broken by mean term F1, then by the lower extrapolation error.
+  - If the run crashes, exceeds the time limit, or returns a matrix of the wrong shape or with non-finite values, the submission is invalid.
+  - The final ABench score is driven mainly by the recovery rate relative to the baseline, and also considers how different the method is from existing methods and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: cpu
+  session_hours: 4
+  dev_budget: "32 CPU-core-hours (the whole session on the 8-core allotment)"
+  software: "Python 3, NumPy, SciPy, scikit-learn"
+  notes: |
+    - No GPU is available in this case; the evaluation runs on CPU only. The submission may depend only on NumPy, SciPy, scikit-learn and the Python standard library (no PySINDy).
+    - `selfcheck.py` runs the evaluator's stage on 20 development systems (`--quick`: 4 of them) and prints your recovery rate; drawing more systems with other seeds is encouraged.
+    - The 60 seconds per system are advisory; only the total of 1,200 seconds is enforced.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── discover.py         # required: discover()
+    ├── src/                # optional: other .py modules imported by discover.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total; no stored equations, coefficient tables or lists of family templates.
+rules: |
+  - The submission is code only and must discover each system from its trajectories: no tables of the generator's families or their coefficient patterns, and no code that inspects the generator's source or state.
+  - `discover()` may import `systems` (term library, integrator) but must not call `sample_system` or `sample_set`.
+  - Recognising a family is acceptable only as a consequence of a general method (for example a sparsity prior); the design report must explain any prior over terms.
+interface_md: |
+  # PH-SYM-005 interface
+
+  ## Entry point: `discover.py`
+
+  ```python
+  import systems                      # interface/systems.py is on sys.path
+
+  def discover(t, x, seed) -> "numpy.ndarray":
+      """t: float64 (1000,) uniformly spaced times; x: float64 (8, 1000, d) noisy states of 8 trajectories.
+      Return float (systems.n_terms(d), d): dx_i/dt = sum_k coef[k, i] * term_k(x) over systems.library(d).
+      Absent terms must be exactly 0."""
+  ```
+
+  - Term order of `systems.library(d)`: the constant, the d linear terms, the monomials of degree 2 and 3 (in
+    `itertools.combinations_with_replacement` order), then sin(x_0..x_{d-1}) and cos(x_0..x_{d-1});
+    `systems.term_names(d)` gives readable names. d is 2, 3 or 4 (14, 26 or 43 terms).
+  - The evaluator calls `discover` once per system inside the timed phase, with seeds `run_seed`, `run_seed + 1`, ...
+  - `discover.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Evaluator code you can read
+
+  `systems.py` (generator and library), `stages.py` (the stage and the development set), `metrics.py` (recovery,
+  F1, extrapolation), `baselines/stlsq/discover.py`, `abench_metrics.py`, `abench_stage.py` and `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, NumPy, SciPy, scikit-learn. Nothing can be installed.
+oj:
+  agent_budget: {cpu_core_hours: 32, session_hours: 4}
+  data:
+    public_dir: sandbox/data/PH-SYM-005
+    public: []
+    hidden: {path: sandbox/hidden/PH-SYM-005/hidden.npz.enc, sha256_plain: pending, keys: "s00..s19: t, x (given before the timed phase); coef, test_x0, duration (evaluator only)"}
+    sources:
+      - name: "Simulated dynamical systems (cases/PH-SYM-005/harness/systems.py), drawn with a secret seed escrowed by the operator (ABENCH_PH_SYM_SEED)"
+        url: null
+        license: "generated by ABench"
+        verified: "2026-10-22: generator, identifiability filter (library conditioning ≥ 1e-6 and every true term visible in the data) and integrator checked in the container; coordinate transform verified against direct evaluation for all 12 families"
+  submission:
+    kind: code_only
+    entry: discover.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, discover.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cpu
+    reference_hardware: "8 CPU cores (model frozen at activation)"
+    seeds: [5005]          # discovery seeds only; the systems come from ABENCH_PH_SYM_SEED
+    baseline: harness/baselines/stlsq

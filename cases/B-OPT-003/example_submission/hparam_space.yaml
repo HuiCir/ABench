@@ -1,0 +1,9 @@
+rule: Adafactor
+tunable:                      # at most 4; the evaluator uses the defaults only
+  lr:   {default: 0.003, range: [0.0005, 0.02], scale: log}
+  b2:   {default: 0.95,  range: [0.9, 0.999],   scale: linear}
+  wd:   {default: 0.1,   range: [0.0, 0.2],     scale: linear}
+fixed:
+  eps: 1.0e-30
+  clip: 1.0
+owns_schedule: false

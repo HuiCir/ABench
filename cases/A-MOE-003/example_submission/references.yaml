@@ -1,0 +1,43 @@
+schema: abench.references/v2
+references:
+- id: fedus2022switch
+  title: 'Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity'
+  authors: William Fedus, Barret Zoph and Noam Shazeer
+  year: 2022
+  venue: JMLR
+  arxiv: '2101.03961'
+  used_for: 'Anchor: sparse routing and the balancing loss of the baseline'
+  code_location: null
+- id: shazeer2017moe
+  title: 'Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer'
+  authors: Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton and Jeff Dean
+  year: 2017
+  venue: ICLR
+  arxiv: '1701.06538'
+  used_for: Top-k routing
+  code_location: 'moe.py: FineGrainedFree.forward'
+- id: zhou2022expertchoice
+  title: Mixture-of-Experts with Expert Choice Routing
+  authors: Yanqi Zhou, Tao Lei, Hanxiao Liu, Nan Du, Yanping Huang, Vincent Zhao, Andrew Dai, Zhifeng Chen, Quoc
+    Le and James Laudon
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2202.09368'
+  used_for: Related work (expert-side selection)
+  code_location: null
+- id: dai2024deepseekmoe
+  title: 'DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models'
+  authors: Damai Dai et al.
+  year: 2024
+  venue: ACL
+  arxiv: '2401.06066'
+  used_for: Fine-grained experts
+  code_location: 'moe.py: N_EXPERTS, FF, K'
+- id: wang2024lossfree
+  title: Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts
+  authors: Lean Wang, Huazuo Gao, Chenggang Zhao, Xu Sun and Damai Dai
+  year: 2024
+  venue: arXiv
+  arxiv: '2408.15664'
+  used_for: Bias-based balancing
+  code_location: 'moe.py: FineGrainedFree.forward (bias update)'

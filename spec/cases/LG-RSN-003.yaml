@@ -1,0 +1,132 @@
+id: LG-RSN-003
+title: "Legal reasoning with a frozen 1.5B model: a pipeline for LegalBench tasks seen and unseen during development"
+template: FN-QA-004
+anchor: {authors: "Neel Guha, Julian Nyarko, Daniel E. Ho, Christopher Ré, Adam Chilton et al.", title: "LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models", arxiv: "2308.11462"}
+baseline: "each task's LegalBench base prompt (instructions and few-shot examples) filled with the row, and the label whose continuation has the highest mean log-probability under the frozen model (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Partly executed: the task selection, prompt slots, label sets and the freezing code were run on the 35 tasks' prompts and training rows from the LegalBench GitHub repository (test rows come from the Hugging Face copy, which only the operator can download); the pipeline and metrics run on synthetic tasks in tests/test_standard_cases.py with a stand-in pipeline. The frozen model has not run here (no PyTorch); the operator runs the reference at activation."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/legaltasks.py]
+task: |
+  Design a **pipeline around a frozen Qwen2.5-1.5B-Instruct** — prompt construction, retrieval of rules or examples, decomposition into sub-questions, calibration of label choices, ensembling, small trained components — that gives the **highest mean balanced accuracy** on **LegalBench** classification tasks: twenty tasks you can develop on, scored on new rows, and fifteen tasks you never see, given only at evaluation with their instructions, labels and a few examples.
+
+  - Submit the pipeline code, a checkpoint and the program that produced it. The evaluator calls your `predict()` task by task with the frozen model available; it never retrains.
+  - Every task arrives with its LegalBench base prompt (instructions, a handful of solved examples and a query template with `{{column}}` slots), its label set and its training rows. The fifteen unseen tasks include three from families with no development task (unfair terms of service, privacy-policy relevance, international citizenship law), so a pipeline tuned to the twenty development tasks will not do.
+  - The model's weights are fixed: you may add adapters with at most 20M trained parameters in total, but no other pretrained model and no external data.
+  - You may build on any public work (prompting and calibration of few-shot classifiers, rule-recall and issue-spotting prompts, retrieval of similar examples, self-consistency, parameter-efficient tuning), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/legalbench_public.json` (read-only): the twenty development tasks of LegalBench (Guha et al. 2023; task data from `nguha/legalbench` @daec8237 on Hugging Face, prompts from `github.com/HazyResearch/legalbench` @b46bf4ff; each task CC BY 4.0 or MIT). Per task: `name`, `prompt_template`, `labels`, `columns` (the slots of the template; other columns, which could reveal the label, are dropped), `train` (its LegalBench training rows, 1–10) and `dev` (up to 100 rows of its test split, with answers).
+
+  | Group | Tasks |
+  |---|---|
+  | Development (20) | abercrombie, hearsay, ucc_v_common_law, proa, insurance_policy_interpretation, function_of_decision_section, oral_argument_question_purpose, overruling, corporate_lobbying, nys_judicial_ethics, citation_prediction_classification, sara_entailment, three contract_nli, three cuad, one maud and one supply_chain_disclosure task |
+  | Unseen (15) | not named here; three come from task families with no development task |
+
+  `$ABENCH_MODELS_DIR/Qwen2.5-1.5B-Instruct/` holds the frozen model (Apache-2.0, revision 989aa798).
+
+  The held-out set is up to 300 test rows per task (drawn with a secret seed; for development tasks none of them is a dev row) and the full description of the unseen tasks. LegalBench is public: the sandbox has no network and no outside data may be used.
+interface: "Implement `load(checkpoint_dir, models_dir, device)` and `predict(state, task, rows) -> list[str]` in `pipeline.py`. `task` is a dict with `name`, `prompt_template`, `labels`, `columns` and `train` (see `interface/legaltasks.py`); `rows` is a list of dicts {column: value}; return one label per row, spelled as in `task['labels']`. Write a `train.py` that produces the checkpoint from the public data."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean balanced accuracy** (primary) | Balanced accuracy (mean recall over the labels present) of each of the 35 held-out tasks, averaged over tasks; an answer matching no label counts as wrong | — |
+  | By group | The same mean over the 20 development tasks, the 12 unseen tasks from known families and the 3 from new families | reported |
+  | Per task | Balanced accuracy of every task; share of answers matching no label | reported |
+  | Cost | Milliseconds per row (one GPU), load time | reported |
+
+  No threshold applies to any metric: a submission is valid if it loads, answers every row within the time limits and the code follows the rules (see below).
+
+  **Measurement and decision**
+
+  - One run with a seed you do not know, which fixes the order of tasks; `predict()` gets batches of at most 64 rows of one task, after loading has finished (killed at 600 s); all rows must be answered within 3,600 s.
+  - The primary metric is reported with a 95% bootstrap interval over rows; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by the mean balanced accuracy, and also considers how different the pipeline is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 5
+  dev_budget: "3 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), transformers, NumPy, SciPy, scikit-learn"
+  notes: |
+    - `selfcheck.py` runs your pipeline on the dev rows of the development tasks (`--quick`: four tasks, 16 rows each).
+    - The dev score covers development tasks only; hold some of them out of your tuning to estimate how the pipeline does on tasks it has not seen.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── pipeline.py         # required: load() and predict()
+    ├── train.py            # required: produces checkpoint/ from the public data
+    ├── checkpoint/         # required: anything your pipeline loads; at most 500 MB
+    ├── src/                # optional: other .py modules
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - Use only the provided model and data; adapters may add at most 20M trained parameters; no other pretrained model, no external data, no network.
+  - Nothing may depend on a task's name: the pipeline must work from the task's prompt, labels and examples, as it must for unseen tasks; rows are answered on their own, with no state kept between calls.
+interface_md: |
+  # LG-RSN-003 interface
+
+  ## Entry point: `pipeline.py`
+
+  ```python
+  def load(checkpoint_dir: str, models_dir: str, device: str):
+      """models_dir/Qwen2.5-1.5B-Instruct holds the frozen model (Hugging Face format)."""
+
+  def predict(state, task: dict, rows: list[dict]) -> list[str]:
+      """task: {"name", "prompt_template", "labels", "columns", "train"}; rows: [{column: value}];
+      return one label per row, spelled as in task["labels"]."""
+  ```
+
+  `legaltasks.fill(task["prompt_template"], row)` gives the LegalBench prompt for a row.
+
+  ## Evaluator code you can read
+
+  `legaltasks.py` (task format, label matching, balanced accuracy), `stages.py`, `metrics.py`, `abench_metrics.py`,
+  `abench_stage.py`, `selfcheck.py`, and the reference submission under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), transformers, NumPy, SciPy, scikit-learn. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 3.0, session_hours: 5}
+  data:
+    public_dir: sandbox/data/LG-RSN-003
+    public:
+      - {path: sandbox/data/LG-RSN-003/legalbench_public.json, sha256: pending}
+    hidden: {path: sandbox/hidden/LG-RSN-003/hidden.npz.enc, sha256_plain: pending, keys: "tasks_json, rows_json, row_task (given after the timed phase); gold, task_labels_json, task_group, task_name (evaluator only)"}
+    models_dir: sandbox/models/LG-RSN-003
+    models:
+      - {name: Qwen2.5-1.5B-Instruct, path: sandbox/models/LG-RSN-003/Qwen2.5-1.5B-Instruct, tree_sha256: pending, revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306, license: Apache-2.0}
+    sources:
+      - name: "LegalBench task data (nguha/legalbench), data/<task>/train.tsv and test.tsv for 35 tasks"
+        url: https://huggingface.co/datasets/nguha/legalbench
+        revision: daec8237410aa23e3faf4bc41ad8b3a7e1696826
+        license: "CC BY 4.0 (dataset card); each selected task CC BY 4.0 or MIT per its README"
+        verified: "2026-10-23: revision, licence, gating and file layout from the Hugging Face API; per-task licences from the task READMEs"
+      - name: "LegalBench base prompts (HazyResearch/legalbench), tasks/<task>/base_prompt.txt"
+        url: https://github.com/HazyResearch/legalbench
+        revision: b46bf4ffae90524b2b72aaa30e7745fe9db64481
+        license: "per task (CC BY 4.0 or MIT for the selected tasks)"
+        verified: "2026-10-23: commit and the 35 prompts from a clone; the freezing code ran on them"
+      - name: "Qwen2.5-1.5B-Instruct (Qwen Team 2024)"
+        url: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct
+        revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306
+        license: Apache-2.0
+        verified: "2026-10-22: revision, licence and file list from the Hugging Face API (C-SPEC-001)"
+  submission:
+    kind: code_plus_checkpoint
+    entry: pipeline.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 524288000
+    allowed_top_level: [README.md, pipeline.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 526288000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [2308]
+    code_audit: "the operator checks that predict() does not branch on task names and keeps no state between calls"

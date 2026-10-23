@@ -1,11 +1,11 @@
 # ABench anchor card: case B-OPT-001
-# Version: ABench v2026.07 (corpus cutoff 2026-07-01; papers published after the cutoff are never usable)
+# Version: ABench v2026.07 (no literature cutoff since 2026-10-23: research is online, literature of any date is usable)
 
 case_id: B-OPT-001
 readiness: contract_only
 title: An optimizer for small language-model pretraining
 version: v2026.07
-cutoff: "2026-07-01"           # hard cutoff for retrieval and citation
+cutoff: null                   # no literature cutoff; novelty is judged against the literature at session start
 
 anchor:
   title: "Adam: A Method for Stochastic Optimization"
@@ -21,7 +21,7 @@ task_family: design            # design = retrieve → synthesize → design a n
 deliverable_kind: optimizer    # the submission is an optimizer update rule + design notes
 
 neighborhood:
-  retrieval: open              # open retrieval: the agent searches on its own, and any paper before the cutoff may be used
+  retrieval: open              # open retrieval: the agent searches on its own, and any paper may be used, at any point of the work
   seed_snapshot: paper_snapshot/seed_neighborhood.jsonl   # seed neighborhood frozen by the benchmark (for weight calibration and mechanism duplicate checks)
   hidden_snapshot: "Held by the benchmark operator and not given to the agent; used for nearest-neighbor retrieval in mechanism divergence"
   weight_rule: scoring_config.yaml#paper_weight             # venue tier × Google Scholar citations
@@ -61,7 +61,7 @@ counterfactual:
   - "B-OPT-001-cf1: optimizer-state memory cap lowered to 1 × parameter count (Adam-type methods no longer feasible)"
 
 contamination:
-  - "Post-cutoff papers (such as Muon variants after 2026-07) are blocked at the retrieval-tool layer; citing a post-cutoff paper in the submission's source declarations counts as a violation"
+  - "Sources must resolve; citing an unresolvable paper in the submission's source declarations counts as a violation"
   - "Official implementations of the reference methods may be memorized by the model, so code divergence has low weight and behavioral probes carry most of the weight"
 
 # Canonical ratings copied from index.yaml

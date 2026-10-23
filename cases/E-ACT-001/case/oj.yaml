@@ -3,7 +3,6 @@ schema: abench.oj/v2
 case_id: E-ACT-001
 standard: true
 task_statement: v2.1
-knowledge_cutoff: '2026-07-01'
 mode: checkpoint
 agent_visible:
   task: case/agent/task.md
@@ -38,7 +37,7 @@ data:
   hidden:
     path: sandbox/hidden/E-ACT-001/hidden.npz.enc
     sha256_plain: pending
-    rows: 50
+    rows: 150
     keys:
     - reset_seeds
   sources:

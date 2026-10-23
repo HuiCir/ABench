@@ -1,24 +1,22 @@
 # PRO-SPD-004: Pretraining speedrun: GPT-2 Medium scale to a FineWeb loss target on 4 × H100
 
-Knowledge cutoff: **2026-07-01**. You may only rely on material that was public and verifiable before that date.
-
-Anchor: Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford and others, *Training Compute-Optimal Large Language Models* (arXiv:2203.15556). Baseline used for comparison: a data-parallel AdamW recipe for a GPT-2 Medium-shaped model (the evaluator's reference submission, not shown).
+Anchor: Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford and others, *Training Compute-Optimal Large Language Models* (arXiv:2203.15556). Baseline used for comparison: the modded-nanogpt GPT-2 Medium track record of 2025-11-12 (Muon, FlexAttention, 454M parameters), ported from 8 to 4 GPUs with the same global batch (`interface/baseline/`).
 
 ## Task
 
-Design a complete pretraining recipe — architecture, optimizer, schedule, batch and sequence strategy, precision, kernels, distributed execution — that trains a **dense language model of at most 450M parameters** on one node with **4 × H100** to a **held-out FineWeb loss of at most 2.92** in the **shortest wall-clock time**. This is the setting of the GPT-2 Medium track of the modded-nanogpt speedrun, on half its hardware.
+Design a complete pretraining recipe — architecture, optimizer, schedule, batch and sequence strategy, precision, kernels, distributed execution — that trains a **dense language model of at most 550M stored parameters** on one node with **4 × H100** to a **held-out FineWeb loss of at most 2.92** in the **shortest wall-clock time**. This is the setting of the GPT-2 Medium track of the modded-nanogpt speedrun, on half its hardware. The reference ports the track's public record to four GPUs; the target is out of reach for conventional AdamW recipes in the time cap, so valid entries need speedrun-class methods, and the bar is the ported record.
 
 - Submit code only: `train.py` (launched with torchrun on all four GPUs) and `model.py` (rebuilds the trained model for evaluation). At evaluation the run is executed from scratch twice, with seeds unknown to you; time is measured from launch until every training process has exited.
 - Only the provided training shards may be used: no pretrained weights, distillation from other models, external data, or reading of the validation tokens.
 - Dense means every token passes through all parameters (no mixture-of-experts routing); the size cap counts every tensor in the saved state.
-- You may build on any public work from before the cutoff (the speedrun's record history, Muon, value embeddings, FP8 kernels, sequence-length warm-up, compute-optimal scaling), but the design report must state what you borrowed and what you changed.
+- You may build on any public work (the speedrun's record history, Muon, value embeddings, FP8 kernels, sequence-length warm-up, compute-optimal scaling), but the design report must state what you borrowed and what you changed.
 
 ### Workflow
 
-1. **Retrieve.** Study the anchor and find related work published before the cutoff with the offline paper search tool: `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` (titles and abstracts of arXiv papers up to the cutoff). Every call is logged automatically; the log is kept with your run.
-2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address. This is Section 2 (Related Work) of the design report.
+1. **Research (throughout).** Study the anchor and related work, and come back to the literature whenever your experiments raise a question (an unexpected failure, a bottleneck, a result you cannot explain). The sandbox is online for papers, code and documentation, and the offline paper search `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"` and `... show <arXiv id>` answers quickly from arXiv titles and abstracts. Searches and connections are logged with your run.
+2. **Synthesise.** Work out what existing methods do, where they fall short for this task and which gap you will address, and keep this up to date as you learn. It becomes Section 2 (Related Work) of the design report.
 3. **Design.** Propose an improvement over the anchor and the baseline: at least one change you can state precisely and point to in your code. List every change, with its code location, in the report's "Changes relative to the anchor" list (`<ol id="changes">`); a report without it fails the format check.
-4. **Develop and verify.** Implement it and run the evaluator's own training pipeline on the dev split with `selfcheck.py`; use the results to iterate as your budget allows. The evaluator then runs your submission from scratch under the same pipeline.
+4. **Develop and verify.** Implement it and run the evaluator's own training pipeline on the dev split with `selfcheck.py`; use the results to iterate as your budget allows. The evaluator then runs your submission from scratch under the same pipeline. The reference code in `interface/baseline/` runs as is and is a starting point.
 5. **Submit** the deliverables below. Submission is one-shot.
 
 ## Data
@@ -44,14 +42,14 @@ The full reference is `interface/interface.md`. `abench_stage.py`, `stages.py` a
 |---|---|---|
 | **Training time** (primary) | Wall-clock seconds from the launch of torchrun until all training processes have exited, mean (= median) of the 2 runs; lower is better | — |
 | Held-out loss | Mean next-token cross-entropy (nats) of the saved model on the 10,485,760 validation tokens, evaluated in consecutive windows of `EVAL_SEQ_LEN`, mean of the 2 runs | Threshold: ≤ 2.92 |
-| Model size | Elements of all tensors in `model.pt` | Threshold: ≤ 450,000,000 |
+| Model size | Elements of all tensors in `model.pt` (embedding tables included; the reference has 454,496,336) | Threshold: ≤ 550,000,000 |
 | Time cap | Each run must finish within 3 hours | Threshold: ≤ 10,800 s |
 
 **Timing and decision**
 
 - Each run starts in new processes with empty compiler caches (`interface/abench_stage.py`); everything from Python start-up to the last process exit counts, including compilation, data loading and saving `model.pt`.
 - The evaluation stage runs in another process on one GPU with only the `out/` directory; it must finish within 20 minutes.
-- A submission is valid only if every threshold holds; valid submissions are ranked by training time.
+- A submission is valid only if every threshold holds; valid submissions are ranked by training time. Differences inside the 95% interval reported with the score are treated as ties.
 - If any run crashes or exceeds a time limit, the whole submission is invalid.
 - The final ABench score is driven mainly by training time, and also considers how different the recipe is from existing speedrun records and the quality of the sources cited in the design report; the exact weights are not published.
 
@@ -66,10 +64,11 @@ The full reference is `interface/interface.md`. `abench_stage.py`, `stages.py` a
 
 The full guide is `interface/sandbox_guide.md`. Key points:
 
-- 4 × H100 80GB in one node (NVLink); the evaluation uses the same node type. No network and no package installation; available software: Python 3, PyTorch (CUDA, Triton, torch.distributed / torchrun, torch.compile), NumPy.
-- The session lasts at most 24 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 96 H100-hours (24 hours of the 4-GPU node).
+- 4 × H100 80GB in one node (NVLink); the evaluation uses the same node type. Available software: Python 3, PyTorch >= 2.7 (CUDA, Triton, FlexAttention, torch.distributed / torchrun, torch.compile), NumPy; no packages fetched at run time (the FlashAttention 3 kernel that later records download from the Hugging Face kernel hub is not available); your submission may depend only on it (packages you install while developing are not available to the evaluator).
+- Network: online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run.
+- The session lasts at most 24 hours; the deadline is in `$ABENCH_DEADLINE`. Compute during development is capped at 96 H100-hours (24 hours of the 4-GPU node); the runner meters it (GPU-busy time, CPU time of your processes) and a run that exceeds it is not scored.
 - Data is read-only under `$ABENCH_DATA_DIR`. Write code and run experiments in `$ABENCH_WORKSPACE`; put the final files in `$ABENCH_SUBMISSION_DIR`.
-- Paper search (offline, cutoff-filtered, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
+- Offline paper search (arXiv titles and abstracts, fast, logged): `python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<query>"`.
 - Self-check: `python3 "$ABENCH_VIEW_DIR/interface/selfcheck.py" --quick` (interface, small slice), then without `--quick` on the full dev split.
 
 ## Deliverables

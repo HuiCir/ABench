@@ -1,56 +1,75 @@
 case: PRO-SPD-004
-title: A Plain Data-Parallel AdamW Recipe for a GPT-2 Medium-Scale Speedrun
-abstract: 'This submission gives the reference recipe for the four-GPU pretraining speedrun: a dense GPT-2 Medium-shaped decoder
-  (24 layers, width 1,024, about 354M parameters with tied embeddings) with rotary position embeddings [@su2021roformer],
-  RMSNorm, QK normalisation and a ReLU² MLP [@so2021primer], trained with AdamW [@loshchilov2019adamw] at 0.5M tokens per
-  step under data parallelism, bf16 autocast and torch.compile. The token budget of about 4.7B follows a compute-optimal reading
-  of the anchor [@hoffmann2022chinchilla] rather than the aggressive over-training of speedrun records. The recipe is intentionally
-  conventional: the optimizer, schedule and kernel choices of the speedrun''s record history [@jordan2024moddednanogpt] are
-  the space that entries are expected to explore.'
+title: Porting the GPT-2 Medium Speedrun Record to Four GPUs
+abstract: 'This reference submission is a port, not a new design: it runs the modded-nanogpt GPT-2 Medium track record of
+  2025-11-12 [@jordan2024moddednanogpt] on four instead of eight H100s. The record trains a 16-layer, width-1,024 decoder
+  (454M stored parameters, most of them in four embedding tables and an untied head) with Muon on the hidden matrices [@jordan2024muon]
+  and Adam on embeddings, head and scalars [@loshchilov2019adamw], document-masked FlexAttention [@dong2024flex] with a long-short
+  sliding-window pattern [@gemma2024gemma2] and value embeddings [@zhou2024valueresidual], for 5,960 steps of 524,288 tokens;
+  its log reports a validation loss of 2.9185 after 1,496 s of training on 8 × H100. Here every rank runs two micro-steps
+  per optimizer step so that the global batch, schedule and token budget are the record''s, and the step count is raised by
+  2.3% for margin below the 2.92 target. No run of this port has been executed yet; the operator calibrates it at activation.'
 sections:
 - title: Introduction
   paras:
-  - 'Time to a fixed loss rewards both statistical efficiency (fewer tokens to the target) and hardware efficiency (more tokens
-    per second). The anchor quantifies the first through compute-optimal scaling: for a given compute budget, parameters and
-    tokens should grow together [@hoffmann2022chinchilla]. The modded-nanogpt speedrun shows how far the second, together
-    with optimizer changes, can be pushed on fixed data.'
+  - Time to a fixed loss rewards both statistical efficiency (fewer tokens to the target) and hardware efficiency (more tokens
+    per second). The anchor fixes the first through compute-optimal scaling [@hoffmann2022chinchilla]; the speedrun records
+    show that over-training a smaller model with a better optimizer and attention pattern reaches the GPT-2 Medium loss of
+    2.92 with about 3.1B tokens, two orders of magnitude faster than the original 5.8-hour AdamW baseline of the track.
+  - Items 1–3 of the changes list are borrowed unchanged from the record; items 4–6 are the port.
 - title: Related Work
   paras:
-  - Rotary embeddings encode relative positions in attention [@su2021roformer]; normalising queries and keys bounds attention
-    logits and stabilises large learning rates; the squared ReLU activation improves language-model quality at equal compute
-    [@so2021primer]. Data-parallel training with gradient accumulation scales the batch across GPUs with one all-reduce per
-    step.
-  - Compute-optimal scaling fixes the token budget, and speedrun records improve tokens per second and optimizers; combining
-    both under a fixed four-GPU setup is the gap this conventional recipe leaves.
+  - Muon orthogonalises the momentum of each hidden weight matrix with a quintic Newton–Schulz iteration [@jordan2024muon]
+    and is the main source of the speedrun's statistical efficiency. FlexAttention compiles attention variants from a mask
+    function and a block mask [@dong2024flex]; the record uses it to confine attention to documents and to sliding windows,
+    alternating long and short windows as in Gemma 2 [@gemma2024gemma2]. Value embeddings and value residuals feed token information
+    directly into the attention values [@zhou2024valueresidual]; rotary embeddings [@su2021roformer] and the squared ReLU
+    [@so2021primer] are standard. The record history of the GPT-2 Medium track [@jordan2024moddednanogpt] combines these under
+    eight GPUs.
+  - 'No published record targets four GPUs: halving the GPUs either halves the batch, which changes the optimisation trajectory
+    and the tuned learning rates, or doubles the work per rank. This port takes the second option so that the record''s tuned
+    recipe applies unchanged; the gap left for entries is everything the record itself does not exploit on four GPUs, including
+    the later short-track features (the 2025-12-31 record), which depend on a FlashAttention 3 kernel downloaded at run time
+    and therefore cannot run in the offline sandbox as published.'
 - title: Method
   subsections:
-  - title: Model and training
+  - title: Model
     paras:
-    - Each block applies RMSNorm, attention with rotary embeddings and RMS-normalised queries and keys (scaled-dot-product
-      attention, causal), then RMSNorm and an MLP of width 4,096 with ReLU². Output projections are initialised with standard
-      deviation 0.02/sqrt(48). Each of 4 GPUs processes 8 micro-batches of 16 × 1,024 tokens per step (gradient synchronisation
-      on the last), gradients are clipped at 1.0, and AdamW uses β = (0.9, 0.95), weight decay 0.1 on matrices and a peak
-      learning rate of 1.5e-3 with 250 warm-up steps and linear decay to zero over 9,000 steps. Each rank reads disjoint contiguous
-      token slices.
-    algorithm_caption: One optimisation step
+    - 16 blocks of width 1,024 with 8 heads of dimension 128; attention weights merged into one bf16 tensor per layer with
+      a zero-initialised output projection; QK RMS normalisation and a fixed attention scale of 0.12. Layers 0–2 and 13–15
+      add value embeddings, layers 9–11 receive U-net skips from layers 6, 4 and 2, and every block mixes its input with the
+      normalised token embedding through learned scalars. Layers 0, 4, 11 and 15 use the long window, all others half of it.
+      The untied head has 50,304 rows and its logits are soft-capped by 15 · l / sqrt(l² + 225).
+  - title: Training on four GPUs
+    paras:
+    - Each rank reads one flat 65,536-token sequence per micro-step from the training shards in order, exactly as the record's
+      loader does, so two micro-steps on four ranks consume the same 524,288 tokens per step as the record's eight ranks.
+      The loss of each micro-step is divided by the number of micro-steps; gradients are then all-reduced with averaging,
+      the learning rate follows the record's schedule and Muon's momentum warms up from 0.85 to 0.95 over 300 steps. Ten warm-up
+      steps on random tokens compile the kernels, after which model and optimizer states are restored. Rank 0 saves the uncompiled
+      module's state dict.
+    algorithm_caption: One optimisation step on W GPUs
     algorithm:
-    - 'for micro = 1 … 8: x, y ← next 16 × 1,024 tokens of this rank'
-    - '  loss ← CE(model(x), y) / 8; backward (all-reduce on the last micro-batch)'
-    - clip ‖g‖ ≤ 1;  lr ← 1.5e-3 · min(1, (s + 1)/250) · (1 − s/9,000);  AdamW step
-  - title: Complexity
+    - 'for m = 1 … 8 / W: x, y ← this rank''s next 65,536 tokens; backward(loss(x, y, window(s)) · W / 8)'
+    - all-reduce (average) every gradient; lr ← lr₀ · schedule(s); Muon momentum ← warm-up(s)
+    - Adam step (embeddings, head, scalars); Muon step (hidden matrices, sharded over ranks, all-gather)
+  - title: Evaluation interface
     paras:
-    - About 6 · N · D floating-point operations for N ≈ 354M parameters and D ≈ 4.7B tokens, i.e. about 1e19, plus attention
-      at sequence length 1,024. Memory per GPU holds the model, AdamW state and activations of one micro-batch.
+    - The evaluator calls model(idx) on consecutive windows of EVAL_SEQ_LEN = 32,768 tokens. Attention is masked to documents
+      (token 50256 separates them), so a window boundary only removes context from the document it cuts; the record validates
+      on 262,144-token sequences, and 32,768 keeps the fp32 logits of a window at 6.6 GB on one GPU.
 - title: Design Rationale
   paras:
-  - A conventional, well-understood recipe gives a reproducible reference whose timing the operator can calibrate on the evaluation
-    node. Rotary embeddings, QK-norm and ReLU² are low-risk improvements over the original GPT-2 that are standard in current
-    small-model training.
+  - 'A reference for a time-to-target case has to reach the target; the earlier AdamW reference had an uncalibrated step count
+    and, judged against the track''s 5.8-hour AdamW baseline on twice the GPUs, would very likely have missed it. Porting
+    the public record keeps the reference honest about what is already known and makes the bar for entries explicit: valid
+    submissions need speedrun-class methods, and improvements are measured against the record''s recipe on the same four GPUs.'
 - title: Scope and Limitations
   paras:
-  - The number of steps has not been calibrated against the 2.92 target on the reference node, and AdamW at a fixed sequence
-    length is far from the speedrun's state of the art; orthogonalised optimizers, longer and variable sequence lengths, FP8
-    matrix multiplications and better data ordering are the obvious levers.
+  - 'Not executed: neither the four-GPU port nor the evaluation interface has run (PyTorch and GPUs were not available where
+    the case was built). The expected training time is about twice the record''s 25 minutes plus compilation, but gradient
+    accumulation adds memory traffic and two micro-steps of compiled autograd, so the real time and the final loss must be
+    measured by the operator. The 140 extra steps are a guess at the margin needed, not a calibration. Everything in items
+    1–3 of the changes list is the record''s work, not this submission''s.'
 references:
 - id: hoffmann2022chinchilla
   title: Training Compute-Optimal Large Language Models
@@ -58,21 +77,49 @@ references:
   year: 2022
   venue: NeurIPS
   arxiv: '2203.15556'
-  used_for: 'Anchor: choosing the token budget for the model size'
-  code_location: 'train.py: STEPS'
+  used_for: 'Anchor: token budget versus model size (this recipe over-trains instead)'
+  code_location: 'train.py: main (--steps)'
 - id: jordan2024moddednanogpt
-  title: 'modded-nanogpt: speedrunning GPT-2 training'
+  title: 'modded-nanogpt: speedrunning GPT-2 training (GPT-2 Medium track record 17, 2025-11-12)'
   authors: Keller Jordan and contributors
+  year: 2025
+  url: https://github.com/KellerJordan/modded-nanogpt/tree/4ea6b937337a4889b8cfe3f38a93d120048d8f71/records/track_2_medium/2025-11-12_BlockMaskRedundantOp
+  used_for: 'The whole recipe: model, Muon, optimizer groups, schedules and data loader are copied from the record (MIT licence)'
+  code_location: 'model.py: GPT; train.py: Muon, main'
+- id: jordan2024muon
+  title: 'Muon: An optimizer for hidden layers in neural networks'
+  authors: Keller Jordan, Yuchen Jin, Vlado Boza, Jiacheng You, Franz Cesista, Laker Newhouse and Jeremy Bernstein
   year: 2024
-  url: https://github.com/KellerJordan/modded-nanogpt
-  used_for: Task setting (data, validation tokens, GPT-2 Medium track target)
-  code_location: 'train.py: Loader'
+  url: https://kellerjordan.github.io/posts/muon/
+  used_for: Optimizer of the hidden matrices
+  code_location: 'train.py: zeropower_via_newtonschulz5, Muon'
+- id: dong2024flex
+  title: 'Flex Attention: A Programming Model for Generating Optimized Attention Kernels'
+  authors: Juechu Dong, Boyuan Feng, Driss Guessous, Yanbo Liang and Horace He
+  year: 2024
+  arxiv: '2412.05496'
+  used_for: Document-masked sliding-window attention
+  code_location: 'model.py: create_blockmasks, CausalSelfAttention.forward'
+- id: gemma2024gemma2
+  title: 'Gemma 2: Improving Open Language Models at a Practical Size'
+  authors: Gemma Team, Google DeepMind
+  year: 2024
+  arxiv: '2408.00118'
+  used_for: Alternating long and short attention windows
+  code_location: 'model.py: GPT.forward (block_masks)'
+- id: zhou2024valueresidual
+  title: Value Residual Learning
+  authors: Zhanchao Zhou, Tianyi Wu, Zhiyun Jiang, Fares Obeid and Zhenzhong Lan
+  year: 2024
+  arxiv: '2410.17897'
+  used_for: Value embeddings mixed into attention values
+  code_location: 'model.py: CausalSelfAttention.forward, GPT.forward'
 - id: su2021roformer
   title: 'RoFormer: Enhanced Transformer with Rotary Position Embedding'
   authors: Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen and Yunfeng Liu
   year: 2021
   arxiv: '2104.09864'
-  used_for: Rotary position embeddings
+  used_for: Rotary position embeddings (half-truncated)
   code_location: 'model.py: Rotary'
 - id: so2021primer
   title: 'Primer: Searching for Efficient Transformers for Language Modeling'
@@ -81,19 +128,30 @@ references:
   venue: NeurIPS
   arxiv: '2109.08668'
   used_for: Squared ReLU MLP
-  code_location: 'model.py: Block.forward'
+  code_location: 'model.py: MLP.forward'
 - id: loshchilov2019adamw
   title: Decoupled Weight Decay Regularization
   authors: Ilya Loshchilov and Frank Hutter
   year: 2019
   venue: ICLR
   arxiv: '1711.05101'
-  used_for: AdamW
-  code_location: 'train.py: main'
+  used_for: Adam(W) for embeddings, head and scalars
+  code_location: 'train.py: main (optimizer1)'
 changes:
-- text: A compute-optimal token budget (about 4.7B tokens for 354M parameters) instead of over-training.
-  code: 'train.py: STEPS'
-- text: Conventional AdamW with data parallelism, bf16 autocast and torch.compile; none of the speedrun's optimizer changes.
-  code: 'train.py: main'
-- text: Rotary embeddings, RMSNorm, QK normalisation and a ReLU² MLP in a GPT-2 Medium-shaped decoder.
-  code: 'model.py: Block.forward, Rotary'
+- text: 'Over-training instead of a compute-optimal budget: 454M parameters for about 3.2B tokens (6,100 × 524,288).'
+  code: 'train.py: main (--steps)'
+- text: Muon with Newton–Schulz orthogonalisation and bf16 weights with a separate uint16 mantissa for the hidden matrices;
+    Adam for embeddings, head and scalars; stable-then-linear-decay schedule with a 70% cool-down.
+  code: 'train.py: Muon, update, main'
+- text: 'Record architecture: QK-normalised attention with half-truncated rotary embeddings, three value-embedding tables
+    in a 012…012 pattern, U-net skip connections, ReLU² MLP, no attention in layer 7, soft-capped logits, document-masked
+    long-short sliding windows grown with a cubic schedule.'
+  code: 'model.py: GPT, CausalSelfAttention, Block, create_blockmasks'
+- text: 'Four GPUs with the record''s global batch: 8 / W micro-steps per rank, gradients averaged before the Muon and Adam
+    steps.'
+  code: 'train.py: train_step, GLOBAL_MICRO'
+- text: 6,100 steps instead of 5,960 for margin under the target and for the ABench evaluation windows.
+  code: 'train.py: main (--steps default)'
+- text: 'Evaluation interface: model(idx) returns soft-capped logits for one window with the final attention window; FlexAttention
+    compiled on its own so the uncompiled module can be evaluated.'
+  code: 'model.py: GPT.forward, build_model, flex_attention_compiled'

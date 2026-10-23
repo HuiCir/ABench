@@ -1,0 +1,43 @@
+schema: abench.references/v2
+references:
+- id: ouyang2025kernelbench
+  title: 'KernelBench: Can LLMs Write Efficient GPU Kernels?'
+  authors: Anne Ouyang, Simon Guo, Simran Arora, Alex L. Zhang, William Hu, Christopher Ré and Azalia Mirhoseini
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.10517'
+  used_for: 'Anchor: the problems, the ModelNew interface and the correctness tolerance'
+  code_location: kernels/
+- id: tillet2019triton
+  title: 'Triton: An Intermediate Language and Compiler for Tiled Neural Network Computations'
+  authors: Philippe Tillet, H. T. Kung and David Cox
+  year: 2019
+  venue: MAPL
+  doi: 10.1145/3315508.3329973
+  used_for: Kernel language of the custom kernels
+  code_location: 'src/ew.py: _ew'
+- id: ansel2024pytorch2
+  title: 'PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation'
+  authors: Jason Ansel et al.
+  year: 2024
+  venue: ASPLOS
+  doi: 10.1145/3620665.3640366
+  used_for: The torch.compile baseline (TorchDynamo and TorchInductor)
+  code_location: null
+- id: chetlur2014cudnn
+  title: 'cuDNN: Efficient Primitives for Deep Learning'
+  authors: Sharan Chetlur, Cliff Woolley, Philippe Vandermersch, Jonathan Cohen, John Tran, Bryan Catanzaro and
+    Evan Shelhamer
+  year: 2014
+  venue: arXiv
+  arxiv: '1410.0759'
+  used_for: Library convolutions under the fused epilogues
+  code_location: null
+- id: chen2018tvm
+  title: 'TVM: An Automated End-to-End Optimizing Compiler for Deep Learning'
+  authors: Tianqi Chen et al.
+  year: 2018
+  venue: OSDI
+  arxiv: '1802.04799'
+  used_for: Related work (operator fusion and schedule search)
+  code_location: null

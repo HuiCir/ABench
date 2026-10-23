@@ -1,0 +1,75 @@
+case: PRO-ARL-001
+title: 'DAPO with a Python Tool and Masked Tool Outputs'
+abstract: >-
+  This submission applies DAPO [@yu2025dapo] to tool-integrated reasoning: Qwen3-4B-Base [@yang2025qwen3] answers
+  with interleaved Python calls, rollouts are sampled with the evaluator's own tool loop, and the tokens of tool
+  outputs are masked out of the policy loss, as in ReTool-style training [@feng2025retool]. Group-normalised
+  advantages follow GRPO [@shao2024deepseekmath]; clip-higher, dynamic sampling, the token-mean loss and overlong
+  shaping follow DAPO.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    A tool changes what the policy has to learn: when to call it, what to compute and how to use the result. Training
+    with the same tool loop that the evaluation uses removes a mismatch between training and evaluation.
+- title: Related Work
+  paras:
+  - >-
+    GRPO normalises rewards within a group of answers to the same problem [@shao2024deepseekmath]; DAPO adds
+    decoupled clipping, dynamic sampling, token-level averaging and overlong reward shaping [@yu2025dapo]; ReTool
+    trains interleaved code execution with outputs excluded from the loss [@feng2025retool].
+- title: Method
+  paras:
+  - >-
+    Ranks on GPUs 1-3 train with FSDP; a vLLM worker on GPU 0 reloads the weights after every step and samples
+    64 problems x 16 answers. Reward is 1 for a correct boxed integer minus a linear penalty over the last 2,048 of
+    the 16,384 tokens; groups with identical rewards are dropped and refilled; eps_low 0.2, eps_high 0.28, no KL
+    term, learning rate 1e-6, 400 steps; a checkpoint every 20 steps.
+- title: Design Rationale
+  paras:
+  - >-
+    Masking tool outputs keeps the policy from being trained to predict the interpreter; dynamic sampling keeps every
+    group informative, which matters when a base model starts with near-zero accuracy on hard problems.
+- title: Scope and Limitations
+  paras:
+  - >-
+    One update per batch, no curriculum and no value model; the in-place weight reload relies on the V0 vLLM engine.
+    Nothing here has been run in this build.
+references:
+- id: yu2025dapo
+  title: 'DAPO: An Open-Source LLM Reinforcement Learning System at Scale'
+  authors: Qiying Yu, Zheng Zhang, Ruofei Zhu, Yufeng Yuan, Xiaochen Zuo, Yu Yue and others
+  year: 2025
+  venue: arXiv
+  arxiv: '2503.14476'
+  used_for: 'Anchor: clip-higher, dynamic sampling, token-level loss and overlong shaping'
+  code_location: 'train.py: main, rewards'
+- id: shao2024deepseekmath
+  title: 'DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models'
+  authors: Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, Y.K. Li, Y. Wu and Daya Guo
+  year: 2024
+  venue: arXiv
+  arxiv: '2402.03300'
+  used_for: Group-normalised advantages (GRPO)
+  code_location: 'train.py: main'
+- id: feng2025retool
+  title: 'ReTool: Reinforcement Learning for Strategic Tool Use in LLMs'
+  authors: Jiazhan Feng, Shijue Huang, Xingwei Qu, Ge Zhang, Yujia Qin, Baoquan Zhong, Chengquan Jiang, Jinxin Chi and Wanjun Zhong
+  year: 2025
+  venue: arXiv
+  arxiv: '2504.11536'
+  used_for: Interleaved code execution with tool outputs excluded from the loss
+  code_location: 'train.py: masks'
+- id: yang2025qwen3
+  title: Qwen3 Technical Report
+  authors: An Yang and others (Qwen Team)
+  year: 2025
+  venue: arXiv
+  arxiv: '2505.09388'
+  used_for: The starting model and its chat template
+  code_location: 'train.py: main'
+changes:
+- text: Rollouts use the evaluator's tool loop and tool outputs are masked out of the loss, which DAPO (text only) does not have.
+  code: 'train.py: masks; src/rollout.py'
+- text: The KL penalty is removed and the learner and the sampler share one node with an in-place weight reload.
+  code: 'train.py: main; src/rollout.py: worker'

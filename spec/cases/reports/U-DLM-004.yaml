@@ -1,0 +1,96 @@
+case: U-DLM-004
+title: 'Sliding Masking Windows between Masked Diffusion and Autoregression'
+abstract: >-
+  This submission keeps the anchor's denoiser and bound [@sahoo2024mdlm] and changes the forward process: each position
+  is masked during its own window of diffusion time, later positions earlier, so that the reverse process unmasks the
+  sequence roughly from left to right while still unmasking many positions in parallel. With window width 0.5 the
+  schedule lies halfway between MDLM's linear schedule (width 1) and autoregressive order (width → 0). The training loss
+  is the bound itself under this schedule, which remains a valid bound for per-position schedules [@shi2024md4]. It has
+  not been run yet: it needs PyTorch and a GPU, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Masked diffusion language models still trail autoregressive models of the same size in likelihood. In continuous
+    time their bound does not depend on a schedule shared by all positions, so the order in which positions are
+    revealed is the only lever the forward process has. Autoregression is the extreme order; MDLM is the uniform one.
+- title: Related Work
+  paras:
+  - >-
+    MDLM and MD4 derived the bound of absorbing-state diffusion as a weighted masked cross-entropy, invariant to the
+    schedule when it is shared by all positions [@sahoo2024mdlm; @shi2024md4]; MD4 also allows state-dependent
+    schedules. Score-entropy diffusion reaches similar bounds [@lou2023sedd]. Block diffusion interpolates between
+    autoregression and diffusion by generating blocks in order and diffusing within each block
+    [@arriola2025block]; any-order autoregressive models connect masked diffusion to orderings
+    [@hoogeboom2022ardm].
+- title: Method
+  paras:
+  - >-
+    With T positions and BETA = 0.5, position i starts being masked at s_i = (1 − BETA)(1 − i/(T − 1)) and is fully
+    masked at s_i + BETA; alpha_i(t) = 1 − clamp((t − s_i)/BETA, 0, 1). The loss is dlm.mdlm_loss under this schedule:
+    the weight −alpha_i'/(1 − alpha_i) is 1/(t − s_i) inside the window and 0 outside, times the cross-entropy of
+    masked positions.
+  algorithm_caption: Schedule and loss
+  algorithm:
+  - s_i ← 0.5 · (1 − i/(T − 1)); alpha_i(t) ← 1 − clamp((t − s_i)/0.5, 0, 1)
+  - t ← stratified times; z ← mask position i with probability 1 − alpha_i(t)
+  - loss ← Σ_i w_i(t) · 1[masked] · CE_i / (B · T) with w_i = −alpha_i'(t)/(1 − alpha_i(t))
+- title: Design Rationale
+  paras:
+  - >-
+    Revealing earlier positions first lets the denoiser predict each position mostly from its left context, which is the
+    conditioning autoregressive models exploit, while the overlapping windows keep about half of the positions in
+    flight at any time, so generation stays parallel and the schedule passes the case's window check (width 0.4 of time
+    from 90% to 10% unmasked).
+- title: Scope and Limitations
+  paras:
+  - >-
+    The window width is fixed by hand rather than learned, the left-to-right order ignores content, the concentrated
+    weights make the Monte-Carlo estimate of the bound noisier than MDLM's, and the recipe has not been run yet.
+references:
+- id: sahoo2024mdlm
+  title: Simple and Effective Masked Diffusion Language Models
+  authors: Subham Sekhar Sahoo, Marianne Arriola, Yair Schiff, Aaron Gokaslan, Edgar Marroquin, Justin T. Chiu, Alexander Rush and Volodymyr Kuleshov
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.07524'
+  used_for: 'Anchor: the bound, its estimator and the denoiser setting'
+  code_location: 'recipe.py: loss'
+- id: shi2024md4
+  title: Simplified and Generalized Masked Diffusion for Discrete Data
+  authors: Jiaxin Shi, Kehang Han, Zhe Wang, Arnaud Doucet and Michalis K. Titsias
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.04329'
+  used_for: Validity of the bound for non-shared schedules
+  code_location: 'recipe.py: alpha'
+- id: lou2023sedd
+  title: Discrete Diffusion Modeling by Estimating the Ratios of the Data Distribution
+  authors: Aaron Lou, Chenlin Meng and Stefano Ermon
+  year: 2024
+  venue: ICML
+  arxiv: '2310.16834'
+  used_for: Related work (score entropy)
+  code_location: null
+- id: arriola2025block
+  title: 'Block Diffusion: Interpolating Between Autoregressive and Diffusion Language Models'
+  authors: Marianne Arriola, Aaron Gokaslan, Justin T. Chiu, Zhihan Yang, Zhixuan Qi, Jiaqi Han, Subham Sekhar Sahoo and Volodymyr Kuleshov
+  year: 2025
+  venue: ICLR
+  arxiv: '2503.09573'
+  used_for: Interpolating between autoregression and diffusion
+  code_location: null
+- id: hoogeboom2022ardm
+  title: Autoregressive Diffusion Models
+  authors: Emiel Hoogeboom, Alexey A. Gritsenko, Jasmijn Bastings, Ben Poole, Rianne van den Berg and Tim Salimans
+  year: 2022
+  venue: ICLR
+  arxiv: '2110.02037'
+  used_for: Related work (orderings)
+  code_location: null
+changes:
+- text: Each position is masked during its own window of width 0.5 in diffusion time, later positions earlier, instead
+    of the linear schedule shared by all positions.
+  code: 'recipe.py: alpha, BETA'
+- text: The training loss is the bound under the per-position schedule.
+  code: 'recipe.py: loss'

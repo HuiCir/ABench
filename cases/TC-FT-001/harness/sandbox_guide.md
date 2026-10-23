@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Hardware | 8 CPU cores, no GPU; the evaluation uses the same CPU allotment |
-| Network | None. You cannot download data or models or install packages |
+| Network | Online for research: papers, code, documentation and PyPI are reachable through the sandbox proxy (already set in `HTTPS_PROXY`) at any point of your work; dataset and model hubs and this case's own data sources are blocked, and every connection is logged with your run. Data and pretrained weights come only from the directories below |
 | Software | Python 3, NumPy, SciPy, scikit-learn; trust the versions reported in the sandbox |
 | Session length | At most 3 hours wall clock; the deadline is in `$ABENCH_DEADLINE` (Unix seconds), and all processes are killed at that time |
 | Compute | At most 8 CPU-core-hours (one hour of the 8-core allotment) during development; the sandbox records usage, and exceeding it is a violation |
@@ -38,7 +38,7 @@ python3 -c "import os,time; print(round((int(os.environ['ABENCH_DEADLINE'])-time
 cd "$ABENCH_WORKSPACE"
 ls -la "$ABENCH_DATA_DIR"
 # ... develop, train and test in the workspace ...
-python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<topic of the anchor>"   # related work before the cutoff
+python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "<topic or problem>"     # related work, at any point
 python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" show <arXiv id>                  # title, authors, date, abstract
 mkdir -p "$ABENCH_SUBMISSION_DIR"      # copy the deliverables listed in the task statement here
 python3 "$ABENCH_SUBMISSION_DIR/train.py" --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"   # your training program (the evaluator only loads the checkpoint)
@@ -54,4 +54,4 @@ the held-out metrics, not a promise.
 ## 4. Case notes
 
 - No GPU is available in this case; the evaluation runs on CPU only. The submission may depend only on NumPy, SciPy, scikit-learn and the Python standard library.
-- The self-check scores your checkpoint on the dev documents (`dev_idx`). Leave them out of training if you want an unbiased estimate; you may include them in the final checkpoint.
+- The self-check scores your checkpoint on the dev reviews (`dev_idx`). Leave them out of training if you want an unbiased estimate; you may include them in the final checkpoint.

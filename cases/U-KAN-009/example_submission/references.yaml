@@ -1,0 +1,27 @@
+schema: abench.references/v2
+references:
+- id: liu2024kan
+  title: 'KAN: Kolmogorov-Arnold Networks'
+  authors: Ziming Liu, Yixuan Wang, Sachin Vaidya, Fabian Ruehle, James Halverson, Marin Soljačić, Thomas Y. Hou
+    and Max Tegmark
+  year: 2024
+  venue: arXiv
+  arxiv: '2404.19756'
+  used_for: Anchor
+  code_location: null
+- id: yu2024fairer
+  title: 'KAN or MLP: A Fairer Comparison'
+  authors: Runpeng Yu, Weihao Yu and Xinchao Wang
+  year: 2024
+  venue: arXiv
+  arxiv: '2407.16674'
+  used_for: Related work (matched comparison)
+  code_location: null
+- id: elfwing2018silu
+  title: Sigmoid-Weighted Linear Units for Neural Network Function Approximation in Reinforcement Learning
+  authors: Stefan Elfwing, Eiji Uchibe and Kenji Doya
+  year: 2018
+  venue: Neural Networks
+  arxiv: '1702.03118'
+  used_for: The SiLU activation
+  code_location: 'layer.py: make_layer'

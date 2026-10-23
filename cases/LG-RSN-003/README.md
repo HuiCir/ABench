@@ -1,37 +1,37 @@
-# ABench Case LG-RSN-003: With a fixed base model, design a retrieval and reasoning pipeline for legal reasoning
+# ABench case LG-RSN-003: Legal reasoning with a frozen 1.5B model: a pipeline for LegalBench tasks seen and unseen during development
 
-- Track: LG · Law · domain
-- Anchor: LegalBench (arXiv: 2308.11462)
-- Subset: main; difficulty: medium; resource tier: medium; status: **deferred**
-- Task: With a fixed base model, design a retrieval and reasoning pipeline for legal reasoning
-- Metrics: Mean task accuracy; accuracy on unseen tasks
-- Proxy: INFER; plan: ≤ 1.5B base, 20 LegalBench subtasks
+Case built to task statement standard v2.1 from the template of FN-QA-004. Anchor: Neel Guha, Julian Nyarko, Daniel E. Ho, Christopher Ré, Adam Chilton et al., *LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models*
+(arXiv:2308.11462).
 
-## Current deliverables
+## Status
 
-This directory only sets up the bench contract scaffold: task card, evaluation protocol, resource registry, scoring contract and directory-level notes. There is no simulated training, no simulated reference run, no simulated score and no fabricated leaderboard result. Formal runs require the benchmark operator to inject real resources, reference runs, the hidden set and server-generated run records.
-
-## Blockers and reservations
-
-This case is held back from the formal leaderboard for now; only the protocol and interfaces are kept.
-
-Blocking inputs:
-
-- `licensed_legal_dataset_snapshot`
-- `jurisdiction_and_time_split`
-- `blind_legal_review_protocol`
-- `fixed_checkpoint_and_runtime_stack`
-- `specific_anchor_or_citation_verification`
-
-Until these inputs are frozen, only interfaces/contracts are added; no excessive environment setup or simulated substitutes.
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Partly executed: the task selection, prompt slots, label sets and the freezing code were run on the 35 tasks' prompts and training rows from the LegalBench GitHub repository (test rows come from the Hugging Face copy, which only the operator can download); the pipeline and metrics run on synthetic tasks in tests/test_standard_cases.py with a stand-in pipeline. The frozen model has not run here (no PyTorch); the operator runs the reference at activation.
+- No number in the case files is a result: there are no training curves or reference scores.
 
 ## Files
 
-- `case/anchor_card.yaml`: task anchor and acceptance boundary.
-- `case/task_prompt.md`: the task given to the agent under test.
-- `case/eval_protocol.yaml`: proxy ladder, budget, hidden evaluation and output constraints.
-- `case/resources.yaml`: registry of data, models, software, hardware and private resources.
-- `case/scoring_config.yaml`: metrics and thresholds pending calibration.
-- `harness/README.md`: execution interface conventions.
-- `scoring/README.md`: scoring input/output conventions.
-- `example_submission/README.md`: example submission directory conventions.
+- `spec/cases/LG-RSN-003.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case LG-RSN-003`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/lg_rsn_003.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
+
+## Data sources (links only; nothing is downloaded in the repository)
+
+- LegalBench task data (nguha/legalbench), data/<task>/train.tsv and test.tsv for 35 tasks: https://huggingface.co/datasets/nguha/legalbench — license: CC BY 4.0 (dataset card); each selected task CC BY 4.0 or MIT per its README (verified 2026-10-23)
+- LegalBench base prompts (HazyResearch/legalbench), tasks/<task>/base_prompt.txt: https://github.com/HazyResearch/legalbench — license: per task (CC BY 4.0 or MIT for the selected tasks) (verified 2026-10-23)
+- Qwen2.5-1.5B-Instruct (Qwen Team 2024): https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct — license: Apache-2.0 (verified 2026-10-22)
+
+## Activation (operator)
+
+```bash
+python3 tools/prepare/run.py --case LG-RSN-003 --list-sources                 # what to download
+python3 tools/prepare/run.py --case LG-RSN-003 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case LG-RSN-003 --submission cases/LG-RSN-003/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case LG-RSN-003 --activate                     # after reviewing the calibration run
+```
+
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

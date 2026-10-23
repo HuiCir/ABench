@@ -1,11 +1,36 @@
-# U-DLM-005 harness contract
+# U-DLM-005 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+U-DLM-005 pipeline: a submitted sampler drives the frozen MDLM through the counting denoiser at three budgets,
+unconditionally and continuing held-out prefixes; the samples are then scored by an autoregressive model the
+submission never sees (evaluator and self-check use this same file).
+
+Stage "sample" (imports sampler.py; the MDLM is under models/mdlm-owt):
+  timed   import sampler.py, load the MDLM (untimed for the sampler, but inside this process)
+  finish  for NFE in NFES: N_UNCOND unconditional samples of 1,024 tokens and one 256-token continuation of each
+          held-out 256-token prefix, in batches of BATCH, each batch with its own Denoiser(budget = NFE) and seed;
+          wall-clock seconds per budget; samples saved to samples.npz
+Stage "score" (does not import your code; GPT-2 Large under judge_models/, or GPT-2 under models/ in the self-check)
+  finish  generative NLL per sample (continuations conditioned on their prefix) and unigram entropy per sample;
+          the same for the held-out reference texts (1,024-token windows whose first 256 tokens are the prefixes)
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/sampler.py`
+- `baselines/ancestral/sampler.py`
+- `dlm.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

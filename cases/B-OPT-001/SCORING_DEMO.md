@@ -3,9 +3,9 @@
 > Kept from the earlier version of this case's README. It documents the ABench-level scoring design (SOTA margin M, divergence D, reference quality Q) and the simulated end-to-end demo in `sim/` and `outputs/`; those outputs are simulated and are not results. The case's judge is now the standard `harness` pipeline described in README.md.
 
 
-ABench does not test "reproducing past papers". It asks the agent to work like an architect: **start from a classic paper → openly retrieve related research from before the cutoff → synthesize → design a method that is better than and different from existing ones**, which the benchmark operator then evaluates under a uniform setting. This directory is a complete bench skeleton; real resources, reference runs and hidden evaluation still have to be frozen by the benchmark operator. Track B (optimizers), anchor Adam.
+ABench does not test "reproducing past papers". It asks the agent to work like an architect: **start from a classic paper → retrieve related research openly, throughout the work → synthesize → design a method that is better than and different from existing ones**, which the benchmark operator then evaluates under a uniform setting. This directory is a complete bench skeleton; real resources, reference runs and hidden evaluation still have to be frozen by the benchmark operator. Track B (optimizers), anchor Adam.
 
-- Corpus cutoff: 2026-07-01 (ABench v2026.07)
+- Literature: any date (no cutoff since 2026-10-23; novelty is judged against the literature at session start)
 - Verification scale: reduced to a micro-scale ladder per `abench/spec/compute_budget.md` (about 7M / 17M / 42M effective parameters), with one 24GB GPU as the reference card; agent development 8 GPU-h, about 6 GPU-h per submission verification, about 74 GPU-h of reference precompute
 - Model structures and datasets are given only as Hugging Face links, **with no download and no training** (`case/resources.yaml`)
 - Training results and LLM judge outputs are currently **simulated values** and cannot be used as real leaderboard results; the behavioral probes, code diff, paper weights and scoring logic are only a local process demo
@@ -15,7 +15,7 @@ ABench does not test "reproducing past papers". It asks the agent to work like a
 ```
 S0 Issue        anchor card + task statement (case/anchor_card.yaml, case/task_prompt.md)
  │
-S1 Retrieve     the agent retrieves openly with paper_search / paper_read; the tool layer blocks post-cutoff papers and logs everything
+S1 Retrieve     the agent retrieves openly with paper_search / paper_read; literature of any date, at any point of the work; everything is logged
  │             → submission/retrieval_log.jsonl
 S2 Synthesize   lineage of the field, key conclusions with evidence strength, gaps        → submission/synthesis.md
  │
@@ -48,7 +48,7 @@ Different agents retrieve different papers, so the comparison is not against opp
 **③ Reference quality Q** (`scoring/paper_weight.py`)
 
 - Paper weight w = (1 − 0.6a)·V + 0.6a·C: V is the venue-tier score, C the percentile of annual Google Scholar citations within the snapshot cohort, a = min(1, age / 2 years); new papers are judged mainly by venue
-- Q = 1 − Π(1 − w·u), where u is the usage level assigned by the judges (core 1 / partial 0.5 / decorative 0), counting only the top 8; each post-cutoff or unresolvable source multiplies by 0.8
+- Q = 1 − Π(1 − w·u), where u is the usage level assigned by the judges (core 1 / partial 0.5 / decorative 0), counting only the top 8; each unresolvable source multiplies by 0.8
 
 **④ Local discovery X** (`scoring/discovery.py`, defined in `abench/spec/discovery.md`)
 Bringing a known result from another field or earlier research into an effective local module also counts as discovery (cf. DeepSeek mHC introducing the 1967 Sinkhorn–Knopp algorithm). Each claim is ablated separately by the benchmark operator and scored as effectiveness × application novelty × provenance correctness × provenance distance. The weight of a cross-field source is assessed within its own field.

@@ -1,0 +1,34 @@
+schema: abench.references/v2
+references:
+- id: peng2023yarn
+  title: 'YaRN: Efficient Context Window Extension of Large Language Models'
+  authors: Bowen Peng, Jeffrey Quesnelle, Honglu Fan and Enrico Shippole
+  year: 2024
+  venue: ICLR
+  arxiv: '2309.00071'
+  used_for: 'Anchor: NTK-by-parts interpolation and attention temperature'
+  code_location: 'positions.py: YaRN'
+- id: chen2023pi
+  title: Extending Context Window of Large Language Models via Positional Interpolation
+  authors: Shouyuan Chen, Sherman Wong, Liangjian Chen and Yuandong Tian
+  year: 2023
+  venue: arXiv
+  arxiv: '2306.15595'
+  used_for: Interpolation of positions
+  code_location: 'positions.py: YaRN.freqs'
+- id: su2021roformer
+  title: 'RoFormer: Enhanced Transformer with Rotary Position Embedding'
+  authors: Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen and Yunfeng Liu
+  year: 2021
+  venue: arXiv
+  arxiv: '2104.09864'
+  used_for: Rotary position embedding
+  code_location: 'positions.py: YaRN.forward'
+- id: rae2020pg19
+  title: Compressive Transformers for Long-Range Sequence Modelling
+  authors: Jack W. Rae, Anna Potapenko, Siddhant M. Jayakumar and Timothy P. Lillicrap
+  year: 2020
+  venue: ICLR
+  arxiv: '1911.05507'
+  used_for: The PG-19 books
+  code_location: null

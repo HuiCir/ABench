@@ -1,35 +1,36 @@
-# ABench Case V-GEN-001: Training recipe for a small diffusion model (calibration)
+# ABench case V-GEN-001: Training a small diffusion model on CIFAR-10 within four GPU-hours
 
-- Track: V · Vision · method
-- Anchor: DDPM (arXiv: 2006.11239)
-- Subset: calibration; difficulty: low; resource tier: medium; status: **scaffold**
-- Task: Training recipe for a small diffusion model (calibration)
-- Metrics: FID; training steps
-- Proxy: SUBSET, MICRO; plan: Small diffusion model on CIFAR-10 32px, FID-10k
+Case built to task statement standard v2.1 from the template of V-SMP-002. Anchor: Jonathan Ho, Ajay Jain, Pieter Abbeel, *Denoising Diffusion Probabilistic Models*
+(arXiv:2006.11239).
 
-## Current deliverables
+## Status
 
-This directory only sets up the bench contract scaffold: task card, evaluation protocol, resource registry, scoring contract and directory-level notes. There is no simulated training, no simulated reference run, no simulated score and no fabricated leaderboard result. Formal runs require the benchmark operator to inject real resources, reference runs, the hidden set and server-generated run records.
-
-## Blockers and reservations
-
-This case can enter the next implementation batch of the shared runner, but real scores still cannot be published on this basis.
-
-Blocking inputs:
-
-- `frozen_weights_or_dataset_snapshot`
-- `fid_or_scene_metric_calibration`
-- `reference_runs_and_fixed_hardware`
-
-Until these inputs are frozen, only interfaces/contracts are added; no excessive environment setup or simulated substitutes.
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): Not executed yet: training, sampling and the Inception features need PyTorch, diffusers, pytorch-fid and a GPU, which were not available where the case was built; the operator runs them at activation. The FID code is that of V-SMP-002 (checked on toy statistics).
+- No number in the case files is a result: there are no training curves or reference scores.
 
 ## Files
 
-- `case/anchor_card.yaml`: task anchor and acceptance boundary.
-- `case/task_prompt.md`: the task given to the agent under test.
-- `case/eval_protocol.yaml`: proxy ladder, budget, hidden evaluation and output constraints.
-- `case/resources.yaml`: registry of data, models, software, hardware and private resources.
-- `case/scoring_config.yaml`: metrics and thresholds pending calibration.
-- `harness/README.md`: execution interface conventions.
-- `scoring/README.md`: scoring input/output conventions.
-- `example_submission/README.md`: example submission directory conventions.
+- `spec/cases/V-GEN-001.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case V-GEN-001`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/v_gen_001.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
+
+## Data sources (links only; nothing is downloaded in the repository)
+
+- pytorch-fid Inception weights (Seitzer 2020): https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth — license: Apache-2.0 (verified 2026-10-19 (V-SMP-002))
+- CIFAR-10 training set (Krizhevsky 2009): https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz — license: no explicit license on the dataset page (to_verify)
+
+## Activation (operator)
+
+```bash
+python3 tools/prepare/run.py --case V-GEN-001 --list-sources                 # what to download
+python3 tools/prepare/run.py --case V-GEN-001 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case V-GEN-001 --submission cases/V-GEN-001/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case V-GEN-001 --activate                     # after reviewing the calibration run
+```
+
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

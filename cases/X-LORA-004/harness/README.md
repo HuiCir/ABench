@@ -1,11 +1,31 @@
-# X-LORA-004 harness contract
+# X-LORA-004 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+X-LORA-004 pipeline: score parameter-efficient fine-tuning states for frozen roberta-base on four GLUE tasks
+(SST-2, CoLA, MNLI-matched, QNLI). Texts are stored packed (UTF-8 bytes + offsets, textpack.py).
+
+The evaluator does not train. One stage, "eval" (imports peft.py; the provided roberta-base is available):
+  timed   load checkpoint/states.pt ({task: {name: tensor}}, task-specific parameters only), import peft.py
+  finish  count the elements per task; predict(models_dir, task, state, sentence1, sentence2, device) -> labels,
+          for each task's held-out split                                                           (≤ 600 s)
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baseline/peft.py`
+- `baseline/train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+- `textpack.py`
+
+The held-out data, keys and judge configuration are never in this directory.

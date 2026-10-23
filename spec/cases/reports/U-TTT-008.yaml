@@ -1,0 +1,102 @@
+case: U-TTT-008
+title: 'TTT-Linear Layers Grafted into Every Other Layer of a Pretrained Model'
+abstract: >-
+  This submission replaces the attention of every odd layer of SmolLM2-135M by the anchor's TTT-Linear layer
+  [@sun2024ttt]: per head, a linear model of the keys is trained online to reconstruct the values, in mini-batches of 16
+  tokens, and the output for each token is that model applied to its query. It starts from the pretrained query, key,
+  value and output projections, learns the initial inner model, the inner learning rate and an output gate, and keeps
+  the even layers' attention for exact retrieval. Its state is the inner models plus at most 15 buffered tokens. It has
+  not been run yet: it needs PyTorch and the SmolLM2 weights, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Attention keeps every past token; recurrent layers compress the past into a fixed state. Test-time training makes
+    the compression itself a learning problem: the state is the weights of a small model trained on the sequence as it
+    is read. Grafting such layers into a pretrained transformer is a cheap way to test whether they use long contexts.
+- title: Related Work
+  paras:
+  - >-
+    TTT layers update an inner model by gradient descent on a self-supervised loss, with mini-batches and a dual form
+    for efficiency [@sun2024ttt]. Linear attention is the special case of a linear inner model with a fixed update
+    [@katharopoulos2020linear; @schlag2021fastweights]; the delta rule corrects instead of accumulating
+    [@yang2024deltanet]; Titans adds memory with momentum and forgetting [@behrouz2024titans]; state-space models such as
+    Mamba use input-dependent linear recurrences [@gu2023mamba].
+- title: Method
+  paras:
+  - >-
+    Queries and keys are L2-normalised per head; for a mini-batch with start state W, the residuals E = W K − V give the
+    outputs Z = W Q − 2η · tril(Q Kᵀ) E for all its tokens at once, and the next state W − 2η Eᵀ K. Decoding keeps the
+    tokens of an incomplete mini-batch in the cache and commits the update when it is full, which reproduces the full
+    forward pass exactly. The three pretrained key-value heads are repeated to the nine query heads.
+  algorithm_caption: One mini-batch of a TTT-Linear head
+  algorithm:
+  - E ← W K − V (residuals of the inner model at the batch start)
+  - Z ← W Q − 2η · (lower-triangular Q Kᵀ) E
+  - W ← W − 2η Eᵀ K; output ← o_proj(gate · Z)
+- title: Design Rationale
+  paras:
+  - >-
+    Keeping half of the attention layers preserves the pretrained model's retrieval paths while halving the growing
+    cache; starting the TTT projections from the pretrained ones and gating the output at 0.1 makes the grafted model
+    close to a pruned version of the original at the start of the continued training.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The inner model is linear and has no normalisation or forgetting, the even layers still cost quadratic time, and the
+    graft has not been run yet.
+references:
+- id: sun2024ttt
+  title: 'Learning to (Learn at Test Time): RNNs with Expressive Hidden States'
+  authors: Yu Sun et al.
+  year: 2024
+  venue: arXiv
+  arxiv: '2407.04620'
+  used_for: 'Anchor: TTT-Linear, mini-batch dual form'
+  code_location: 'src/ttt.py: TTTLinear'
+- id: katharopoulos2020linear
+  title: 'Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention'
+  authors: Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas and François Fleuret
+  year: 2020
+  venue: ICML
+  arxiv: '2006.16236'
+  used_for: Related work
+  code_location: null
+- id: schlag2021fastweights
+  title: Linear Transformers Are Secretly Fast Weight Programmers
+  authors: Imanol Schlag, Kazuki Irie and Jürgen Schmidhuber
+  year: 2021
+  venue: ICML
+  arxiv: '2102.11174'
+  used_for: Related work (fast weights, delta rule)
+  code_location: null
+- id: yang2024deltanet
+  title: Parallelizing Linear Transformers with the Delta Rule over Sequence Length
+  authors: Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen and Yoon Kim
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.06484'
+  used_for: Related work
+  code_location: null
+- id: behrouz2024titans
+  title: 'Titans: Learning to Memorize at Test Time'
+  authors: Ali Behrouz, Peilin Zhong and Vahab Mirrokni
+  year: 2024
+  venue: arXiv
+  arxiv: '2501.00663'
+  used_for: Related work
+  code_location: null
+- id: gu2023mamba
+  title: 'Mamba: Linear-Time Sequence Modeling with Selective State Spaces'
+  authors: Albert Gu and Tri Dao
+  year: 2023
+  venue: arXiv
+  arxiv: '2312.00752'
+  used_for: Related work
+  code_location: null
+changes:
+- text: TTT-Linear layers replace the attention of every odd layer, initialised from the pretrained projections, with
+    a learned initial state, inner learning rate and output gate.
+  code: 'src/ttt.py: TTTLinear; model.py: build'
+- text: Decoding buffers the tokens of an incomplete mini-batch in the cache so that it reproduces the parallel form.
+  code: 'src/ttt.py: TTTLinear.forward'

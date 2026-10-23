@@ -17,7 +17,7 @@ from abench_stage import Context, Stage
 MAX_STEPS = 300
 PARAMS = {"env": "gym_pusht/PushT-v0", "obs_type": "environment_state_agent_pos", "max_steps": MAX_STEPS}
 HELD_OUT_KEYS = ["reset_seeds"]
-PIPELINE = [{"stage": "rollout", "timeout": 120 + 900, "finish_cap": 900, "tail_slack": 10, "threads": 8,
+PIPELINE = [{"stage": "rollout", "timeout": 120 + 2700, "finish_cap": 2700, "tail_slack": 10, "threads": 8,
              "held_out": True, "models": False}]
 
 

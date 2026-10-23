@@ -1,0 +1,114 @@
+id: X-DISTILL-010
+title: "Knowledge distillation from SmolLM2-1.7B into SmolLM2-135M on a fixed token budget: held-out language-modelling loss"
+template: A-KV-004
+anchor: {authors: "Geoffrey Hinton, Oriol Vinyals, Jeff Dean", title: "Distilling the Knowledge in a Neural Network", arxiv: "1503.02531"}
+baseline: "continued training of SmolLM2-135M on 30M public tokens with half cross-entropy and half forward KL to the teacher's distribution (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Not executed yet: the reference needs PyTorch, transformers and the SmolLM2 weights, which were not available where the case was built; the operator runs it at activation. The token data is that of A-KV-004 and U-TTT-008 (prepare/smol_data.py); the stage and metrics run on synthetic tokens."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+kit_extra: [lmpost/lmpost.py]
+extra_interface: [harness/token_data.py]
+task: |
+  Design a **knowledge-distillation recipe** — which teacher signals to use (full or truncated distributions, temperatures, hidden states), how to mix them with the data loss, which tokens and documents to spend the budget on, schedules — that makes the **SmolLM2-135M student**, starting from its pretrained weights, reach the **lowest held-out loss** on educational web text, with **SmolLM2-1.7B as the teacher** and the same 120M public tokens.
+
+  - Submit the student's weights (same architecture and tokenizer as SmolLM2-135M), the code that loads them and the training program. The evaluator measures the student's mean next-token loss on held-out documents; it never retrains.
+  - The teacher may be run as much as your compute budget allows in the sandbox (for example to precompute and store its outputs); it is not available to the student at evaluation.
+  - You may build on any public work (logit distillation and its temperature, top-k and sequence-level distillation, feature and attention transfer, data selection by teacher loss, MiniLLM-style reverse KL), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/fwedu_train_000001.bin` (read-only): 120M tokens of FineWeb-Edu sample/10BT (`HuggingFaceFW/fineweb-edu` @87f09149, ODC-BY) tokenised with the SmolLM2 tokenizer, documents separated by `<|endoftext|>` (llm.c shard format, uint16; `interface/token_data.py` has `read_shard()`). `$ABENCH_MODELS_DIR/SmolLM2-135M/` (student start, @93efa2f0) and `SmolLM2-1.7B/` (teacher, @effd688a), both Apache-2.0.
+
+  The held-out set is 4,194,305 tokens of another FineWeb-Edu file (as in A-KV-004); it is not in the sandbox. The self-check uses the last 1,048,577 tokens of the public shard, which the reference does not train on.
+interface: "Implement `load(checkpoint_dir, models_dir, device)` in `model.py`, returning a causal LM with SmolLM2-135M's exact parameter shapes and the interface of a transformers model (`forward(input_ids)` returning `.logits`); write a `train.py` that produces the checkpoint."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Held-out loss** (primary) | Mean next-token cross-entropy (nats) of the student on the 4,194,305 held-out tokens in windows of 1,024; lower is better | — |
+  | Same architecture | The returned model's parameter names and shapes equal those of SmolLM2-135M | Threshold: = 1 |
+  | Improvement and gap closed | Starting student's loss minus yours; that improvement divided by the gap between the starting student and the teacher | reported |
+  | Teacher loss | The teacher's loss on the same tokens | reported |
+
+  **Measurement and decision**
+
+  - One stage in a new process on the reference GPU; loading is killed at 600 s and the three loss evaluations at 1,200 s.
+  - Valid submissions are ranked by held-out loss; differences below 0.003 nats are treated as ties.
+  - The final ABench score is driven mainly by held-out loss, and also considers how different the recipe is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "7 GPU-hours"
+  software: "Python 3, PyTorch (CUDA, Triton), transformers, safetensors, NumPy"
+  notes: |
+    - A forward pass of the teacher over all 120M tokens takes a large part of the budget; truncated or cached teacher outputs, or distilling on a selected subset, are design choices.
+    - `selfcheck.py` evaluates on the dev tokens (`--quick`: 65,537) and prints the losses.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load()
+    ├── train.py            # required: reproduces the checkpoint
+    ├── src/                # optional: other .py modules
+    ├── checkpoint/         # required: the student's weights, at most 1 GB
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - Train only on the public tokens, from the provided student and teacher; no other data or models.
+  - The student keeps SmolLM2-135M's architecture, tokenizer and parameter count; `load()` must not use the teacher.
+interface_md: |
+  # X-DISTILL-010 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, models_dir: str, device: str):
+      """Return the student: a causal LM with SmolLM2-135M's parameter names and shapes (e.g. AutoModelForCausalLM
+      from models_dir/SmolLM2-135M with your weights loaded), on `device`, in eval mode."""
+  ```
+
+  - The evaluator calls `model(input_ids=...)` on windows of 1,025 tokens (`lmpost.heldout_nll`).
+
+  ## Evaluator code you can read
+
+  `lmpost.py`, `token_data.py`, `stages.py`, `metrics.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and
+  the reference submission's code under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), transformers, safetensors, NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 7.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/X-DISTILL-010
+    public:
+      - {path: sandbox/data/X-DISTILL-010/fwedu_train_000001.bin, sha256: pending}
+    hidden: {path: sandbox/hidden/X-DISTILL-010/hidden.npz.enc, sha256_plain: pending, keys: "tokens (given after the timed phase)"}
+    models_dir: sandbox/models/X-DISTILL-010
+    models:
+      - {name: SmolLM2-135M, path: sandbox/models/X-DISTILL-010/SmolLM2-135M, tree_sha256: pending, revision: 93efa2f097d58c2a74874c7e644dbc9b0cee75a2, license: Apache-2.0}
+      - {name: SmolLM2-1.7B, path: sandbox/models/X-DISTILL-010/SmolLM2-1.7B, tree_sha256: pending, revision: effd688a12921b4cc83e3312b6feb579f70f9c71, license: Apache-2.0}
+    sources:
+      - name: "FineWeb-Edu sample/10BT (prepare/smol_data.py)"
+        url: https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu
+        revision: 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9
+        license: ODC-BY
+      - name: "SmolLM2-135M and SmolLM2-1.7B (HuggingFaceTB)"
+        url: https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B
+        revision: "135M 93efa2f0, 1.7B effd688a"
+        license: Apache-2.0
+        verified: "2026-10-22: revisions, licences and file lists from the Hugging Face API"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 1073741824
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 1075741824
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [0]

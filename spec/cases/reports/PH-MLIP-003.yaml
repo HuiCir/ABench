@@ -1,0 +1,119 @@
+case: PH-MLIP-003
+title: 'A Random-Feature Force Field Fitted to Energies and Forces'
+abstract: >-
+  This submission is a deliberately simple reference potential: per molecule, the energy is a linear function of random
+  Fourier features [@rahimi2007rff] of the standardised inverse interatomic distances plus a quadratic term in each
+  of them, and the forces are its analytic negative gradient. Because the forces are linear in the feature weights, the weights are fitted to energies and
+  forces jointly by regularised least squares, so that the 3N force labels of every configuration shape the fit, the
+  idea behind gradient-domain machine learning [@chmiela2017gdml]. It runs in NumPy on the CPU. It has not been run on
+  rMD17, which could not be downloaded where the case was built; it is expected to be far less accurate than the
+  anchor's equivariant message passing [@batatia2022mace].
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Interatomic potentials learned from a few hundred to a thousand DFT calculations can replace DFT in molecular
+    dynamics if they are both accurate and stable. Low force errors do not guarantee stable dynamics; this case
+    measures both.
+- title: Related Work
+  paras:
+  - >-
+    Gradient-domain kernel methods fit forces directly with energy conservation built in [@chmiela2017gdml]; the
+    atomic cluster expansion gives a complete body-ordered basis [@drautz2019ace]; equivariant message passing networks
+    such as NequIP and the anchor MACE reach the best accuracy on rMD17 [@batzner2022nequip; @batatia2022mace]. The
+    revised MD17 recomputed the original MD17 energies and forces at tighter settings [@christensen2020rmd17]; Fu et al.
+    showed that force accuracy and simulation stability can disagree [@fu2022forces].
+- title: Method
+  paras:
+  - >-
+    For a configuration x with pair distances r_p, D_p = 1/r_p is standardised with the training statistics; φ_k =
+    √(2/F) cos(W_k · D + b_k) with F = 2,000, W ~ N(0, ℓ⁻²) and ℓ the median distance between descriptors, extended by
+    one quadratic feature 0.1 · D_p² per pair. E = c + w·φ,
+    F = −Σ_k w_k ∂φ_k/∂x by the chain rule through D. The normal equations of the stacked energy and force residuals are
+    accumulated over configurations and solved with a ridge proportional to their trace.
+  algorithm_caption: Fit for one molecule
+  algorithm:
+  - D ← 1/r over all pairs; standardise; draw W, b
+  - for each configuration, rows φ (energy) and −∂φ/∂x (3N force components)
+  - w ← (Σ AᵀA + λ I)⁻¹ Σ Aᵀy; c ← mean training energy
+- title: Design Rationale
+  paras:
+  - >-
+    The energy is a smooth function of positions, so the forces are conservative and the dynamics conserves the energy
+    of the model up to the integrator; inverse distances emphasise short-range, strongly varying interactions; and the
+    linear fit is exact and fast, which makes the reference reproducible on any machine. The Fourier features are
+    bounded, so far from the training data their forces fade and a molecule would fly apart; the quadratic pair terms
+    keep restoring forces there. On a synthetic test molecule, adding them turned every 10-ps trajectory from unstable
+    (broken within 40 fs) to stable and lowered the force error from 0.64 to 0.10 kcal/mol/Å.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The descriptor depends on the fixed atom order and is not permutation invariant, there is no notion of locality or
+    transferability across molecules, the random features limit accuracy, and the model has not been run on the real
+    data.
+references:
+- id: batatia2022mace
+  title: 'MACE: Higher Order Equivariant Message Passing Neural Networks for Fast and Accurate Force Fields'
+  authors: Ilyes Batatia, Dávid Péter Kovács, Gregor N. C. Simm, Christoph Ortner and Gábor Csányi
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2206.07697'
+  used_for: 'Anchor (not reproduced by this reference)'
+  code_location: null
+- id: rahimi2007rff
+  title: Random Features for Large-Scale Kernel Machines
+  authors: Ali Rahimi and Benjamin Recht
+  year: 2007
+  venue: NeurIPS
+  url: https://papers.nips.cc/paper/3182-random-features-for-large-scale-kernel-machines
+  used_for: Random Fourier features
+  code_location: 'ff.py: Model.features, fit'
+- id: chmiela2017gdml
+  title: Machine learning of accurate energy-conserving molecular force fields
+  authors: Stefan Chmiela, Alexandre Tkatchenko, Huziel E. Sauceda, Igor Poltavsky, Kristof T. Schütt and Klaus-Robert Müller
+  year: 2017
+  venue: Science Advances
+  arxiv: '1611.04678'
+  used_for: Fitting to forces of an energy model
+  code_location: 'ff.py: fit'
+- id: drautz2019ace
+  title: Atomic cluster expansion for accurate and transferable interatomic potentials
+  authors: Ralf Drautz
+  year: 2019
+  venue: Physical Review B
+  doi: 10.1103/PhysRevB.99.014104
+  used_for: Related work
+  code_location: null
+- id: batzner2022nequip
+  title: E(3)-equivariant graph neural networks for data-efficient and accurate interatomic potentials
+  authors: Simon Batzner, Albert Musaelian, Lixin Sun, Mario Geiger, Jonathan P. Mailoa, Mordechai Kornbluth, Nicola Molinari, Tess E. Smidt and Boris Kozinsky
+  year: 2022
+  venue: Nature Communications
+  arxiv: '2101.03164'
+  used_for: Related work
+  code_location: null
+- id: christensen2020rmd17
+  title: On the role of gradients for machine learning of molecular energies and forces
+  authors: Anders S. Christensen and O. Anatole von Lilienfeld
+  year: 2020
+  venue: Machine Learning Science and Technology
+  arxiv: '2007.09593'
+  used_for: The rMD17 data and splits
+  code_location: null
+- id: fu2022forces
+  title: 'Forces are not Enough: Benchmark and Critical Evaluation for Machine Learning Force Fields with Molecular Simulations'
+  authors: Xiang Fu, Zhenghao Wu, Wujie Wang, Tian Xie, Sinan Keten, Rafael Gomez-Bombarelli and Tommi Jaakkola
+  year: 2022
+  venue: arXiv
+  arxiv: '2210.07237'
+  used_for: Stability criterion of the dynamics
+  code_location: null
+changes:
+- text: The potential is a linear model on random Fourier features of inverse distances instead of an equivariant
+    message-passing network.
+  code: 'ff.py: Model'
+- text: A quadratic feature in each standardised inverse distance keeps restoring forces outside the training data.
+  code: 'ff.py: Model.features, QUAD'
+- text: Weights are fitted to energies and forces jointly by regularised least squares instead of stochastic gradient
+    training.
+  code: 'ff.py: fit'

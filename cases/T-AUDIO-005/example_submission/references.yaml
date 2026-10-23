@@ -1,0 +1,43 @@
+schema: abench.references/v2
+references:
+- id: baevski2020wav2vec2
+  title: 'wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations'
+  authors: Alexei Baevski, Henry Zhou, Abdelrahman Mohamed and Michael Auli
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11477'
+  used_for: 'Anchor: the frozen encoder'
+  code_location: 'model.py: encoder, features'
+- id: yang2021superb
+  title: 'SUPERB: Speech processing Universal PERformance Benchmark'
+  authors: Shu-wen Yang et al.
+  year: 2021
+  venue: Interspeech
+  arxiv: '2105.01051'
+  used_for: Weighted layer sum of a frozen encoder
+  code_location: 'model.py: Head'
+- id: graves2006ctc
+  title: 'Connectionist Temporal Classification: Labelling Unsegmented Sequence Data with Recurrent Neural Networks'
+  authors: Alex Graves, Santiago Fernández, Faustino Gomez and Jürgen Schmidhuber
+  year: 2006
+  venue: ICML
+  doi: 10.1145/1143844.1143891
+  used_for: Training objective and greedy decoding
+  code_location: 'train.py: main; model.py: transcribe'
+- id: hsu2021hubert
+  title: 'HuBERT: Self-Supervised Speech Representation Learning by Masked Prediction of Hidden Units'
+  authors: Wei-Ning Hsu, Benjamin Bolte, Yao-Hung Hubert Tsai, Kushal Lakhotia, Ruslan Salakhutdinov and Abdelrahman
+    Mohamed
+  year: 2021
+  venue: IEEE/ACM TASLP
+  arxiv: '2106.07447'
+  used_for: Related work
+  code_location: null
+- id: houlsby2019adapters
+  title: Parameter-Efficient Transfer Learning for NLP
+  authors: Neil Houlsby et al.
+  year: 2019
+  venue: ICML
+  arxiv: '1902.00751'
+  used_for: Related work (adapters)
+  code_location: null

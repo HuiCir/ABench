@@ -22,7 +22,7 @@ from abench_stage import Context, Stage
 
 TARGET_LOSS = 2.92
 VAL_TOKENS = 10_485_760
-PARAM_CAP = 450_000_000
+PARAM_CAP = 550_000_000
 TRAIN_CAP = 3 * 3600.0
 PARAMS = {"target_val_loss": TARGET_LOSS, "val_tokens": VAL_TOKENS, "param_cap": PARAM_CAP,
           "train_cap_seconds": TRAIN_CAP, "gpus": 4, "vocab": 50257}

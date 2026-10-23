@@ -36,11 +36,9 @@ forbidden_heading_tokens:
 
 assignment_rules:
   precedence: "explicit exceptions > T7 suffix > default"
-  # A small number of report-only prompts predate the T7 naming convention.
-  # Keep these explicit so a case rename cannot silently change its submission
-  # contract.
-  exceptions:
-    U-KAN-009: judgment_report_v2
+  # Explicit per-case exceptions to the suffix rule (none since 2026-10-22: U-KAN-009, the only one, became a design
+  # case). No case currently carries the -T7- suffix; the rule is kept for the judgment kit.
+  exceptions: {}
   judgment_report_v2:
     suffixes: ["-T7-"]
   design_report_v2:

@@ -1,5 +1,5 @@
 id: TC-FT-001
-title: Text classification on AG News within a CPU budget
+title: Text classification on Yelp Review Full within a CPU budget
 anchor:
   authors: Armand Joulin, Edouard Grave, Piotr Bojanowski, Tomas Mikolov
   title: Bag of Tricks for Efficient Text Classification
@@ -10,30 +10,31 @@ reference_verification: The reference submission and the whole pipeline (dev spl
   real frozen data yet.
 n_seeds: 1
 task: |
-  Design a text classifier for the four-topic AG News task that reaches the **highest possible test accuracy** and still predicts quickly. Develop it on 8 CPU cores in the sandbox, train it there, and submit the trained model.
+  Design a text classifier that predicts the star rating (1–5) of a Yelp review that reaches the **highest possible test accuracy** and still predicts quickly. Develop it on 8 CPU cores in the sandbox, train it there, and submit the trained model.
 
-  - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and classifies the held-out test documents; it never retrains.
-  - Only the provided training documents may be used: no pretrained embeddings, language models, vocabularies built from external text, or external data.
-  - You may build on any public work from before the cutoff (linear models over n-grams, hashing, subword features, small neural encoders, ensembles), but the design report must state what you borrowed and what you changed. This task tests algorithm design under a tight CPU budget: feature design, model choice, optimisation and inference efficiency are all open.
+  - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and classifies the held-out test reviews; it never retrains.
+  - Only the provided training reviews may be used: no pretrained embeddings, language models, vocabularies built from external text, or external data.
+  - You may build on any public work (linear models over n-grams, hashing, subword features, small neural encoders, ensembles), but the design report must state what you borrowed and what you changed. This task tests algorithm design under a tight CPU budget: feature design, model choice, optimisation and inference efficiency are all open.
 data: |
-  `$ABENCH_DATA_DIR/train.npz` (read-only), from AG News (Zhang, Zhao & LeCun 2015; Hugging Face `fancyzhx/ag_news`):
+  `$ABENCH_DATA_DIR/train.npz` (read-only), from Yelp Review Full (Zhang, Zhao & LeCun 2015; Hugging Face `Yelp/yelp_review_full`):
 
   | Key | Shape | Type | Description |
   |---|---|---|---|
-  | `text` | (120000,) | str | Title and description of a news article, as distributed |
-  | `y` | (120000,) | int64 | Class 0 World, 1 Sports, 2 Business, 3 Sci/Tech |
-  | `dev_idx` | (6000,) | int64 | Dev split for self-checking (5% per class), used only by `selfcheck.py` |
+  | `text_utf8`, `text_offsets` | (bytes,), (650001,) | uint8, int64 | The 650,000 review texts, packed: review i is `text_utf8[text_offsets[i]:text_offsets[i + 1]]` decoded as UTF-8; `interface/textpack.py` has `unpack()` |
+  | `y` | (650000,) | int64 | Rating class 0–4 (1 to 5 stars), 130,000 per class |
+  | `dev_idx` | (13000,) | int64 | Dev split for self-checking (2% per class), used only by `selfcheck.py` |
 
-  The held-out set is the official AG News test split (7,600 documents, 1,900 per class); it is not in the sandbox.
+  Reviews are stored packed because they reach 5,000 characters; a fixed-width string array would be mostly padding. The held-out set is the official Yelp Review Full test split (50,000 reviews, 10,000 per class); it is not in the sandbox.
 interface: Implement `load(checkpoint_dir)` and `predict(model, texts)` in `model.py` at the root of the submission directory;
-  `predict` receives a list of strings and returns integer labels (0–3), one per text. Your `train.py` writes `checkpoint/`;
+  `predict` receives a list of strings and returns integer labels (0–4), one per text. Your `train.py` writes `checkpoint/`;
   the evaluator imports `model.py` and calls `load` inside the timed phase.
 metrics: |
   | Metric | Definition | Requirement |
   |---|---|---|
-  | **Accuracy** (primary) | Top-1 accuracy on the 7,600 held-out test documents; higher is better | — |
+  | **Accuracy** (primary) | Top-1 accuracy on the 50,000 held-out test reviews; higher is better | — |
   | Prediction throughput | Held-out documents divided by the seconds `predict()` takes | Threshold: ≥ 2,000 docs/s |
-  | Macro-F1 | Unweighted mean F1 over the 4 classes | reported |
+  | Macro-F1 | Unweighted mean F1 over the 5 classes | reported |
+  | Mean absolute error | Mean of \|predicted − true\| in stars | reported |
   | Load time | Seconds from the start signal to the return of `load()` (includes importing `model.py`) | reported (killed at 120 s) |
 
   **Timing rules**
@@ -44,7 +45,7 @@ metrics: |
   **Decision**
 
   - A submission is valid only if the throughput threshold holds; valid submissions are ranked by accuracy.
-  - If loading or prediction crashes, exceeds a time limit, or returns the wrong number of labels or labels outside 0–3, the submission is invalid.
+  - If loading or prediction crashes, exceeds a time limit, or returns the wrong number of labels or labels outside 0–4, the submission is invalid.
   - The final ABench score is driven mainly by accuracy, and also considers how different the method is from existing methods and the quality of the sources cited in the design report; the exact weights are not published.
 hardware:
   kind: cpu
@@ -53,7 +54,7 @@ hardware:
   software: Python 3, NumPy, SciPy, scikit-learn
   notes: |
     - No GPU is available in this case; the evaluation runs on CPU only. The submission may depend only on NumPy, SciPy, scikit-learn and the Python standard library.
-    - The self-check scores your checkpoint on the dev documents (`dev_idx`). Leave them out of training if you want an unbiased estimate; you may include them in the final checkpoint.
+    - The self-check scores your checkpoint on the dev reviews (`dev_idx`). Leave them out of training if you want an unbiased estimate; you may include them in the final checkpoint.
 deliverables:
   tree: |
     $ABENCH_SUBMISSION_DIR/
@@ -69,8 +70,6 @@ deliverables:
 rules: |
   - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights, embeddings or vocabularies built from external text, no external data and no hand-set parameters copied from elsewhere.
   - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
-  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights, embeddings or vocabularies built from external text, no external data and no hand-set parameters copied from elsewhere.
-  - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
   - `predict()` must not train on or adapt to the held-out texts beyond computing features of each document independently.
 interface_md: |
   # TC-FT-001 interface
@@ -82,7 +81,7 @@ interface_md: |
       """Load your trained classifier from checkpoint/ and return it (any Python object)."""
 
   def predict(model, texts: list[str]) -> numpy.ndarray:
-      """Return integer labels (M,) in 0..3 (0 World, 1 Sports, 2 Business, 3 Sci/Tech), one per text, in order."""
+      """Return integer labels (M,) in 0..4 (0 = 1 star ... 4 = 5 stars), one per text, in order."""
   ```
 
   - The evaluator calls `load` inside the timed phase and `predict` after it, once, on the held-out texts.
@@ -98,6 +97,7 @@ interface_md: |
   ## Evaluator code you can read
 
   - `stages.py`: the pipeline (one stage, `predict`), the dev split used by the self-check and the time limits.
+  - `textpack.py`: `unpack(utf8, offsets[, idx])` → list of str, for the packed texts in `train.npz`.
   - `metrics.py` and `abench_metrics.py`: how the metrics are computed from your outputs.
   - `abench_stage.py`: the process and timing protocol shared by all ABench standard cases.
   - `selfcheck.py`: runs the files above on the dev split with your checkpoint.
@@ -114,24 +114,27 @@ oj:
     public:
     - path: sandbox/data/TC-FT-001/train.npz
       sha256: pending
-      rows: 120000
+      rows: 650000
     hidden:
       path: sandbox/hidden/TC-FT-001/hidden.npz.enc
       sha256_plain: pending
-      rows: 7600
+      rows: 50000
       keys:
-      - text
+      - text_utf8
+      - text_offsets
       - y
     sources:
-    - name: AG News (Zhang, Zhao & LeCun 2015), Hugging Face fancyzhx/ag_news
-      url: https://huggingface.co/datasets/fancyzhx/ag_news
-      revision: eb185aade064a813bc0b7f42de02595523103ca4
+    - name: Yelp Review Full (Zhang, Zhao & LeCun 2015), Hugging Face Yelp/yelp_review_full
+      url: https://huggingface.co/datasets/Yelp/yelp_review_full
+      revision: c1f9ee939b7d05667af864ee1cb066393154bf85
       files:
-      - data/train-00000-of-00001.parquet
-      - data/test-00000-of-00001.parquet
-      license: unknown on the dataset card; the card describes the corpus as provided for research and non-commercial use
-      verified: '2026-10-19: revision sha, file list and split sizes (train 120,000 / test 7,600) read from the Hugging Face
-        API'
+      - yelp_review_full/train-00000-of-00001.parquet
+      - yelp_review_full/test-00000-of-00001.parquet
+      license: 'other: the dataset card refers to the Yelp Dataset Agreement (academic, non-commercial use); to_verify by
+        the operator before release'
+      verified: '2026-10-21: revision sha, file list, split sizes (train 650,000 / test 50,000) and label names read from
+        the Hugging Face API and dataset card'
+      replaces: 'AG News (2026-10-21 audit: AG News without pretraining is within about one point of its ceiling)'
   submission:
     kind: code_plus_checkpoint
     entry: model.py
@@ -161,3 +164,5 @@ oj:
     seeds:
     - 4441
 mode: checkpoint
+extra_interface:
+- harness/textpack.py

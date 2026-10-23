@@ -1,0 +1,41 @@
+schema: abench.references/v2
+references:
+- id: leviathan2023speculative
+  title: Fast Inference from Transformers via Speculative Decoding
+  authors: Yaniv Leviathan, Matan Kalman and Yossi Matias
+  year: 2023
+  venue: ICML
+  arxiv: '2211.17192'
+  used_for: 'Anchor: draft several steps, verify them in one parallel pass'
+  code_location: 'sampler.py: sample (window evaluation)'
+- id: chen2023accelerating
+  title: Accelerating Large Language Model Decoding with Speculative Sampling
+  authors: Charlie Chen, Sebastian Borgeaud, Geoffrey Irving, Jean-Baptiste Lespiau, Laurent Sifre and John Jumper
+  year: 2023
+  arxiv: '2302.01318'
+  used_for: Related work (speculative sampling)
+  code_location: null
+- id: shih2023paradigms
+  title: Parallel Sampling of Diffusion Models
+  authors: Andy Shih, Suneel Belkhale, Stefano Ermon, Dorsa Sadigh and Nima Anari
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.16317'
+  used_for: Picard iteration over a sliding window of time steps
+  code_location: 'sampler.py: sample'
+- id: song2021ddim
+  title: Denoising Diffusion Implicit Models
+  authors: Jiaming Song, Chenlin Meng and Stefano Ermon
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.02502'
+  used_for: The deterministic step and its affine form
+  code_location: 'sampler.py: coefficients'
+- id: ho2020ddpm
+  title: Denoising Diffusion Probabilistic Models
+  authors: Jonathan Ho, Ajay Jain and Pieter Abbeel
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11239'
+  used_for: The frozen model and its noise schedule
+  code_location: null

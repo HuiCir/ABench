@@ -1,0 +1,27 @@
+{
+  "required": [
+    "program.yaml",
+    "report/index.html",
+    "references.yaml"
+  ],
+  "allowed_top_level": [
+    "README.md",
+    "program.yaml",
+    "search.py",
+    "search_log.jsonl",
+    "src",
+    "report",
+    "references.yaml"
+  ],
+  "code_suffixes": [
+    ".py",
+    ".yaml",
+    ".yml",
+    ".jsonl",
+    ".md",
+    ".txt"
+  ],
+  "code_max_bytes": 2000000,
+  "data_dirs": [],
+  "data_max_bytes": {}
+}

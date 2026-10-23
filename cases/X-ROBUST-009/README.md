@@ -1,26 +1,36 @@
-# ABench Case X-ROBUST-009: Calibration, out-of-distribution detection and selective abstention for small models
+# ABench case X-ROBUST-009: An intent classifier that knows when not to answer: selective risk on CLINC150 with out-of-scope, shifted and noisy queries
 
-On a fixed small encoder and offline intent/safety data, design training and inference schemes that jointly optimize ID task quality, probability calibration, OOD detection, risk–coverage, safety abstention and inference cost. The goal is a reviewable Pareto front; a single accuracy cannot stand in for reliability metrics.
+Case built to task statement standard v2.1 from the template of X-LORA-004. Anchor: Chuan Guo, Geoff Pleiss, Yu Sun, Kilian Q. Weinberger, *On Calibration of Modern Neural Networks*
+(arXiv:1706.04599).
 
-- Corpus cutoff: 2026-07-01.
-- Difficulty: **high**; resource rating: **medium**; budget tier: **medium**.
-- Proxy: FROZEN, SURG, SUBSET; development about 3 GPU-h, per verification about 1.5 GPU-h, reference precompute about 15 GPU-h.
-- Resources: case/resources.yaml; data, checkpoints and the shift manifest are mounted offline by the server, and network access at run time is forbidden.
-- Currently only a scaffold, with no real reference runs, hidden evaluation or simulated scores.
+## Status
 
-## Task boundary
+- Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
+  freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
+- Reference submission (`example_submission/`): The reference (scikit-learn, CPU) was trained and run in the build container on the real public data (training 36 s). On the self-check split its area under the risk-coverage curve is 0.022; run once against the frozen held-out set as an operator calibration check it is 0.128 (in-scope accuracy 0.924, ECE 0.017, out-of-scope AUROC 0.879, decision accuracy 0.663: it answers 82% of out-of-scope and shifted queries). These are calibration checks of the case, not results.
+- No number in the case files is a result: there are no training curves or reference scores.
 
-Entrants may change the calibration head, abstention head, loss, temperature/vector scaling, OOD exposure, threshold selection and lightweight training recipe, but may not read hidden splits, labels or evaluator state. The public validation set is used to choose thresholds, and the server replays on unseen topics, compositions, near-distribution OOD samples and safety-policy samples. Safety-abstention labels are offline, verifiable category labels; no online moderation or external model is called.
+## Files
 
-## Metrics and scoring
+- `spec/cases/X-ROBUST-009.yaml` — source of the agent-facing task statement, interface, sandbox guide and `case/oj.yaml`
+  (regenerate with `python3 tools/build_standard_cases.py --case X-ROBUST-009`).
+- `case/agent/task.md` — the task statement the agent sees; `harness/` — every agent-visible interface file
+  (`interface.md`, `sandbox_guide.md`, `stages.py`, `metrics.py`, the shared kit and any case helpers).
+- `tools/prepare/x_robust_009.py` — data preparation (sources, checks, splits).
+- `example_submission/` — reference submission with its design report (`report/index.html`, `references.yaml`).
 
-Metric definitions are in case/eval_protocol.yaml and case/metric_registry.yaml. objective_mode: pareto: quality and coverage are maximized; calibration error, risk, over-refusal rate, latency, memory and training cost are minimized; safety and ID-quality thresholds come before non-dominance. Results must report per-shift and per-seed details and the full non-dominated set.
+## Data sources (links only; nothing is downloaded in the repository)
 
-## Blockers before launch
+- CLINC150 (Larson et al. 2019), data_full.json: https://github.com/clinc/oos-eval — license: CC BY 3.0 (verified 2026-10-22)
+- Banking77 test set (Casanueva et al. 2020), banking_data/test.csv: https://github.com/PolyAI-LDN/task-specific-datasets — license: CC BY 4.0 (verified 2026-10-22)
 
-- frozen_base_checkpoint_tokenizer_and_label_taxonomy
-- offline_public_calibration_and_hidden_shift_bundle
-- server_hidden_safety_labels_and_latency_probe
+## Activation (operator)
 
-Protocol references: spec/pareto_protocol.md; spec/sandbox_profiles.md.
-Resource profile: posttrain_24gb; objective mode: objective_mode: pareto.
+```bash
+python3 tools/prepare/run.py --case X-ROBUST-009 --list-sources                 # what to download
+python3 tools/prepare/run.py --case X-ROBUST-009 --raw-dir RAW --key-file KEY    # freeze public/hidden data, write case/data_lock.yaml
+python3 tools/oj_eval.py --case X-ROBUST-009 --submission cases/X-ROBUST-009/example_submission --hidden-key-file KEY --out runs/...
+python3 tools/prepare/run.py --case X-ROBUST-009 --activate                     # after reviewing the calibration run
+```
+
+Thresholds in `harness/metrics.py` are provisional until this calibration run on the frozen data and reference hardware.

@@ -1,0 +1,96 @@
+case: A-MOE-003
+title: 'Fine-Grained Experts with Auxiliary-Loss-Free Load Balancing'
+abstract: >-
+  This submission replaces the baseline's top-2 of 8 experts with 16 experts of half the width and top-4 routing, which
+  keeps total and active parameters unchanged while multiplying the expert combinations available to a token
+  [@dai2024deepseekmoe]. Load is balanced without an auxiliary loss: a per-expert bias steers only the top-k selection
+  and is moved against each expert's load deviation after every training step [@wang2024lossfree]. Router scores are
+  sigmoids normalised over the selected experts. It has not been run yet: it needs PyTorch and a GPU, which were not
+  available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Sparse mixture-of-experts layers add parameters without adding compute per token, but their quality depends on the
+    granularity of the experts and on how load balance is enforced. A balancing loss that is too strong degrades the
+    language-modelling objective; one that is too weak leaves experts idle.
+- title: Related Work
+  paras:
+  - >-
+    Sparsely gated experts with top-k routing were introduced by Shazeer et al. [@shazeer2017moe]; the anchor
+    simplified routing to one expert and introduced the load-balancing loss used by most later work
+    [@fedus2022switch]. Expert choice routes tokens to experts by expert-side selection, which is not causal in a
+    decoder [@zhou2022expertchoice]. DeepSeekMoE splits experts into finer ones and adds shared experts
+    [@dai2024deepseekmoe]; loss-free balancing replaces the auxiliary loss by a selection bias [@wang2024lossfree].
+- title: Method
+  paras:
+  - >-
+    For a token h, s = σ(W_r h) gives 16 scores; the selection uses s + b and takes the top 4, the weights are the
+    selected s renormalised to sum to one, and the output is the weighted sum of the selected SwiGLU experts of width
+    512. After each training forward pass, b_e ← b_e + 10⁻³ · sign(mean load − load_e). In evaluation mode b is fixed,
+    so routing depends only on the token's hidden state.
+  algorithm_caption: One layer, training mode
+  algorithm:
+  - s ← sigmoid(W_r h); idx ← top4(s + b); w ← s[idx] / Σ s[idx]
+  - y ← Σ_j w_j · expert_{idx_j}(h), each expert run only on its tokens
+  - b ← b + 1e-3 · sign(mean(counts) − counts)
+- title: Design Rationale
+  paras:
+  - >-
+    Finer experts let the router compose more specialised functions at the same cost; the bias update balances load
+    without a gradient term, so the language-modelling gradient is unchanged; and sigmoid scores avoid the competition
+    between experts that a softmax over all experts imposes on the gates.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Sixteen small experts run as sixteen small matrix multiplications, which lowers throughput relative to eight larger
+    ones; the bias rate is not tuned; and the design has not been run yet.
+references:
+- id: fedus2022switch
+  title: 'Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity'
+  authors: William Fedus, Barret Zoph and Noam Shazeer
+  year: 2022
+  venue: JMLR
+  arxiv: '2101.03961'
+  used_for: 'Anchor: sparse routing and the balancing loss of the baseline'
+  code_location: null
+- id: shazeer2017moe
+  title: 'Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer'
+  authors: Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton and Jeff Dean
+  year: 2017
+  venue: ICLR
+  arxiv: '1701.06538'
+  used_for: Top-k routing
+  code_location: 'moe.py: FineGrainedFree.forward'
+- id: zhou2022expertchoice
+  title: Mixture-of-Experts with Expert Choice Routing
+  authors: Yanqi Zhou, Tao Lei, Hanxiao Liu, Nan Du, Yanping Huang, Vincent Zhao, Andrew Dai, Zhifeng Chen, Quoc Le and James Laudon
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2202.09368'
+  used_for: Related work (expert-side selection)
+  code_location: null
+- id: dai2024deepseekmoe
+  title: 'DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models'
+  authors: Damai Dai et al.
+  year: 2024
+  venue: ACL
+  arxiv: '2401.06066'
+  used_for: Fine-grained experts
+  code_location: 'moe.py: N_EXPERTS, FF, K'
+- id: wang2024lossfree
+  title: Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts
+  authors: Lean Wang, Huazuo Gao, Chenggang Zhao, Xu Sun and Damai Dai
+  year: 2024
+  venue: arXiv
+  arxiv: '2408.15664'
+  used_for: Bias-based balancing
+  code_location: 'moe.py: FineGrainedFree.forward (bias update)'
+changes:
+- text: Sixteen experts of width 512 with top-4 routing replace eight experts of width 1,024 with top-2 routing, at the
+    same total and active parameters.
+  code: 'moe.py: N_EXPERTS, FF, K'
+- text: Load is balanced by a selection bias updated against each expert's load deviation instead of an auxiliary loss.
+  code: 'moe.py: FineGrainedFree.forward'
+- text: Router scores are sigmoids normalised over the selected experts instead of a softmax over the selected logits.
+  code: 'moe.py: FineGrainedFree.forward'

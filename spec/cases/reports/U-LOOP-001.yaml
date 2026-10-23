@@ -1,0 +1,96 @@
+case: U-LOOP-001
+title: 'A Prelude-Core-Coda Decoder with Input Injection, Trained over Random Loop Counts'
+abstract: >-
+  This submission spends the parameter budget of a 4-layer decoder on two prelude layers, one core layer that is
+  applied repeatedly and one coda layer, following the recurrent-depth design of Geiping et al.
+  [@geiping2025recurrent] and the weight sharing across depth of the anchor [@dehghani2019universal]. Before every core
+  iteration a linear adapter combines the current state with the prelude output, so the input stays visible at depth.
+  Each training step draws the loop count uniformly from 1 to 8, so the model is trained for every count it is
+  evaluated at. It has not been run yet: it needs PyTorch and a GPU, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Sharing weights across depth decouples compute from parameters: a looped model can think longer without growing.
+    At a fixed parameter budget the question is how much loss each extra loop buys, and whether the model degrades
+    gracefully when run with fewer loops than it prefers.
+- title: Related Work
+  paras:
+  - >-
+    The anchor applies one transformer layer recurrently with adaptive halting [@dehghani2019universal]; ALBERT shares
+    all layers to save parameters [@lan2020albert]. Recurrent-depth language models add a prelude and coda around a
+    looped core, inject the input at every iteration and train with random iteration counts
+    [@geiping2025recurrent]; looped transformers generalise algorithmic tasks to longer inputs [@fan2024looped];
+    deep-equilibrium models take the loop to its fixed point [@bai2019deq].
+- title: Method
+  paras:
+  - >-
+    e ← prelude(embed(x)) with two blocks; h ← e; for each loop, h ← core(W [h; e]) with one block; logits ←
+    coda(h) projected by the tied embeddings. W starts as [I, 0.1 I] so that the first iterations nearly keep the
+    state. Residual output projections are initialised for an effective depth of seven. The training loss is the
+    cross-entropy at a loop count drawn uniformly from 1–8 per step, with backpropagation through all iterations.
+  algorithm_caption: Forward pass with k loops
+  algorithm:
+  - e ← prelude_2(prelude_1(embed(x))); h ← e
+  - repeat k times, h ← core(W [h; e])
+  - logits ← head(norm(coda(h)))
+- title: Design Rationale
+  paras:
+  - >-
+    Two prelude layers build token features before recurrence starts; one core layer keeps the cost of a loop low so
+    that eight loops stay well inside the compute gate; input injection prevents the state from drifting away from the
+    input over many iterations; and uniform loop counts in training make every evaluated count in-distribution.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Backpropagating through up to eight iterations makes training steps slower than the baseline's; the loop count is
+    fixed at inference rather than adaptive; and the design has not been run yet.
+references:
+- id: dehghani2019universal
+  title: Universal Transformers
+  authors: Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit and Łukasz Kaiser
+  year: 2019
+  venue: ICLR
+  arxiv: '1807.03819'
+  used_for: 'Anchor: one layer applied recurrently over depth'
+  code_location: 'model.py: Looped.forward'
+- id: geiping2025recurrent
+  title: 'Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach'
+  authors: Jonas Geiping, Sean McLeish, Neel Jain, John Kirchenbauer, Siddharth Singh, Brian R. Bartoldson, Bhavya Kailkhura, Abhinav Bhatele and Tom Goldstein
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.05171'
+  used_for: Prelude-core-coda layout, input injection, random loop counts in training
+  code_location: 'model.py: Looped'
+- id: lan2020albert
+  title: 'ALBERT: A Lite BERT for Self-supervised Learning of Language Representations'
+  authors: Zhenzhong Lan, Mingda Chen, Sebastian Goodman, Kevin Gimpel, Piyush Sharma and Radu Soricut
+  year: 2020
+  venue: ICLR
+  arxiv: '1909.11942'
+  used_for: Related work (cross-layer sharing)
+  code_location: null
+- id: fan2024looped
+  title: Looped Transformers for Length Generalization
+  authors: Ying Fan, Yilun Du, Kannan Ramchandran and Kangwook Lee
+  year: 2025
+  venue: ICLR
+  arxiv: '2409.15647'
+  used_for: Related work (looped transformers)
+  code_location: null
+- id: bai2019deq
+  title: Deep Equilibrium Models
+  authors: Shaojie Bai, J. Zico Kolter and Vladlen Koltun
+  year: 2019
+  venue: NeurIPS
+  arxiv: '1909.01377'
+  used_for: Related work (fixed-point depth)
+  code_location: null
+changes:
+- text: The four-layer budget is split into two prelude layers, one looped core layer and one coda layer instead of four
+    distinct layers.
+  code: 'model.py: Looped.__init__, PRELUDE, CODA'
+- text: The prelude output is injected before every core iteration through a linear adapter initialised near identity.
+  code: 'model.py: Looped.forward, adapter'
+- text: Each training step uses a loop count drawn uniformly from 1 to 8.
+  code: 'model.py: Looped.loss'

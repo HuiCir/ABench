@@ -1,0 +1,121 @@
+id: T-MM-004
+title: "Aligning a frozen image encoder and a frozen text encoder with light trained adapters: COCO retrieval and compositional checks"
+template: X-LORA-004
+anchor: {authors: "Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever", title: "Learning Transferable Visual Models From Natural Language Supervision", arxiv: "2103.00020"}
+baseline: "two-layer projections of the frozen encoders' pooled features into a shared 256-d space, trained with CLIP's symmetric contrastive loss (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Not executed yet: the reference needs PyTorch, transformers and the encoder weights, which were not available where the case was built; the operator runs it at activation. The retrieval and compositional scores were checked in the container on constructed embeddings (perfect alignment gives 1.0; random embeddings give R@1 ≈ 1/n and image→text R@10 ≈ 1 − (1 − 10/n_text)^5), and the data preparation runs on synthetic images."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/mm.py, harness/textpack.py]
+task: |
+  Design **light trainable components** — projections, adapters inside the frozen networks, cross-attention or pooling over patch and token features, a contrastive or other objective — that **align a frozen DINOv2-small image encoder with a frozen MiniLM text encoder** for **image-text retrieval** on COCO, while staying robust to **compositional changes** of captions (swapped, replaced or added attributes, objects and relations).
+
+  - Submit the trained tensors (`checkpoint/states.pt`, at most 10 million numbers), the code that uses them with the frozen encoders, and the training program. The evaluator calls your `encode_images()` and `encode_texts()` on held-out images and captions and ranks by cosine similarity; it never retrains.
+  - The encoders' weights may not be changed: anything trained must be in `states.pt`, which also counts as the trained-parameter cost.
+  - You may build on any public work (CLIP and its losses, locked-image tuning, adapters, hard-negative mining, compositional training), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/coco_train.npz` (read-only): COCO 2014 images of the Karpathy train and restval splits (Lin et al. 2014; Karpathy split from the parquet export `yerevann/coco-karpathy` @448fdb1b), minus every image used by the compositional test, each with its first five captions; `coco_val.npz`: the Karpathy val split (5,000 images). Keys: `jpeg`/`jpeg_offsets` (256×256 JPEG files, shorter side resized and centre-cropped, quality 90), `caption_utf8`/`caption_offsets` (packed captions, `interface/textpack.py`), `caption_image` (image index of each caption), `cocoid`. `$ABENCH_MODELS_DIR/dinov2-small/` (`facebook/dinov2-small` @ed25f3a3, Apache-2.0) and `all-MiniLM-L12-v2/` (`sentence-transformers/all-MiniLM-L12-v2` @a50ef001, Apache-2.0).
+
+  The held-out sets are not in the sandbox: the Karpathy test split (5,000 images, 25,000 captions) and the 7,511 items of SugarCrepe (Hsieh et al. 2023, MIT; COCO images with a true caption and a hard-negative caption, seven subsets). COCO annotations are CC BY 4.0; the images are used under the COCO terms of use.
+interface: "Implement `load(states, models_dir, device)`, `encode_images(state, jpegs) -> (n, d) array` and `encode_texts(state, texts) -> (n, d) array` in `model.py` (d ≤ 1,024; `jpegs` are JPEG file contents as bytes); write a `train.py` that produces `checkpoint/states.pt`."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean recall** (primary) | Mean of R@1, R@5 and R@10 for image→text (an image is retrieved correctly if any of its five captions is in the top K) and text→image on the 5,000 Karpathy test images and 25,000 captions, by cosine similarity, ties counted against you; higher is better | — |
+  | Recall per direction and K | The six recalls | reported |
+  | Compositional accuracy | SugarCrepe: fraction of items where the true caption is more similar to the image than the hard negative, per subset and averaged over the seven subsets | reported |
+  | Trained parameters | Numbers in `states.pt` | Threshold: ≤ 10,000,000 |
+  | Latency | Milliseconds per image and per caption in batches of 256 on the reference GPU | reported |
+
+  **Measurement and decision**
+
+  - One stage in a new process on the reference GPU; loading is killed at 300 s and encoding of all held-out images and captions at 1,200 s.
+  - Valid submissions are ranked by mean recall; differences below 0.5 points are treated as ties.
+  - The final ABench score is driven mainly by mean recall, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "6 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), torchvision, transformers, Pillow, NumPy"
+  notes: |
+    - Precomputing frozen features once is cheap (about 110,000 images); adapters inside the encoders cost a forward pass per step.
+    - `selfcheck.py` runs retrieval on Karpathy val (`--quick`: 500 images) and a weak word-swap stand-in for the compositional test.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load(), encode_images(), encode_texts()
+    ├── train.py            # required: reproduces checkpoint/states.pt
+    ├── src/                # optional: other .py modules
+    ├── checkpoint/
+    │   └── states.pt       # required: {name: tensor}, at most 10 million numbers
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - The encoders are loaded from `models_dir` and must not be modified; only tensors in `states.pt` may carry what was trained.
+  - Train only on the public COCO data; no other images, captions or pretrained models. Hard negatives may be generated from the public captions by rule.
+  - `encode_images` and `encode_texts` must embed each item on its own (no use of the other items in a batch).
+interface_md: |
+  # T-MM-004 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(states: dict, models_dir: str, device: str):
+      """states: the {name: tensor} dict of checkpoint/states.pt; encoders under models_dir/dinov2-small and
+      models_dir/all-MiniLM-L12-v2 (transformers, local_files_only=True)."""
+
+  def encode_images(state, jpegs: list) -> "np.ndarray (n, d)":   # JPEG bytes, 256×256
+  def encode_texts(state, texts: list) -> "np.ndarray (n, d)":    # captions
+  ```
+
+  - Similarity is the cosine of the returned vectors; d ≤ 1,024 and the same for images and texts.
+
+  ## Evaluator code you can read
+
+  `mm.py` (image packing, recall@K, compositional accuracy), `stages.py`, `metrics.py`, `textpack.py`,
+  `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the reference submission's code under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), torchvision, transformers, Pillow, NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/T-MM-004
+    public:
+      - {path: sandbox/data/T-MM-004/coco_train.npz, sha256: pending}
+      - {path: sandbox/data/T-MM-004/coco_val.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/T-MM-004/hidden.npz.enc, sha256_plain: pending, keys: "images and captions of the test split and of SugarCrepe (given after the timed phase); caption_image, sc_image, sc_subset (evaluator only)"}
+    models_dir: sandbox/models/T-MM-004
+    models:
+      - {name: dinov2-small, path: sandbox/models/T-MM-004/dinov2-small, tree_sha256: pending, revision: ed25f3a31f01632728cabb09d1542f84ab7b0056, license: Apache-2.0}
+      - {name: all-MiniLM-L12-v2, path: sandbox/models/T-MM-004/all-MiniLM-L12-v2, tree_sha256: pending, revision: a50ef00143b4d5391434df20ae11632588ac25be, license: Apache-2.0}
+    sources:
+      - name: "COCO captions, Karpathy split (yerevann/coco-karpathy) and COCO 2014 images"
+        url: https://huggingface.co/datasets/yerevann/coco-karpathy
+        revision: 448fdb1bc7b2d09e46881c4541a14d796a3d41e8
+        license: "COCO annotations CC BY 4.0; images under the COCO terms of use (Flickr terms); the parquet export states no licence of its own"
+        verified: "2026-10-22: revision, file names and columns from the Hugging Face API"
+      - name: "SugarCrepe (Hsieh et al. 2023)"
+        url: https://github.com/RAIVNLab/sugar-crepe
+        revision: 0047054b243992f0fad63d6f64f7544862daf846
+        license: MIT
+        verified: "2026-10-22: commit, licence and item counts (7,511) from a clone"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 52428800
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 54428800
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [0]

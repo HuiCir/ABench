@@ -224,7 +224,33 @@ def _sudo_attestation(raw: str, tokens: list[str], entry: dict[str, Any]) -> dic
     if prefix not in ([tokens[0], "-u", user], [tokens[0], "--user", user]):
         out["reason"] = "sudo wrapper may only select the dedicated user before --"
         return out
-    out.update({"user": user, "accepted": True, "scoreable": True, "reason": "allowlisted_dedicated_user"})
+    out.update({"user": user, "network": "host", "accepted": True, "scoreable": True,
+                "reason": "allowlisted_dedicated_user"})
+    return out
+
+
+def _netns_attestation(raw: str, tokens: list[str], entry: dict[str, Any]) -> dict[str, Any]:
+    """`unshare --net -- sudo -u abench-agent --`: the dedicated user in a new, empty network namespace.
+
+    Only the exact argv in the policy is accepted (``-n`` is accepted as the short form of ``--net``); any other
+    unshare option (mount, pid, user namespaces with mappings, --setuid ...) would change what is attested."""
+    out = _base(raw, tokens)
+    out.update({"launcher": os.path.basename(tokens[0]) if tokens else "", "kind": "user_netns",
+                "wrapper_id": entry["id"]})
+    want = list(entry.get("exact_argv") or [])
+    system = ("/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/")
+
+    def bare(t: str) -> str:                     # a launcher may be spelled with a system directory, nothing else
+        return os.path.basename(t) if t.startswith(system) else t
+    got = ["--net" if t == "-n" else t for t in tokens]
+    for i in (0, 3):
+        if len(got) > i:
+            got[i] = bare(got[i])
+    if got != want:
+        out["reason"] = "netns wrapper must be exactly: " + " ".join(want)
+        return out
+    out.update({"user": entry.get("required_user"), "network": "none (new network namespace)",
+                "accepted": True, "scoreable": True, "reason": "allowlisted_dedicated_user_without_network"})
     return out
 
 
@@ -256,6 +282,8 @@ def inspect_wrapper(raw: str | None) -> dict[str, Any]:
         return _container_attestation(raw, tokens, entry)
     if entry.get("kind") == "user":
         return _sudo_attestation(raw, tokens, entry)
+    if entry.get("kind") == "user_netns":
+        return _netns_attestation(raw, tokens, entry)
     out = _base(raw, tokens)
     out["reason"] = f"unsupported wrapper policy kind {entry.get('kind')!r}"
     return out

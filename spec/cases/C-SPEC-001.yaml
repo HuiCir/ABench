@@ -1,0 +1,132 @@
+id: C-SPEC-001
+title: "Lossless speculative decoding for a 1.5B target with a 0.5B draft: end-to-end speedup on five workloads"
+template: C-QNT-003
+anchor: {authors: "Yaniv Leviathan, Matan Kalman, Yossi Matias", title: "Fast Inference from Transformers via Speculative Decoding", arxiv: "2211.17192"}
+baseline: "speculative decoding with the provided draft model, greedy verification and an adaptive draft length (the reference submission; its code is shown under `interface/baseline/`); speedups are measured against the evaluator's plain greedy decoding"
+reference_verification: "Not executed yet: the reference needs PyTorch, transformers and the Qwen2.5 weights, which were not available where the case was built; the operator runs it at activation. Its decoding loop (proposal, verification, cache cropping, adaptive draft length) was checked against plain greedy decoding in a mock without PyTorch: 200 random prompts with drafts agreeing 5–100% of the time all gave exactly the greedy output."
+mode: checkpoint
+n_seeds: 1
+leak_allow: [speedup]
+show_baseline: true
+extra_interface: [harness/greedy.py]
+task: |
+  Design a **drafting and verification strategy** that makes greedy generation with **Qwen2.5-1.5B-Instruct** as fast as possible end to end while producing **exactly the target model's greedy output**, on five workloads — including one where a small draft model is expected to agree rarely.
+
+  - Submit the code and an optional checkpoint (for example trained draft heads, at most 2 GB). The evaluator calls `generate()` once per prompt (batch size 1, at most 256 new tokens) and compares the tokens with its own greedy decoding of the target in fp32; it times both on the same GPU.
+  - The provided draft model Qwen2.5-0.5B-Instruct may be used, modified or replaced by something you train in the sandbox; verification must use the provided target weights.
+  - Workloads: math word problems (GSM8K), code completion (HumanEval), news summarisation and German translation (CNN/DailyMail), open instructions (Dolly) — 32 held-out prompts each.
+  - You may build on any public work (draft models, self-drafting heads, tree verification, n-gram lookup, adaptive speculation), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/dev_prompts.npz` (read-only): 16 development prompts per workload, already chat-formatted and tokenised for the target (`<workload>_tokens`, `<workload>_offsets`: prompt i is `tokens[offsets[i]:offsets[i+1]]`), drawn from other splits than the held-out prompts. `$ABENCH_MODELS_DIR/Qwen2.5-1.5B-Instruct` and `Qwen2.5-0.5B-Instruct`: the target and draft models (Apache-2.0).
+
+  | Workload | Source (licence) | Held-out prompts from |
+  |---|---|---|
+  | `math` | GSM8K (MIT) | test split |
+  | `code` | HumanEval (MIT) | the last 64 problems |
+  | `summarize` | CNN/DailyMail 3.0.0 articles, at most 1,500 tokens (Apache-2.0) | test split |
+  | `chat` | Dolly 15k instructions with context (CC BY-SA 3.0) | a random half |
+  | `translate` | CNN/DailyMail highlights into German (Apache-2.0) | test split |
+
+  The 160 held-out prompts are chosen with a secret seed and are not in the sandbox; you may build your own training prompts from anything you generate with the provided models.
+interface: "Implement `load(checkpoint_dir, models_dir, device)` and `generate(model, prompt_ids, max_new_tokens) -> list[int]` in `model.py`. `prompt_ids` is a list of token ids (chat template applied); `generate` returns the new tokens, stopping after the target's end-of-sequence token or at `max_new_tokens`."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Geometric-mean speedup** (primary) | Per workload, the evaluator's total time of plain greedy decoding (target in fp32 with its key-value cache) divided by your total `generate()` time over the same prompts; geometric mean over the five workloads; higher is better | — |
+  | Speedup per workload | The same per workload, and the smallest | reported |
+  | Exactness | Fraction of prompts whose output equals the target's greedy output, a first difference being accepted only where the target's two best logits differ by less than 1e-3 | Threshold: = 1.0 |
+  | Load time | Seconds from the start signal to the return of `load()` | reported (killed at 600 s) |
+
+  **Timing and decision**
+
+  - Loading, the evaluator's greedy decoding and your `generate()` run in one new process on the reference GPU, timed with device synchronisation; prompt by prompt the evaluator's decoding runs first, then yours. All 160 prompts must finish within 3,000 seconds.
+  - A submission is valid only if every output is exact; valid submissions are ranked by geometric-mean speedup. Differences below 3% are treated as ties (timing noise).
+  - If loading or decoding crashes or exceeds a time limit, the submission is invalid.
+  - The final ABench score is driven mainly by the speedup, and also considers how different the method is from existing methods and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "8 GPU-hours (the whole session on one GPU)"
+  software: "Python 3, PyTorch (CUDA, Triton), transformers, safetensors, NumPy"
+  notes: |
+    - Load the models only from `models_dir` with `local_files_only=True`; `HF_HUB_OFFLINE=1` is set.
+    - The evaluator's reference decoding uses the target in fp32 with the scaled-dot-product attention of transformers; a target run in lower precision will usually not reproduce its greedy output.
+    - `selfcheck.py` runs the evaluation protocol on the 80 dev prompts (`--quick`: 20) and prints speedups and exactness.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and generate()
+    ├── train.py            # required: reproduces the checkpoint (may only write settings)
+    ├── src/                # optional: other .py modules
+    ├── checkpoint/         # required: trained draft parameters or settings, at most 2 GB
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - Verification must use the provided target weights; the output must be the target's greedy output, not an approximation.
+  - The checkpoint may only be trained from the provided models and data generated with them; no other pretrained models or external data.
+  - `generate` must not keep results between calls (no caching of earlier prompts' outputs) and must not depend on the order or identity of the prompts.
+interface_md: |
+  # C-SPEC-001 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, models_dir: str, device: str):
+      """models_dir holds Qwen2.5-1.5B-Instruct/ (target) and Qwen2.5-0.5B-Instruct/ (draft), Hugging Face format."""
+
+  def generate(model, prompt_ids: list[int], max_new_tokens: int) -> list[int]:
+      """The target's greedy continuation: new tokens only, ending with an end-of-sequence token
+      (generation_config.json) or after max_new_tokens tokens."""
+  ```
+
+  - Batch size 1; `max_new_tokens` is 256; `generate` runs under `torch.no_grad()`.
+  - `greedy.py` shows the evaluator's reference decoding and the tie-tolerant comparison.
+
+  ## Evaluator code you can read
+
+  `greedy.py`, `stages.py` (timing protocol), `metrics.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`,
+  and the reference submission's code under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), transformers, safetensors, NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/C-SPEC-001
+    public:
+      - {path: sandbox/data/C-SPEC-001/dev_prompts.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/C-SPEC-001/hidden.npz.enc, sha256_plain: pending, keys: "<workload>_tokens, <workload>_offsets for math, code, summarize, chat, translate"}
+    models_dir: sandbox/models/C-SPEC-001
+    models:
+      - {name: Qwen2.5-1.5B-Instruct, path: sandbox/models/C-SPEC-001/Qwen2.5-1.5B-Instruct, tree_sha256: pending, revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306, license: Apache-2.0}
+      - {name: Qwen2.5-0.5B-Instruct, path: sandbox/models/C-SPEC-001/Qwen2.5-0.5B-Instruct, tree_sha256: pending, revision: 7ae557604adf67be50417f59c2c2f167def9a775, license: Apache-2.0}
+    sources:
+      - name: "GSM8K (openai/gsm8k main), HumanEval (openai/openai_humaneval), CNN/DailyMail 3.0.0 (abisee/cnn_dailymail), Dolly 15k (databricks/databricks-dolly-15k)"
+        url: https://huggingface.co/datasets/openai/gsm8k
+        revision: "gsm8k 740312ad, openai_humaneval 7dce6050, cnn_dailymail 96df5e68, databricks-dolly-15k bdd27f4d"
+        license: "MIT, MIT, Apache-2.0, CC BY-SA 3.0"
+        verified: "2026-10-22: revisions, licences and file paths from the Hugging Face API"
+      - name: "Qwen2.5-1.5B-Instruct and Qwen2.5-0.5B-Instruct (Qwen Team 2024)"
+        url: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct
+        revision: "1.5B 989aa798, 0.5B 7ae55760"
+        license: Apache-2.0
+        verified: "2026-10-22: revisions, licences and file lists from the Hugging Face API"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 2147483648
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2149483648
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [2211]
+    code_audit: "the operator checks that verification uses the provided target and that generate keeps nothing between prompts"

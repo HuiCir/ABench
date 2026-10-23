@@ -5,10 +5,12 @@ import numpy as np
 
 from abench_metrics import OutputError, auc_binary, need  # noqa: F401
 
-DATASETS = [44120, 44122, 44123, 44125, 44126, 44128]
+DATASETS = [44122, 44123, 44125, 44126, 44128, 45021]
 PRIMARY = {"metric": "mean_accuracy", "goal": "max"}
 GATES: list = []          # validity = no crash, time limits respected, well-formed outputs
 
+# examples resampled together for the bootstrap 95% interval of the primary metric (abench_metrics.bootstrap_ci)
+RESAMPLE = [{"reference": [f"y_{d}"], "outputs": [["predict", f"proba_{d}"]]} for d in DATASETS]
 
 def score(outputs: dict, reference: dict, params: dict, seconds: dict) -> dict:
     out, accs, aucs = {}, [], []

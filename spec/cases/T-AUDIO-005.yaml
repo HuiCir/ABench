@@ -1,0 +1,119 @@
+id: T-AUDIO-005
+title: "Speech recognition from a frozen wav2vec 2.0 encoder with a light trained head: word error rate on clean, harder and noisy unseen speakers"
+template: X-LORA-004
+anchor: {authors: "Alexei Baevski, Henry Zhou, Abdelrahman Mohamed, Michael Auli", title: "wav2vec 2.0: A Framework for Self-Supervised Learning of Speech Representations", arxiv: "2006.11477"}
+baseline: "a learned softmax-weighted sum of the frozen encoder's 13 hidden states and one linear CTC layer, greedy decoding (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Not executed yet: the reference needs PyTorch, transformers and the wav2vec 2.0 weights, which were not available where the case was built; the operator runs it at activation. The word and character error rates (Levenshtein distance checked against a brute-force implementation on 300 random pairs), the babble mixing and the packing of audio were checked in the container; the data selection runs on synthetic audio."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/asr.py, harness/textpack.py]
+task: |
+  Design a **light trainable head on top of the frozen pre-trained wav2vec 2.0 base encoder** — layer weighting, adapters between frozen layers, a small recurrent or attention head, CTC or another alignment-free objective, decoding — that **transcribes speech of unseen speakers** with the **lowest word error rate**, averaged over clean speech, harder speech and speech with background talkers, after training on **10 hours** of transcribed audio.
+
+  - Submit the trained tensors (`checkpoint/states.pt`, at most 20 million numbers), the code that uses them with the frozen encoder, and the training program. The evaluator loads the encoder itself, gives your `load()` the tensors, and calls `transcribe()` on held-out utterances; it never retrains.
+  - The encoder's weights may not be changed: anything trained must be in `states.pt`, which also counts as the trained-parameter cost.
+  - No language model or text corpus other than the training transcripts may be used.
+  - You may build on any public work (SUPERB-style probing heads, adapters, CTC and its variants, noise augmentation, self-training on the training audio), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/train_10h.npz` (read-only): 10 hours of LibriSpeech train-clean-100 (Panayotov et al. 2015, CC BY 4.0; parquet export `openslr/librispeech_asr` @71cacbfb), whole speakers in shard order (about 80); `dev_clean.npz`: LibriSpeech dev-clean (5.4 hours, 40 speakers). Each holds `audio` (int16, 16 kHz, all utterances concatenated), `audio_offsets` (utterance i is `audio[offsets[i]:offsets[i+1]]`), packed transcripts `text_utf8`/`text_offsets` (upper-case letters, apostrophes, spaces; `interface/textpack.py`) and `speaker`. `$ABENCH_MODELS_DIR/wav2vec2-base/`: the pre-trained (not fine-tuned) encoder `facebook/wav2vec2-base` @0b5b8e86 (Apache-2.0).
+
+  The held-out set is not in the sandbox: LibriSpeech test-clean (2,620 utterances), test-other (2,939, harder recordings and speakers) and test-clean mixed with three-speaker babble from train-other-500 at 5–15 dB signal-to-noise ratio (mixtures drawn with a secret seed). Every held-out speaker is absent from the training data.
+interface: "Implement `load(states, models_dir, device)` and `transcribe(state, audios) -> list[str]` in `model.py`: `states` is the dict of tensors from `checkpoint/states.pt`, `audios` a list of int16 NumPy arrays at 16 kHz; return one transcript per utterance. Write a `train.py` that produces `checkpoint/states.pt`."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean WER** (primary) | Word error rate (word-level Levenshtein distance / reference words, after mapping transcripts to upper-case letters, apostrophes and single spaces) on test-clean, test-other and noisy test-clean, averaged over the three; lower is better | — |
+  | WER and CER per set | The three word and character error rates | reported |
+  | Real-time factor | Time of all `transcribe()` calls / audio duration, batches of at most 160 s of audio sorted by length, on the reference GPU | reported |
+  | Trained parameters | Numbers in `states.pt` | Threshold: ≤ 20,000,000 |
+  | Peak memory | Peak GPU memory during transcription | reported |
+
+  **Measurement and decision**
+
+  - One stage in a new process on the reference GPU; loading is killed at 300 s and transcription of all 8,179 utterances at 1,800 s.
+  - Valid submissions are ranked by mean WER; differences below 0.3 points are treated as ties.
+  - The final ABench score is driven mainly by mean WER, and also considers how different the method is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: "6 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), torchaudio, transformers, NumPy"
+  notes: |
+    - `selfcheck.py` transcribes dev-clean and a babble-mixed copy of it (`--quick`: 200 utterances each) and prints the error rates.
+    - `interface/asr.py` has the text normalisation, the error-rate code and the babble mixing used for the noisy set.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and transcribe()
+    ├── train.py            # required: reproduces checkpoint/states.pt
+    ├── src/                # optional: other .py modules
+    ├── checkpoint/
+    │   └── states.pt       # required: {name: tensor}, at most 20 million numbers
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - The encoder is loaded from `models_dir` and must not be modified; only tensors in `states.pt` may carry what was trained.
+  - Train only on the public training audio and transcripts; no other audio, text, language model or pretrained model.
+interface_md: |
+  # T-AUDIO-005 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(states: dict, models_dir: str, device: str):
+      """states: the {name: tensor} dict of checkpoint/states.pt. The encoder is models_dir/wav2vec2-base
+      (transformers Wav2Vec2Model, local_files_only=True). Return what transcribe() needs."""
+
+  def transcribe(state, audios: list) -> list:
+      """audios: int16 NumPy arrays at 16 kHz. Return one transcript (str) per utterance."""
+  ```
+
+  ## Evaluator code you can read
+
+  `asr.py` (normalisation, WER/CER, babble mixing), `stages.py` (batching, timing, memory), `metrics.py`,
+  `textpack.py`, `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, and the reference submission's code under
+  `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), torchaudio, transformers, NumPy. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 6.0, session_hours: 8}
+  data:
+    public_dir: sandbox/data/T-AUDIO-005
+    public:
+      - {path: sandbox/data/T-AUDIO-005/train_10h.npz, sha256: pending}
+      - {path: sandbox/data/T-AUDIO-005/dev_clean.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/T-AUDIO-005/hidden.npz.enc, sha256_plain: pending, keys: "audio, audio_offsets (given after the timed phase); text_utf8, text_offsets, group, speaker (evaluator only)"}
+    models_dir: sandbox/models/T-AUDIO-005
+    models:
+      - {name: wav2vec2-base, path: sandbox/models/T-AUDIO-005/wav2vec2-base, tree_sha256: pending, revision: 0b5b8e868dd84f03fd87d01f9c4ff0f080fecfe8, license: Apache-2.0}
+    sources:
+      - name: "LibriSpeech ASR corpus (Panayotov et al. 2015), parquet export openslr/librispeech_asr"
+        url: https://huggingface.co/datasets/openslr/librispeech_asr
+        revision: 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1
+        license: CC BY 4.0
+        verified: "2026-10-22: revision, licence and shard names from the Hugging Face API"
+      - name: "wav2vec 2.0 base, pre-trained only (facebook/wav2vec2-base)"
+        url: https://huggingface.co/facebook/wav2vec2-base
+        revision: 0b5b8e868dd84f03fd87d01f9c4ff0f080fecfe8
+        license: Apache-2.0
+        verified: "2026-10-22: revision, licence and file list from the Hugging Face API"
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 104857600
+    allowed_top_level: [README.md, model.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 106857600
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [0]

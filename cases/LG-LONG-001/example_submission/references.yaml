@@ -1,0 +1,52 @@
+schema: abench.references/v2
+references:
+- id: chalkidis2022lexglue
+  title: 'LexGLUE: A Benchmark Dataset for Legal Language Understanding in English'
+  authors: Ilias Chalkidis, Abhik Jana, Dirk Hartung, Michael Bommarito, Ion Androutsopoulos, Daniel Martin Katz
+    and Nikolaos Aletras
+  year: 2022
+  venue: ACL
+  arxiv: '2110.00976'
+  used_for: 'Anchor: the task, the data and the evaluation with the no-violation label'
+  code_location: 'train.py: micro_f1_none'
+- id: chalkidis2019judgment
+  title: Neural Legal Judgment Prediction in English
+  authors: Ilias Chalkidis, Ion Androutsopoulos and Nikolaos Aletras
+  year: 2019
+  venue: ACL
+  arxiv: '1906.02059'
+  used_for: Origin of the ECtHR judgment prediction task
+  code_location: null
+- id: chalkidis2021rationale
+  title: 'Paragraph-level Rationale Extraction through Regularization: A case study on European Court of Human Rights
+    Cases'
+  authors: Ilias Chalkidis, Manos Fergadiotis, Dimitrios Tsarapatsanis, Nikolaos Aletras, Ion Androutsopoulos and
+    Prodromos Malakasiotis
+  year: 2021
+  venue: NAACL
+  arxiv: '2103.13084'
+  used_for: Related work (the ECtHR task A/B data; paragraph rationales)
+  code_location: null
+- id: chalkidis2020legalbert
+  title: 'LEGAL-BERT: The Muppets straight out of Law School'
+  authors: Ilias Chalkidis, Manos Fergadiotis, Prodromos Malakasiotis, Nikolaos Aletras and Ion Androutsopoulos
+  year: 2020
+  venue: Findings of EMNLP
+  arxiv: '2010.02559'
+  used_for: The provided encoder (not used by this reference)
+  code_location: null
+- id: beltagy2020longformer
+  title: 'Longformer: The Long-Document Transformer'
+  authors: Iz Beltagy, Matthew E. Peters and Arman Cohan
+  year: 2020
+  arxiv: '2004.05150'
+  used_for: Related work (sparse attention over long inputs)
+  code_location: null
+- id: salton1988tfidf
+  title: Term-weighting approaches in automatic text retrieval
+  authors: Gerard Salton and Christopher Buckley
+  year: 1988
+  venue: Information Processing & Management
+  doi: 10.1016/0306-4573(88)90021-0
+  used_for: Sublinear tf-idf weighting
+  code_location: 'model.py: tfidf'

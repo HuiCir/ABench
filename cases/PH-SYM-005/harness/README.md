@@ -1,11 +1,32 @@
-# PH-SYM-005 harness contract
+# PH-SYM-005 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+PH-SYM-005 pipeline: the evaluator gives your discovery method the noisy trajectories of 20 dynamical systems it
+has never seen and scores the equations it returns (evaluator and self-check use this same file).
+
+One stage, "discover" (imports discover.py):
+  before  the trajectories of the held-out systems are placed in ctx.pre_dir (held_pre.npz); loading is not timed
+  timed   for each system: discover(t, x, seed) -> coefficient matrix over systems.library(d)   (all twenty ≤ 1,200 s)
+  finish  the coefficient matrices are returned to the evaluator, which compares their sparsity pattern with the
+          true one and integrates them from new initial conditions (metrics.py)
+The evaluator runs the anchor's sequentially thresholded least squares (baselines/stlsq) through the same stage.
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `baselines/stlsq/discover.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+- `systems.py`
+
+The held-out data, keys and judge configuration are never in this directory.

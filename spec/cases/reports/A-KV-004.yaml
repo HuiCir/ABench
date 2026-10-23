@@ -1,0 +1,95 @@
+case: A-KV-004
+title: 'Cross-Layer Key-Value Sharing in Groups of Three'
+abstract: >-
+  This submission meets the cache budget by sharing keys and values across layers instead of across heads. Layers are
+  grouped in threes; the first layer of each group computes and caches keys and values with SmolLM2's three key-value
+  heads, and the other two attend to them with their own queries, following cross-layer attention [@brandon2024cla].
+  Ten layers cache instead of thirty, which is exactly a third of the original cache, while every layer keeps three
+  key-value heads; the anchor's multi-query conversion [@ainslie2023gqa] is the baseline. It has not been run yet: it
+  needs PyTorch and the SmolLM2 weights, which were not available where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    The decoding cache of a transformer grows with layers × key-value heads × head dimension per token. Multi-query
+    attention cuts the heads; cross-layer sharing cuts the layers. Which dimension is cheaper to give up, after a short
+    continued training of a pretrained model, is an empirical question.
+- title: Related Work
+  paras:
+  - >-
+    Multi-query attention shares one key-value head across all query heads [@shazeer2019mqa]; GQA interpolates and
+    converts pretrained models by mean-pooling heads followed by uptraining [@ainslie2023gqa]. Cross-layer attention
+    shares keys and values between adjacent layers [@brandon2024cla]; YOCO caches once for the whole decoder
+    [@sun2024yoco]; latent attention compresses keys and values into a low-rank latent [@deepseek2024v2]; cache
+    quantisation reduces the bytes per element [@liu2024kivi].
+- title: Method
+  paras:
+  - >-
+    For layers 3g, 3g + 1 and 3g + 2, layer 3g runs the pretrained attention and stores its rotated keys and values;
+    the other two compute and rotate their queries with their pretrained projections and attend to the stored keys and
+    values with scaled dot-product attention. Their key and value projections are removed. During decoding only the
+    producing layers return a cache; consumers read the producer's updated keys and values from the same step.
+- title: Design Rationale
+  paras:
+  - >-
+    Adjacent layers of a pretrained model have correlated keys and values, so reusing one layer's keys and values
+    perturbs the network less than averaging three heads into one in every layer, and it keeps the three distinct
+    key-value heads that the queries were trained against.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Consumers lose their own key-value projections entirely, the grouping is fixed rather than learned, and the
+    structure has not been run yet.
+references:
+- id: ainslie2023gqa
+  title: 'GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints'
+  authors: Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón and Sumit Sanghai
+  year: 2023
+  venue: EMNLP
+  arxiv: '2305.13245'
+  used_for: 'Anchor: grouped-query attention and uptraining (the baseline)'
+  code_location: null
+- id: shazeer2019mqa
+  title: 'Fast Transformer Decoding: One Write-Head is All You Need'
+  authors: Noam Shazeer
+  year: 2019
+  venue: arXiv
+  arxiv: '1911.02150'
+  used_for: Related work (multi-query attention)
+  code_location: null
+- id: brandon2024cla
+  title: Reducing Transformer Key-Value Cache Size with Cross-Layer Attention
+  authors: William Brandon, Mayank Mishra, Aniruddha Nrusimha, Rameswar Panda and Jonathan Ragan-Kelley
+  year: 2024
+  venue: arXiv
+  arxiv: '2405.12981'
+  used_for: Cross-layer key-value sharing
+  code_location: 'model.py: Producer, Consumer, build'
+- id: sun2024yoco
+  title: 'You Only Cache Once: Decoder-Decoder Architectures for Language Models'
+  authors: Yutao Sun, Li Dong, Yi Zhu, Shaohan Huang, Wenhui Wang, Shuming Ma, Quanlu Zhang, Jianyong Wang and Furu Wei
+  year: 2024
+  venue: arXiv
+  arxiv: '2405.05254'
+  used_for: Related work
+  code_location: null
+- id: deepseek2024v2
+  title: 'DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model'
+  authors: DeepSeek-AI
+  year: 2024
+  venue: arXiv
+  arxiv: '2405.04434'
+  used_for: Related work (latent attention)
+  code_location: null
+- id: liu2024kivi
+  title: 'KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache'
+  authors: Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong, Zhaozhuo Xu, Vladimir Braverman, Beidi Chen and Xia Hu
+  year: 2024
+  venue: ICML
+  arxiv: '2402.02750'
+  used_for: Related work (cache quantisation)
+  code_location: null
+changes:
+- text: Keys and values are shared within groups of three consecutive layers instead of being reduced to one head per
+    layer.
+  code: 'model.py: Producer, Consumer, build'

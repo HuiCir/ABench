@@ -1,0 +1,43 @@
+schema: abench.references/v2
+references:
+- id: dehghani2019universal
+  title: Universal Transformers
+  authors: Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit and Łukasz Kaiser
+  year: 2019
+  venue: ICLR
+  arxiv: '1807.03819'
+  used_for: 'Anchor: one layer applied recurrently over depth'
+  code_location: 'model.py: Looped.forward'
+- id: geiping2025recurrent
+  title: 'Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach'
+  authors: Jonas Geiping, Sean McLeish, Neel Jain, John Kirchenbauer, Siddharth Singh, Brian R. Bartoldson, Bhavya
+    Kailkhura, Abhinav Bhatele and Tom Goldstein
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.05171'
+  used_for: Prelude-core-coda layout, input injection, random loop counts in training
+  code_location: 'model.py: Looped'
+- id: lan2020albert
+  title: 'ALBERT: A Lite BERT for Self-supervised Learning of Language Representations'
+  authors: Zhenzhong Lan, Mingda Chen, Sebastian Goodman, Kevin Gimpel, Piyush Sharma and Radu Soricut
+  year: 2020
+  venue: ICLR
+  arxiv: '1909.11942'
+  used_for: Related work (cross-layer sharing)
+  code_location: null
+- id: fan2024looped
+  title: Looped Transformers for Length Generalization
+  authors: Ying Fan, Yilun Du, Kannan Ramchandran and Kangwook Lee
+  year: 2025
+  venue: ICLR
+  arxiv: '2409.15647'
+  used_for: Related work (looped transformers)
+  code_location: null
+- id: bai2019deq
+  title: Deep Equilibrium Models
+  authors: Shaojie Bai, J. Zico Kolter and Vladlen Koltun
+  year: 2019
+  venue: NeurIPS
+  arxiv: '1909.01377'
+  used_for: Related work (fixed-point depth)
+  code_location: null

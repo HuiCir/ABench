@@ -46,7 +46,7 @@ references:
   year: 2015
   venue: NeurIPS
   arxiv: '1509.01626'
-  used_for: Source of the AG News dataset and n-gram baselines
+  used_for: Source of the Yelp Review Full dataset and n-gram baselines
   code_location: null
 - id: pedregosa2011sklearn
   title: 'Scikit-learn: Machine Learning in Python'

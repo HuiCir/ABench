@@ -19,6 +19,10 @@ A case defines its stages in harness/stages.py. One run of a stage is one fresh 
 The parent requires exactly R, T, P in this order, checks that the process exits within finish_cap + tail_slack
 seconds of G, and gives every run empty HOME / TMPDIR / compiler cache directories and no network proxy.
 Labels and reference values never enter the child process: they stay with the parent (the judge or selfcheck.py).
+
+The judge may run each child as a separate, unprivileged user in a new network namespace (`isolation`, set by
+tools/oj_eval.py from ABENCH_JUDGE_CHILD_USER); the parent then owns post/ and pre/, and reads the child's files
+without following symbolic links.
 """
 from __future__ import annotations
 
@@ -36,7 +40,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-KIT_VERSION = "abench-stage-v1"
+KIT_VERSION = "abench-stage-v1.1"
 THIS = Path(__file__).resolve()
 
 
@@ -60,6 +64,7 @@ class Context:
     device: str
     params: dict = field(default_factory=dict)
     post_dir: Path | None = None
+    pre_dir: Path | None = None          # held-out inputs given before the timed phase (PIPELINE held_out_pre)
     meta: dict = field(default_factory=dict)
 
     def sync(self) -> None:
@@ -112,7 +117,7 @@ def _child(a: argparse.Namespace) -> int:
     ctx = Context(stage=a.stage, submission=Path(a.submission), work=Path(a.work),
                   public=Path(a.public) if a.public else None, models=Path(a.models) if a.models else None,
                   seed=a.seed, device=a.device, params=json.loads(a.params or "{}"),
-                  post_dir=Path(a.work) / "post")
+                  post_dir=Path(a.work) / "post", pre_dir=Path(a.work) / "pre")
     fd = a.fd
     state = stage.setup(ctx) if stage.setup else None
     try:
@@ -151,6 +156,47 @@ def _child(a: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- parent side
+def _read_regular(path: Path) -> bytes | None:
+    """Contents of a file the child wrote, or None: never follows a symbolic link (a child must not make the parent
+    read, and copy into a run record, a file the child itself cannot read)."""
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        return None
+    try:
+        import stat as _st
+        if not _st.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb") as f:
+            fd = -1
+            return f.read()
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def _fresh_dir(d: Path) -> None:
+    """Remove whatever is at d (directory, file or symbolic link) and create an empty directory owned by the parent."""
+    if d.is_symlink() or d.is_file():
+        d.unlink()
+    elif d.exists():
+        shutil.rmtree(d)
+    d.mkdir(mode=0o755)
+
+
+def _give(work: Path, uid: int, gid: int) -> None:
+    """Hand the stage directory (not pre/ or post/) to the child user."""
+    for dirpath, dirnames, filenames in os.walk(work):
+        dp = Path(dirpath)
+        if dp == work:
+            dirnames[:] = [d for d in dirnames if d not in ("pre", "post")]
+        os.chown(dp, uid, gid)
+        for f in filenames:
+            fp = dp / f
+            if not fp.is_symlink():
+                os.chown(fp, uid, gid)
+
+
 def _env(workdir: Path, threads: int, extra: dict[str, str] | None) -> dict[str, str]:
     caches = {k: workdir / "_env" / k.lower() for k in ("HOME", "TMPDIR", "XDG_CACHE_HOME", "TORCHINDUCTOR_CACHE_DIR",
                                                         "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "HF_HOME")}
@@ -170,19 +216,31 @@ def _env(workdir: Path, threads: int, extra: dict[str, str] | None) -> dict[str,
 
 
 def run_stage(stages_path: Path, stage: str, submission: Path, work: Path, *, public: Path | None = None,
-              models: Path | None = None, post_files: dict[str, Path] | None = None, seed: int = 0,
+              models: Path | None = None, post_files: dict[str, Path] | None = None,
+              pre_files: dict[str, Path] | None = None, seed: int = 0,
               device: str = "cuda", params: dict | None = None, timeout: float = 600.0, finish_cap: float = 60.0,
               tail_slack: float = 5.0, threads: int = 8, extra_env: dict[str, str] | None = None,
-              python: str = sys.executable) -> dict[str, Any]:
+              python: str = sys.executable, isolation: dict | None = None) -> dict[str, Any]:
     """Run one stage in a fresh process and time it with the parent's clock.
 
     post_files: name -> source path, copied into <work>/post/<name> only after T has been received.
+    pre_files: name -> source path, copied into <work>/pre/<name> before the process starts (inputs the timed phase
+    needs, e.g. the training split of a held-out dataset in cases where the evaluator trains); removed afterwards.
+    isolation: {"prefix": [argv launcher, e.g. unshare --net -- setpriv ... --], "uid": int, "gid": int} runs the
+    child as that user (the judge's choice; None runs it as the caller).
     Returns a record with status, timed_seconds, finish_seconds and, if ok, the paths of the outputs.
     """
     work.mkdir(parents=True, exist_ok=True)
     post = work / "post"
-    if post.exists():
-        shutil.rmtree(post)
+    if post.exists() or post.is_symlink():
+        post.unlink() if post.is_symlink() else shutil.rmtree(post)
+    pre = work / "pre"
+    if pre.exists() or pre.is_symlink():
+        pre.unlink() if pre.is_symlink() else shutil.rmtree(pre)
+    if pre_files:
+        pre.mkdir(parents=True)
+        for name, src in pre_files.items():
+            shutil.copyfile(src, pre / name)
     r, w = os.pipe()
     cmd = [python, str(THIS), "--child", "--stages", str(stages_path), "--stage", stage, "--submission",
            str(submission), "--work", str(work), "--seed", str(seed), "--device", device, "--fd", str(w),
@@ -191,11 +249,15 @@ def run_stage(stages_path: Path, stage: str, submission: Path, work: Path, *, pu
         cmd += ["--public", str(public)]
     if models is not None:
         cmd += ["--models", str(models)]
-    t_spawn = time.perf_counter()
-    # stdout/stderr go to files (a pipe could fill up and block a chatty child while the parent waits on the fd)
-    out_f, err_f = open(work / "_stdout.txt", "wb"), open(work / "_stderr.txt", "wb")
+    # stdout/stderr go to files (a pipe could fill up and block a chatty child while the parent waits on the fd);
+    # the parent keeps the open handles and reads them back through those, never through the path
+    out_f, err_f = open(work / "_stdout.txt", "w+b"), open(work / "_stderr.txt", "w+b")
     env = _env(work, threads, extra_env)
     env["ABENCH_SEED"] = str(seed)                       # run seed, for submissions that only load and infer
+    if isolation:
+        _give(work, int(isolation["uid"]), int(isolation["gid"]))
+        cmd = list(isolation["prefix"]) + cmd
+    t_spawn = time.perf_counter()
     proc = subprocess.Popen(cmd, cwd=work, env=env, pass_fds=(w,),
                             stdin=subprocess.PIPE, stdout=out_f, stderr=err_f, start_new_session=True)
     os.close(w)
@@ -225,7 +287,7 @@ def run_stage(stages_path: Path, stage: str, submission: Path, work: Path, *, pu
                 seq += bytes([b])
                 marks.setdefault(bytes([b]), now)
             if seq == b"RT" and t_go is None:
-                post.mkdir(parents=True, exist_ok=True)
+                _fresh_dir(post)                          # whatever the child put at post/ is discarded
                 for name, src in (post_files or {}).items():
                     shutil.copyfile(src, post / name)
                 try:
@@ -256,17 +318,23 @@ def run_stage(stages_path: Path, stage: str, submission: Path, work: Path, *, pu
             os.killpg(proc.pid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             pass
-        if post.exists():
-            shutil.rmtree(post, ignore_errors=True)       # held-out inputs never outlive the run
+        if isolation:                                     # anything the child user left running
+            subprocess.run(["pkill", "-KILL", "-u", str(isolation["uid"])], capture_output=True)
+        for d in (post, pre):                             # held-out inputs never outlive the run
+            if d.is_symlink():
+                d.unlink()
+            elif d.exists():
+                shutil.rmtree(d, ignore_errors=True)
     t_exit = time.perf_counter()
+    out_f.seek(0)
+    err_f.seek(0)
+    stdout, stderr = out_f.read(), err_f.read()
     out_f.close()
     err_f.close()
     try:
         proc.stdin.close()
     except (BrokenPipeError, ValueError):
         pass
-    stdout = (work / "_stdout.txt").read_bytes()
-    stderr = (work / "_stderr.txt").read_bytes()
     rec: dict[str, Any] = {"stage": stage, "seed": seed, "exit_code": proc.returncode,
                            "stdout_tail": stdout[-1500:].decode("utf-8", "replace"),
                            "stderr_tail": stderr[-3000:].decode("utf-8", "replace")}
@@ -283,11 +351,21 @@ def run_stage(stages_path: Path, stage: str, submission: Path, work: Path, *, pu
         rec["tail_seconds"] = round(t_exit - t_go, 4)
     rec["status"] = status
     if status == "ok":
-        rec["outputs"] = str(work / f"{stage}.out.npz")
-        meta = work / f"{stage}.meta.json"
-        if meta.is_file():
+        out = work / f"{stage}.out.npz"
+        if isolation:                                     # take the outputs out of the child's reach before reading
+            data = _read_regular(out)
+            if data is None:
+                rec["status"] = "protocol_violation"
+                rec["detail"] = "outputs are not a regular file"
+                return rec
+            safe = work.parent / f".{work.name}.{stage}.out.npz"
+            safe.write_bytes(data)
+            out = safe
+        rec["outputs"] = str(out)
+        raw = _read_regular(work / f"{stage}.meta.json")
+        if raw is not None:
             try:
-                rec["meta"] = json.loads(meta.read_text(encoding="utf-8"))   # self-reported, for reference only
+                rec["meta"] = json.loads(raw.decode("utf-8"))   # self-reported, for reference only
             except ValueError:
                 rec["meta"] = None
     return rec
@@ -295,14 +373,18 @@ def run_stage(stages_path: Path, stage: str, submission: Path, work: Path, *, pu
 
 def run_pipeline(stages_mod, stages_path: Path, submission: Path, work: Path, *, public: Path | None,
                  models: Path | None, held_out: Path | None, seed: int, device: str,
-                 extra_env: dict[str, str] | None = None, scale: float = 1.0) -> dict[str, Any]:
+                 extra_env: dict[str, str] | None = None, scale: float = 1.0,
+                 held_pre: Path | None = None, judge_models: Path | None = None,
+                 isolation: dict | None = None) -> dict[str, Any]:
     """Run all stages in stages_mod.PIPELINE for one seed. held_out is the npz of held-out inputs (no labels).
 
     Returns {"status", "stages": [records], "outputs": {stage: {key: array}},
              "seconds": {stage: timed_seconds, stage + ".finish": finish_seconds}}.
     scale multiplies the timeouts (selfcheck --quick uses a smaller value on smaller data; the judge uses 1.0).
-    PIPELINE entries: stage, timeout, finish_cap, tail_slack, threads, held_out (bool), models (bool, default True:
-    pass the frozen model directory), carry ({previous stage: [file or directory names]}).
+    held_pre is the npz of held-out inputs a stage receives before its timed phase (stages with held_out_pre: true).
+    PIPELINE entries: stage, timeout, finish_cap, tail_slack, threads, held_out (bool), held_out_pre (bool), models (bool, default True:
+    pass the frozen model directory), judge_models (bool: pass the evaluator-only model directory instead, e.g. a
+    reward model; such a stage must not import the submission), carry ({previous stage: [file or directory names]}).
     """
     import numpy as np
     recs, outs, secs = [], {}, {}
@@ -316,10 +398,13 @@ def run_pipeline(stages_mod, stages_path: Path, submission: Path, work: Path, *,
         for src_stage, names in (spec.get("carry") or {}).items():
             for n in names:
                 src = work / src_stage / n
-                if src.is_dir():
-                    shutil.copytree(src, sdir / n)
+                # symbolic links are copied as links, never followed: a stage must not carry a file it cannot read
+                if src.is_symlink():
+                    os.symlink(os.readlink(src), sdir / n)
+                elif src.is_dir():
+                    shutil.copytree(src, sdir / n, symlinks=True)
                 elif src.is_file():
-                    shutil.copyfile(src, sdir / n)
+                    shutil.copyfile(src, sdir / n, follow_symlinks=False)
                 else:
                     rec = {"stage": name, "seed": seed, "status": "missing_artifact",
                            "detail": f"stage {src_stage!r} did not produce {n!r}"}
@@ -327,11 +412,13 @@ def run_pipeline(stages_mod, stages_path: Path, submission: Path, work: Path, *,
                     return {"status": rec["status"], "failed_stage": name, "stages": recs, "outputs": outs, "seconds": secs}
         post = {"held_out.npz": held_out} if spec.get("held_out") and held_out is not None else None
         rec = run_stage(stages_path, name, submission, sdir, public=public,
-                        models=models if spec.get("models", True) else None, post_files=post,
+                        models=(judge_models if spec.get("judge_models") else
+                                models if spec.get("models", True) else None), post_files=post,
+                        pre_files={"held_pre.npz": held_pre} if spec.get("held_out_pre") and held_pre is not None else None,
                         seed=seed, device=device, params=getattr(stages_mod, "PARAMS", {}),
                         timeout=float(spec["timeout"]) * scale, finish_cap=float(spec.get("finish_cap", 60)),
                         tail_slack=float(spec.get("tail_slack", 5)), threads=int(spec.get("threads", 8)),
-                        extra_env=extra_env)
+                        extra_env=extra_env, isolation=isolation)
         recs.append(rec)
         if rec["status"] != "ok":
             return {"status": rec["status"], "failed_stage": name, "stages": recs, "outputs": outs, "seconds": secs}

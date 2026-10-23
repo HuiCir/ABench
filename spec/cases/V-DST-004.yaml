@@ -1,0 +1,176 @@
+id: V-DST-004
+title: Distilling a CIFAR-10 diffusion model into a one- to four-step generator
+template: V-SMP-002
+anchor:
+  authors: Yang Song, Prafulla Dhariwal, Mark Chen, Ilya Sutskever
+  title: Consistency Models
+  arxiv: '2303.01469'
+baseline: consistency distillation with a squared-error distance, student initialised from the teacher (`example_submission/`)
+reference_verification: 'Not executed yet: distillation, sampling and the Inception features need PyTorch, diffusers, pytorch-fid
+  and a GPU, which were not available where the case was built; the operator runs them at activation. The FID code is that
+  of V-SMP-002 (checked on toy statistics).'
+mode: checkpoint
+n_seeds: 1
+task: |
+  Design a **few-step distillation scheme** that turns the frozen CIFAR-10 DDPM teacher into a generator producing the **best images (lowest FID) with only 1 or 2 network evaluations per image** (4 is reported too). Develop and train the student on one 24GB GPU in the sandbox, then submit it.
+
+  - Submit your model code, the trained student checkpoint and the training program that produced it. The evaluator loads the student — without the teacher — and generates 10,000 images with budgets of 1, 2 and 4 network calls per image; it never retrains.
+  - Only the teacher, the CIFAR-10 training images and networks you train yourself may be used; the student may have at most 72M parameters (twice the teacher) and may be initialised from the teacher's weights. No other pretrained networks (no discriminator backbones, no feature networks for perceptual losses), no external images.
+  - You may build on any public work (consistency distillation and training, progressive distillation, rectified flow and reflow, distribution matching and score distillation, adversarial distillation with discriminators you train yourself), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only):
+
+  | File | Key | Shape | Type | Description |
+  |---|---|---|---|---|
+  | `cifar10_train.npz` | `x` | (50000, 32, 32, 3) | uint8 | The CIFAR-10 training images |
+  | | `y` | (50000,) | int64 | Class labels 0–9 (you may ignore them; the evaluation is unconditional) |
+  | `cifar10_train_inception_stats.npz` | `mu`, `sigma` | (2048,), (2048, 2048) | float64 | Inception pool-3 statistics of the 50,000 training images: the FID reference at evaluation too |
+
+  `$ABENCH_MODELS_DIR/ddpm-cifar10-32/` holds the frozen teacher (Hugging Face `google/ddpm-cifar10-32`, Apache-2.0; a diffusers `UNet2DModel`, ε-prediction, linear β from 1e-4 to 0.02 over 1,000 steps), available during training only; `$ABENCH_MODELS_DIR/inception/` holds the pytorch-fid Inception weights. The held-out part of this case is only the evaluation seeds.
+interface: 'Implement `load(checkpoint_dir, device) -> torch.nn.Module` and `generate(net, n, steps, generator, device) ->
+  torch.Tensor` in `model.py`: `generate` draws all randomness from `generator`, calls `net` at most `steps` times and returns
+  n images of shape (n, 3, 32, 32) in [-1, 1]. Your `train.py` writes `checkpoint/`.'
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Mean FID at 1 and 2 calls** (primary) | Fréchet Inception distance of 10,000 images generated with 1 call each and with 2 calls each, averaged; lower is better | — |
+  | FID per budget | Fréchet Inception distance between 10,000 samples and the CIFAR-10 training set (pytorch-fid Inception, pool-3 features) at each step budget (1, 2, 4) | reported |
+  | Diversity ratio | Trace of the generated images' feature covariance divided by that of the training set, per budget (well below 1 signals mode dropping) | reported |
+  | Network calls | Calls of the returned module during one `generate()`, the largest over batches | Threshold: ≤ the step budget |
+  | Model size | Parameters and buffers of the returned module | Threshold: ≤ 72,000,000 |
+
+  **Timing and decision**
+
+  - Loading and sampling run in a new process with empty cache directories, on the same GPU model, timed by the evaluator's parent process (`interface/abench_stage.py`). Images are generated in batches of 500; batch b of a budget uses a generator seeded from that budget's held-out seed and b (`stages.py`). All images must be generated within 600 s.
+  - A submission is valid only if every threshold holds; valid submissions are ranked by mean FID at 1 and 2 calls.
+  - If loading or sampling crashes, exceeds a time limit, or returns images of the wrong shape or with non-finite values, the submission is invalid.
+  - The final ABench score is driven mainly by mean FID at 1 and 2 calls, and also considers how different the method is from existing methods and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 8
+  dev_budget: 8 GPU-hours (the whole session on one GPU)
+  software: Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, diffusers and pytorch-fid (versions frozen at activation; offline)
+  notes: |
+    - The self-check computes FID from 2,000 samples per budget (500 with `--quick`); such FIDs are biased upwards, so compare dev values with each other, not with published numbers.
+    - The teacher is not available to `load()` or `generate()`: the evaluation stage that samples receives only your checkpoint.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── model.py            # required: load() and generate()
+    ├── train.py            # required: the program that produced checkpoint/ (kept for audit, not run by the evaluator)
+    ├── checkpoint/         # required: trained weights, any file types, at most 400 MiB
+    ├── src/                # optional: other .py modules imported by model.py or train.py
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - The checkpoint must be produced by your `train.py` from the provided data only, inside the sandbox; no pretrained weights other than the provided teacher, no external data and no hand-set parameters copied from elsewhere.
+  - The evaluator loads `checkpoint/` with your model code and runs inference only; it does not run `train.py`, which is kept for audit and must reproduce the checkpoint up to randomness.
+  - Images must come from `generate()` with randomness drawn from `generator`; no stored images, no selection or filtering of samples, and no classifier or discriminator at sampling time.
+interface_md: |
+  # V-DST-004 interface
+
+  ## Entry point: `model.py`
+
+  ```python
+  def load(checkpoint_dir: str, device: str) -> torch.nn.Module:
+      """Rebuild your trained network from checkpoint/ only and return it (a torch.nn.Module)."""
+
+  def generate(net, n: int, steps: int, generator: torch.Generator, device: str) -> torch.Tensor:
+      """Return n images, float tensor (n, 3, 32, 32) in [-1, 1], calling net at most `steps` times (1, 2, 4)."""
+  ```
+
+    - `load` runs inside the timed phase; it may read only `checkpoint/`.
+    - The evaluator registers a forward hook on the returned module and counts its calls during each `generate()`; all network computation must go through that module's `forward` (do not call submodules directly to avoid the count).
+    - `model.py` may import modules under `src/`; the submission directory is on `sys.path`.
+
+  ## Training program: `train.py`
+
+  Write a `train.py` that produces `checkpoint/` from `$ABENCH_DATA_DIR/cifar10_train.npz` and the teacher in `$ABENCH_MODELS_DIR/ddpm-cifar10-32`, for example
+  `python3 train.py --data "$ABENCH_DATA_DIR" --out "$ABENCH_SUBMISSION_DIR/checkpoint"`. The evaluator does not run it;
+  it is kept with the submission so the checkpoint can be audited and reproduced. The reference implementation under
+  `interface/baseline/` (its `model.py` and `train.py`) is a working starting point you may improve on or replace.
+
+  ## Evaluator code you can read
+
+  - `stages.py`: the sampling loop with the call counter, image conversion (round((x + 1) · 127.5)) and the Inception features.
+  - `metrics.py` (FID, diversity ratio), `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA, Triton), NumPy, SciPy, diffusers, pytorch-fid (offline). Nothing can be installed.
+oj:
+  agent_budget:
+    gpu_hours: 8.0
+    session_hours: 8.0
+  data:
+    public_dir: sandbox/data/V-DST-004
+    public:
+    - path: sandbox/data/V-DST-004/cifar10_train.npz
+      sha256: pending
+    - path: sandbox/data/V-DST-004/cifar10_train_inception_stats.npz
+      sha256: pending
+    hidden:
+      path: sandbox/hidden/V-DST-004/hidden.npz.enc
+      sha256_plain: pending
+      keys:
+      - seeds
+      - ref_mu
+      - ref_sigma
+    models_dir: sandbox/models/V-DST-004
+    models:
+    - name: ddpm-cifar10-32
+      path: sandbox/models/V-DST-004/ddpm-cifar10-32
+      tree_sha256: pending
+      revision: 267b167dc01f0e4e61923ea244e8b988f84deb80
+      license: Apache-2.0
+    - name: inception
+      license: Apache-2.0 (pytorch-fid)
+      tree_sha256: pending
+      path: sandbox/models/V-DST-004/inception
+    sources:
+    - name: google/ddpm-cifar10-32 (Ho et al. 2020, arXiv:2006.11239), the teacher
+      url: https://huggingface.co/google/ddpm-cifar10-32
+      revision: 267b167dc01f0e4e61923ea244e8b988f84deb80
+      license: Apache-2.0
+      verified: '2026-10-19 (V-SMP-002): revision, license and file list from the Hugging Face API; 2026-10-22: config.json
+        read at this revision'
+    - name: pytorch-fid Inception weights (Seitzer 2020)
+      url: https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth
+      license: Apache-2.0
+      verified: '2026-10-19 (V-SMP-002): FID_WEIGHTS_URL read from pytorch_fid/inception.py; license from the repository'
+    - name: CIFAR-10 training set (Krizhevsky 2009)
+      url: https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz
+      md5: c58f30108f718f92721af3b95e74349a
+      license: no explicit license on the dataset page (to_verify)
+  submission:
+    kind: code_plus_checkpoint
+    entry: model.py
+    checkpoint_dir: checkpoint
+    allowed_top_level:
+    - README.md
+    - model.py
+    - train.py
+    - checkpoint
+    - src
+    - report
+    - references.yaml
+    code_suffixes:
+    - .py
+    - .yaml
+    - .yml
+    - .md
+    - .txt
+    code_max_bytes: 200000
+    max_bytes: 421430400
+    checkpoint_max_bytes: 419430400
+    required_files:
+    - train.py
+  judge:
+    device: cuda
+    reference_gpu: RTX 4090-class 24GB (model, driver, CUDA, torch, diffusers and pytorch-fid versions frozen at activation)
+    seeds:
+    - 2303
+    - 1469

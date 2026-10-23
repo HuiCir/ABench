@@ -1,0 +1,36 @@
+schema: abench.references/v2
+references:
+- id: nie2025llada
+  title: Large Language Diffusion Models
+  authors: Shen Nie, Fengqi Zhu, Zebin You, Xiaolu Zhang, Jingyang Ou, Jun Hu, Jun Zhou, Yankai Lin, Ji-Rong Wen
+    and Chongxuan Li
+  year: 2025
+  venue: arXiv
+  arxiv: '2502.09992'
+  used_for: 'Anchor: low-confidence remasking'
+  code_location: 'sampler.py: sample'
+- id: sahoo2024mdlm
+  title: Simple and Effective Masked Diffusion Language Models
+  authors: Subham Sekhar Sahoo, Marianne Arriola, Yair Schiff, Aaron Gokaslan, Edgar Marroquin, Justin T Chiu, Alexander
+    Rush and Volodymyr Kuleshov
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2406.07524'
+  used_for: The frozen model and the ancestral sampler
+  code_location: null
+- id: chang2022maskgit
+  title: 'MaskGIT: Masked Generative Image Transformer'
+  authors: Huiwen Chang, Han Zhang, Lu Jiang, Ce Liu and William T. Freeman
+  year: 2022
+  venue: CVPR
+  arxiv: '2202.04200'
+  used_for: Confidence ordering and the cosine schedule
+  code_location: 'sampler.py: sample'
+- id: zheng2024masked
+  title: Masked Diffusion Models are Secretly Time-Agnostic Masked Models and Exploit Inaccurate Categorical Sampling
+  authors: Kaiwen Zheng, Yongxin Chen, Hanzi Mao, Ming-Yu Liu, Jun Zhu and Qinsheng Zhang
+  year: 2024
+  venue: arXiv
+  arxiv: '2409.02908'
+  used_for: Why the entropy floor and temperature-1 sampling
+  code_location: null

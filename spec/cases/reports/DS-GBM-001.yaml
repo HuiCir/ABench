@@ -1,0 +1,126 @@
+case: DS-GBM-001
+title: 'Holdout-Selected Histogram Boosting: A Budget-Aware Tabular Learner'
+abstract: >-
+  This submission gives a reference learner for a task in which the evaluator trains the submission itself on
+  unseen datasets. It keeps the anchor's model family, regularised gradient-boosted trees [@chen2016xgboost], in the histogram
+  form of LightGBM [@ke2017lightgbm], and adds a small budget-aware selection step: four settings of learning rate, leaf
+  count and L2 penalty are tried with early stopping on a 20% holdout [@prechelt1998early] while half the time budget
+  lasts, and the best one is refitted on all rows. The design leaves ensembling across model families and meta-learned
+  portfolios [@erickson2020autogluon;@feurer2022autosklearn2] open for entries.
+sections:
+- title: Introduction
+  paras:
+  - On medium-sized tables, tree ensembles remain the model to beat [@grinsztajn2022tree], but their accuracy depends on
+    a few hyperparameters whose best values differ between datasets. When the learner is trained by the evaluator on datasets
+    it has never seen, those choices must be made by the code from the training data alone and within a time budget.
+- title: Related Work
+  paras:
+  - Gradient boosting fits an additive model of trees by functional gradient descent [@friedman2001gbm]; XGBoost adds
+    second-order split gains and L2-regularised leaf values [@chen2016xgboost], and histogram learners bin features once
+    to make split finding cheap [@ke2017lightgbm]. Benchmarks on the same suite show that tuned trees outperform neural
+    tabular models at this scale [@grinsztajn2022tree].
+  - AutoML systems close the remaining gap by searching configurations and ensembling across model families, either with
+    Bayesian optimisation and meta-learned warm starts [@feurer2022autosklearn2] or with fixed robust defaults and multi-layer
+    stacking [@erickson2020autogluon]. Both assume budgets of minutes to hours per dataset; with one minute of eight cores,
+    which of these ideas still pays off is the open question this task poses.
+- title: Method
+  subsections:
+  - title: Learner
+    paras:
+    - fit() permutes the rows with the given seed and holds out 20%. In a fixed order it fits four HistGradientBoosting
+      settings (learning rate 0.1 with 31 leaves; 0.05 with 15 or 63 leaves and L2 penalty 1; 0.03 with 31 leaves, L2
+      penalty 10 and 40 rows per leaf), each with internal early stopping (15% validation, patience 30, at most 2,000
+      rounds) [@pedregosa2011sklearn]. It stops trying further settings once half of budget_seconds has passed. The setting
+      with the lowest holdout loss (log-loss or squared error) is refitted on all rows for 1.25 times its early-stopped
+      number of rounds.
+    algorithm_caption: fit(x, y, task, budget, seed)
+    algorithm:
+    - split rows into train (80%) and holdout (20%) with seed
+    - 'for each setting s in GRID while elapsed < budget / 2: fit s with early stopping on train; record holdout loss and rounds'
+    - refit the best setting on all rows for 1.25 × its rounds; return it
+  - title: Complexity
+    paras:
+    - With N rows, F features, B bins, M rounds and L leaves, binning costs O(NF log N) and each round O(NF + LFB); at
+      most five fits are made per dataset, so the cost is about five times one early-stopped fit.
+- title: Design Rationale
+  paras:
+  - A short ordered grid with early stopping adapts the two most sensitive choices, step size and tree size, at a cost that
+    fits the per-dataset budget even for 10,000 rows and hundreds of features. Refitting on all rows recovers the data
+    spent on the holdout, and scaling the round count by 1.25 accounts for the larger training set.
+- title: Scope and Limitations
+  paras:
+  - One model family cannot use the complementary errors of linear or neural models; the grid is not adapted to dataset
+    size or feature count, and half of the time budget is deliberately left unused.
+references:
+- id: chen2016xgboost
+  title: 'XGBoost: A Scalable Tree Boosting System'
+  authors: Tianqi Chen and Carlos Guestrin
+  year: 2016
+  venue: KDD
+  arxiv: '1603.02754'
+  used_for: 'Anchor: regularised gradient-boosted trees'
+  code_location: 'model.py: GRID (l2_regularization)'
+- id: ke2017lightgbm
+  title: 'LightGBM: A Highly Efficient Gradient Boosting Decision Tree'
+  authors: Guolin Ke, Qi Meng, Thomas Finley, Taifeng Wang, Wei Chen, Weidong Ma, Qiwei Ye and Tie-Yan Liu
+  year: 2017
+  venue: NeurIPS
+  url: https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree
+  used_for: Histogram split finding and leaf-wise growth
+  code_location: 'model.py: _model'
+- id: friedman2001gbm
+  title: 'Greedy function approximation: A gradient boosting machine'
+  authors: Jerome H. Friedman
+  year: 2001
+  venue: Annals of Statistics
+  doi: 10.1214/aos/1013203451
+  used_for: Gradient boosting with shrinkage
+  code_location: 'model.py: GRID (learning_rate)'
+- id: prechelt1998early
+  title: Early Stopping - But When?
+  authors: Lutz Prechelt
+  year: 1998
+  venue: 'Neural Networks: Tricks of the Trade'
+  doi: 10.1007/3-540-49430-8_3
+  used_for: Early stopping on a validation split
+  code_location: 'model.py: fit (early_stopping)'
+- id: grinsztajn2022tree
+  title: Why do tree-based models still outperform deep learning on tabular data?
+  authors: Léo Grinsztajn, Edouard Oyallon and Gaël Varoquaux
+  year: 2022
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2207.08815'
+  used_for: Benchmark suite of the datasets; trees as the model family
+  code_location: null
+- id: erickson2020autogluon
+  title: 'AutoGluon-Tabular: Robust and Accurate AutoML for Structured Data'
+  authors: Nick Erickson, Jonas Mueller, Alexander Shirkov, Hang Zhang, Pedro Larroy, Mu Li and Alexander Smola
+  year: 2020
+  arxiv: '2003.06505'
+  used_for: Robust defaults and stacking (not used; gap for entries)
+  code_location: null
+- id: feurer2022autosklearn2
+  title: 'Auto-Sklearn 2.0: Hands-free AutoML via Meta-Learning'
+  authors: Matthias Feurer, Katharina Eggensperger, Stefan Falkner, Marius Lindauer and Frank Hutter
+  year: 2022
+  venue: JMLR
+  arxiv: '2007.04074'
+  used_for: Portfolios and budget-aware model selection (not used; gap for entries)
+  code_location: null
+- id: pedregosa2011sklearn
+  title: 'Scikit-learn: Machine Learning in Python'
+  authors: Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort and others
+  year: 2011
+  venue: JMLR
+  arxiv: '1201.0490'
+  used_for: Implementation
+  code_location: 'model.py: imports'
+changes:
+- text: The anchor's single tuned configuration is replaced by an ordered four-setting grid selected on a holdout within
+    half of the time budget.
+  code: 'model.py: GRID, fit'
+- text: Histogram split finding with native missing-value routing instead of the anchor's exact and sparsity-aware split
+    search.
+  code: 'model.py: _model'
+- text: The selected setting is refitted on all rows for 1.25 times its early-stopped number of rounds.
+  code: 'model.py: fit (refit)'

@@ -3,7 +3,6 @@ schema: abench.oj/v2
 case_id: DS-PIPE-002
 standard: true
 task_statement: v2.1
-knowledge_cutoff: '2026-07-01'
 mode: checkpoint
 agent_visible:
   task: case/agent/task.md
@@ -32,7 +31,7 @@ agent_budget:
 data:
   public_dir: sandbox/data/DS-PIPE-002
   public:
-  - path: sandbox/data/DS-PIPE-002/d44120.npz
+  - path: sandbox/data/DS-PIPE-002/d45021.npz
     sha256: pending
   - path: sandbox/data/DS-PIPE-002/d44122.npz
     sha256: pending
@@ -50,11 +49,14 @@ data:
   sources:
   - name: OpenML suite 337, Tabular benchmark numerical classification (Grinsztajn et al. 2022, arXiv:2207.08815)
     url: https://www.openml.org/api/v1/json/study/337
-    files: https://data.openml.org/datasets/0004/<id>/dataset_<id>.pq for ids 44120, 44122, 44123, 44125, 44126,
-      44128
-    license: OpenML lists 'Public' for 44120, 44122, 44123, 44125, 44126 and 'CC0' for 44128
-    verified: '2026-10-19: suite membership, names, sizes, target columns, licences and parquet URLs read from the
-      OpenML API'
+    files: https://data.openml.org/datasets/0004/<id>/dataset_<id>.pq for ids 44122, 44123, 44125, 44126, 44128,
+      45021
+    license: OpenML lists 'Public' for 44122, 44123, 44125, 44126 and 'CC0' for 44128; 45021 (jannis) to_verify
+    verified: '2026-10-19: suite membership, names, sizes, target columns, licences and parquet URLs of the first
+      five read from the OpenML API; 2026-10-21: jannis = OpenML 45021 (57,580 rows, 54 features) from the dataset
+      card of huggingface.co/datasets/inria-soda/tabular-benchmark; its licence, target column and suite membership
+      are checked at freeze'
+    replaces: 'electricity (44120): a time series, so the shuffled split leaks temporal neighbours (2026-10-21 audit)'
 submission:
   kind: code_plus_checkpoint
   entry: model.py

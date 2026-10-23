@@ -1,0 +1,105 @@
+case: RS-GRAPH-002
+title: 'Implicit Alternating Least Squares with Frequency-Scaled Regularisation'
+abstract: >-
+  This submission is a matrix-factorisation reference for collaborative filtering on Gowalla: implicit alternating
+  least squares [@hu2008implicit] with a uniform weight on all unobserved items and the frequency-scaled
+  regularisation that Rendle et al. found essential for iALS to compete on item-recommendation benchmarks
+  [@rendle2022ials]. Every row is solved exactly with the Gram trick, in NumPy on the CPU. On the self-check split it
+  reaches Recall@20 0.173; trained on all public interactions and scored against the held-out split as a calibration
+  check, 0.159, below LightGCN's published 0.183 [@he2020lightgcn]. These are calibration checks, not results of the case.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Recommendation over all 40,981 Gowalla locations rewards models that rank the few relevant items of each user
+    above every other item, not only above sampled negatives. Graph convolution over the user-item graph is the
+    anchor's answer [@he2020lightgcn]; a well-regularised factorisation is the classical point of comparison.
+- title: Related Work
+  paras:
+  - >-
+    Neural graph collaborative filtering propagated embeddings over the interaction graph [@wang2019ngcf]; LightGCN
+    removed feature transformations and nonlinearities and kept only neighbourhood aggregation, trained with the BPR
+    loss [@rendle2009bpr; @he2020lightgcn]. Linear item-item models such as EASE are strong on these benchmarks
+    [@steck2019ease]; Rendle et al. showed that a carefully regularised iALS matches many recent models
+    [@rendle2022ials].
+  - >-
+    The reference uses no graph propagation and no sampled loss, which leaves both directions to entries.
+- title: Method
+  paras:
+  - >-
+    For each user u with items I_u, the factor p_u minimises Σ_{i∈I_u} (1 − p_u·q_i)² + α₀ Σ_{all i} (p_u·q_i)² +
+    λ (|I_u| + α₀ |I|) ‖p_u‖², and symmetrically for item factors; with G = α₀ QᵀQ shared by all users, each row is a
+    128 × 128 linear solve. Twelve alternating sweeps from small random factors, α₀ = 0.003, λ = 0.01. Recommendation
+    scores all items by p_u·q_i, removes the user's training items and keeps the top 20.
+  algorithm_caption: One sweep
+  algorithm:
+  - G ← α₀ QᵀQ; for each user, p_u ← (G + Q_{I_u}ᵀQ_{I_u} + λ(|I_u| + α₀|I|) I)⁻¹ Q_{I_u}ᵀ 1
+  - G ← α₀ PᵀP; for each item, q_i ← (G + P_{U_i}ᵀP_{U_i} + λ(|U_i| + α₀|U|) I)⁻¹ P_{U_i}ᵀ 1
+- title: Design Rationale
+  paras:
+  - >-
+    Scaling the regulariser with the number of observed and implicitly weighted entries keeps the regularisation
+    strength comparable between frequent and rare users and items; exact row solves make each sweep cheap enough to
+    train on the CPU in minutes, which keeps the reference reproducible in the sandbox.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Factorisation does not exploit higher-order neighbourhoods, the hyperparameters were set on one split, and the
+    reference stays below the anchor's published Recall@20.
+references:
+- id: he2020lightgcn
+  title: 'LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation'
+  authors: Xiangnan He, Kuan Deng, Xiang Wang, Yan Li, Yongdong Zhang and Meng Wang
+  year: 2020
+  venue: SIGIR
+  arxiv: '2002.02126'
+  used_for: 'Anchor; the data split and metric definitions'
+  code_location: null
+- id: hu2008implicit
+  title: Collaborative Filtering for Implicit Feedback Datasets
+  authors: Yifan Hu, Yehuda Koren and Chris Volinsky
+  year: 2008
+  venue: ICDM
+  doi: 10.1109/ICDM.2008.22
+  used_for: Implicit ALS
+  code_location: 'train.py: solve_side, main'
+- id: rendle2022ials
+  title: Revisiting the Performance of iALS on Item Recommendation Benchmarks
+  authors: Steffen Rendle, Walid Krichene, Li Zhang and Yehuda Koren
+  year: 2022
+  venue: RecSys
+  arxiv: '2110.14037'
+  used_for: Frequency-scaled regularisation
+  code_location: 'train.py: solve_side'
+- id: wang2019ngcf
+  title: Neural Graph Collaborative Filtering
+  authors: Xiang Wang, Xiangnan He, Meng Wang, Fuli Feng and Tat-Seng Chua
+  year: 2019
+  venue: SIGIR
+  arxiv: '1905.08108'
+  used_for: Related work (graph propagation); origin of the split
+  code_location: null
+- id: rendle2009bpr
+  title: 'BPR: Bayesian Personalized Ranking from Implicit Feedback'
+  authors: Steffen Rendle, Christoph Freudenthaler, Zeno Gantner and Lars Schmidt-Thieme
+  year: 2009
+  venue: UAI
+  arxiv: '1205.2618'
+  used_for: Related work (pairwise loss of the anchor)
+  code_location: null
+- id: steck2019ease
+  title: Embarrassingly Shallow Autoencoders for Sparse Data
+  authors: Harald Steck
+  year: 2019
+  venue: WWW
+  arxiv: '1905.03375'
+  used_for: Related work (linear item-item models)
+  code_location: null
+changes:
+- text: The model is a factorisation trained by implicit alternating least squares instead of LightGCN's graph
+    propagation trained with BPR.
+  code: 'train.py: solve_side, main'
+- text: The regulariser is scaled by the number of observed plus implicitly weighted entries of each row.
+  code: 'train.py: solve_side'
+- text: Recommendations score every item by the factor inner product and remove the user's training items.
+  code: 'model.py: recommend'

@@ -15,7 +15,7 @@ task: |
 
   - Submit your model code, the trained checkpoint and the training program that produced it. The evaluator loads the checkpoint and calls `recommend()` with every user's public history; it never retrains.
   - Only the provided interaction histories may be used: no pretrained weights, movie metadata, ratings values from outside the file, or external data.
-  - You may build on any public work from before the cutoff (self-attentive, recurrent or convolutional sequence models, factorised Markov chains, graph models), but the design report must state what you borrowed and what you changed.
+  - You may build on any public work (self-attentive, recurrent or convolutional sequence models, factorised Markov chains, graph models), but the design report must state what you borrowed and what you changed.
 data: |
   `$ABENCH_DATA_DIR/train.npz` (read-only), from MovieLens-1M (Harper & Konstan 2015): all 1,000,209 ratings of 6,040 users are treated as implicit interactions, ordered by timestamp (ties by item id), with **each user's final interaction removed** (that item is the held-out target).
 

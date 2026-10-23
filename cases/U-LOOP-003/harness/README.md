@@ -1,11 +1,30 @@
-# U-LOOP-003 harness contract
+# U-LOOP-003 harness
 
-Only the interface is defined at present; no simulated implementation is provided. The formal harness must:
+Evaluator code of the case; the self-check (`selfcheck.py`) runs the same stages on the dev split.
 
-1. read data, models, hardware and seeds from the server manifest;
-2. allow only the proxies/budgets declared in `eval_protocol.yaml`;
-3. output a deterministic `run.jsonl`, metrics and `artifacts.sha256`;
-4. reject unauthorized network, file-system, GPU/CPU resources and undeclared sources of randomness;
-5. write structured status for failures, OOM, timeouts and numerical anomalies, without swallowing errors.
+## Pipeline (`stages.py`)
 
-Domain-specific inputs, compilers, simulators or evaluators are wired in once blocked_inputs are frozen.
+```
+U-LOOP-003 pipeline: length generalisation on parity, binary addition and copy (evaluator and self-check).
+
+The evaluator does not train (training data comes only from algo_tasks.Sampler, lengths 1..20, in your train.py).
+One stage, "predict":
+  timed   import model.py, load(checkpoint_dir, device) -> model                          (load time, killed at 120 s)
+  finish  for each task, call predict(model, task, inputs) on lengths 1..40                (≤ 300 s)
+```
+
+## Files
+
+- `abench_metrics.py`
+- `abench_stage.py`
+- `algo_tasks.py`
+- `baseline/model.py`
+- `baseline/train.py`
+- `interface.md`
+- `metrics.py`
+- `sandbox_guide.md`
+- `selfcheck.py`
+- `stages.py`
+- `submission_rules.json`
+
+The held-out data, keys and judge configuration are never in this directory.

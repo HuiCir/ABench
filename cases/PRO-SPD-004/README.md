@@ -7,7 +7,7 @@ Standard (reference) case of its track, built to task statement standard v2.1. A
 
 - Judge: `harness` (shared stage protocol `harness/abench_stage.py`), activation **awaiting_data**: the operator still has to
   freeze the data (below); until then `tools/oj_eval.py` returns `judge_pending` for this case.
-- Reference submission (`example_submission/`): Not executed yet: the stage code and reference submission need PyTorch and a GPU, which were not available where the case was built; the operator runs them at activation.
+- Reference submission (`example_submission/`): Not executed yet: the stage code and reference submission need PyTorch >= 2.7 and four H100s, which were not available where the case was built; the operator runs them at activation. The reference is a port of a public record whose own log reports val_loss 2.918512 after 1,496 s of training on 8 x H100 (PyTorch 2.7.0); the 4-GPU port, its 6,100-step budget and the evaluation interface have not run.
 - No number in the standard-case files is a result: there are no training curves or reference scores.
 
 ## Files

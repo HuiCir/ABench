@@ -1,3 +1,3 @@
-# Example submission contract — B-OPT-004
+# B-OPT-004 reference submission
 
-No executable or simulated baseline is included. A real submission must provide `submission_manifest.yaml`, implementation files required by the task, and reproducibility hashes.
+`optimizer.py` and `hparam_space.yaml`: LAMB with square-root learning-rate scaling. Design report: `report/index.html`; references: `references.yaml`.

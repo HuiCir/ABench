@@ -13,7 +13,7 @@ task: |
   - Submit code only (`sampler.py`). At evaluation the evaluator runs your `sample()` with the frozen model at NFE 5, 10 and 20, 10,000 images each, once for each of 3 seed sets unknown to you, and computes FID against the CIFAR-10 training set. It runs the DDIM baseline the same way.
   - No training or fine-tuning of any network, no other networks (distilled students, classifiers, discriminators), and no stored images; schedules or coefficients you tune in the sandbox may be written into the code.
   - The NFE budget is enforced: every call of the denoiser counts once per batch, and calls beyond the budget fail the run.
-  - You may build on any public work from before the cutoff (DDIM, DPM-Solver and DPM-Solver++, UniPC, EDM samplers, optimised or learned timestep schedules, flow-matching views of the probability-flow ODE), but the design report must state what you borrowed and what you changed.
+  - You may build on any public work (DDIM, DPM-Solver and DPM-Solver++, UniPC, EDM samplers, optimised or learned timestep schedules, flow-matching views of the probability-flow ODE), but the design report must state what you borrowed and what you changed.
 data: |
   `$ABENCH_MODELS_DIR/ddpm-cifar10-32/` holds the frozen model (Hugging Face `google/ddpm-cifar10-32`, Apache-2.0): a diffusers `UNet2DModel` (Ho et al. 2020) trained with ε-prediction and a linear β schedule from 1e-4 to 0.02 over 1,000 steps; `interface/diffusion.py` gives ᾱ_t and the counting `Denoiser`. `$ABENCH_MODELS_DIR/inception/` holds the pytorch-fid Inception weights.
 
@@ -23,17 +23,17 @@ interface: |
 metrics: |
   | Metric | Definition | Requirement |
   |---|---|---|
-  | **FID at NFE 10** (primary) | Fréchet Inception distance between 10,000 samples and the CIFAR-10 training set (pytorch-fid Inception, pool-3 features), mean over 3 seed sets; lower is better | — |
-  | FID at NFE 5 and NFE 20 | The same at the other two budgets | reported |
+  | **Mean FID at NFE 5 and 10** (primary) | Fréchet Inception distance between 10,000 samples and the CIFAR-10 training set (pytorch-fid Inception, pool-3 features), averaged over NFE 5 and NFE 10 and over 3 seed sets; lower is better | — |
+  | FID at NFE 5, 10 and 20 | Each budget separately (NFE 20 is reported but not ranked) | reported |
   | FID vs DDIM | Your FID minus the DDIM baseline's at each budget | reported |
   | NFE violations | Budgets exceeded (a violation also fails the run) | Threshold: 0 |
 
   **Timing and decision**
 
   - Each seed set runs in a new process with empty caches (`interface/abench_stage.py`). Images are generated in batches of 500; batch b of a budget uses a generator seeded from that budget's held-out seed, the run's seed and b (`stages.py`). Generating all 30,000 images must finish within 900 s.
-  - A submission is valid only if no budget is exceeded; valid submissions are ranked by FID at NFE 10.
+  - A submission is valid only if no budget is exceeded; valid submissions are ranked by mean FID at NFE 5 and 10.
   - If any run crashes, exceeds a time limit, or returns images of the wrong shape or with non-finite values, the whole submission is invalid.
-  - The final ABench score is driven mainly by FID at NFE 10 relative to the baseline (the other budgets are considered too), and also by how different the method is from existing samplers and the quality of the sources cited in the design report; the exact weights are not published.
+  - The final ABench score is driven mainly by mean FID at NFE 5 and 10 relative to the baseline (NFE 20 is considered too), and also by how different the method is from existing samplers and the quality of the sources cited in the design report; the exact weights are not published.
 hardware:
   kind: gpu
   session_hours: 4

@@ -1,0 +1,105 @@
+case: V-GEN-001
+title: 'The DDPM Recipe on a Four-Hour Budget, Sampled with DDIM'
+abstract: >-
+  This submission reproduces the anchor's CIFAR-10 recipe [@ho2020ddpm] within the session: a 35.7M-parameter UNet
+  with self-attention at 16 × 16 resolution, ε-prediction with the simple mean-squared loss over uniformly drawn
+  timesteps of a linear β schedule, Adam [@kingma2015adam] with warm-up, dropout 0.1, horizontal flips and an
+  exponential moving average of the weights. Images are generated with deterministic DDIM [@song2021ddim] on 25 or
+  100 uniformly spaced steps. It is the calibration point of the case; recipes that converge faster
+  [@nichol2021improved;@karras2022edm] are left to entries.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    The quality of a diffusion model trained on a fixed budget depends on how much each training step teaches the
+    network and on how well a few sampling steps use what it learned. The anchor trained for 800,000 steps; the session
+    allows roughly an eighth of that.
+- title: Related Work
+  paras:
+  - >-
+    The anchor's ε-prediction with the simple loss and a linear schedule set the standard recipe [@ho2020ddpm]. Learned
+    variances and a cosine schedule improved likelihood and sampling speed [@nichol2021improved]; DDIM replaced the
+    stochastic sampler with a deterministic one that tolerates large steps [@song2021ddim]; EDM separated the design
+    choices of preconditioning, noise distribution in training and the ODE solver, reaching much better FID at a given
+    budget [@karras2022edm].
+  - >-
+    Most of these improvements were measured at full training length; which of them matter most when training is
+    eight times shorter is the open question.
+- title: Method
+  subsections:
+  - title: Model, training and sampling
+    paras:
+    - >-
+      The UNet has four resolution levels with 128, 256, 256 and 256 channels, two residual blocks per level,
+      self-attention at the second level, group normalisation and sinusoidal time embeddings, in the configuration of
+      the published CIFAR-10 model [@ho2020ddpm]. Training draws t uniformly from 0 … 999, noises the image with the
+      closed-form forward process and regresses the noise, with Adam at 2e-4 after 5,000 warm-up steps, gradient
+      clipping at 1.0, batch 128 and an EMA with decay 0.9999, until the step or time limit. Sampling runs DDIM with
+      x₀ clipping on S uniformly spaced timesteps.
+    algorithm_caption: One training step
+    algorithm:
+    - x₀ ← batch of training images in [-1, 1], randomly flipped; t ~ U{0, …, 999}; ε ~ N(0, I)
+    - x_t ← sqrt(ᾱ_t) x₀ + sqrt(1 − ᾱ_t) ε; loss ← ‖ε̂(x_t, t) − ε‖²
+    - Adam step; EMA ← 0.9999 EMA + 0.0001 θ
+  - title: Complexity
+    paras:
+    - >-
+      One UNet forward and backward pass per image per step; sampling costs S forward passes per image.
+- title: Design Rationale
+  paras:
+  - >-
+    Reproducing the anchor's recipe unchanged makes the case's calibration point the anchor itself under the case's
+    budget, so gains are attributable to the entry's changes.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The linear schedule and uniform timestep sampling spend many steps on nearly noise-free inputs, the EMA decay is
+    tuned for much longer training, and DDIM with 25 steps is far from the best few-step sampler.
+references:
+- id: ho2020ddpm
+  title: Denoising Diffusion Probabilistic Models
+  authors: Jonathan Ho, Ajay Jain and Pieter Abbeel
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2006.11239'
+  used_for: 'Anchor: architecture, schedule, loss and training settings'
+  code_location: 'model.py: UNET_CONFIG, BETAS; train.py: main'
+- id: song2021ddim
+  title: Denoising Diffusion Implicit Models
+  authors: Jiaming Song, Chenlin Meng and Stefano Ermon
+  year: 2021
+  venue: ICLR
+  arxiv: '2010.02502'
+  used_for: Deterministic few-step sampling
+  code_location: 'model.py: generate'
+- id: nichol2021improved
+  title: Improved Denoising Diffusion Probabilistic Models
+  authors: Alex Nichol and Prafulla Dhariwal
+  year: 2021
+  venue: ICML
+  arxiv: '2102.09672'
+  used_for: Related work (cosine schedule, learned variances)
+  code_location: null
+- id: karras2022edm
+  title: Elucidating the Design Space of Diffusion-Based Generative Models
+  authors: Tero Karras, Miika Aittala, Timo Aila and Samuli Laine
+  year: 2022
+  venue: NeurIPS
+  arxiv: '2206.00364'
+  used_for: Related work (preconditioning, training noise distribution, samplers)
+  code_location: null
+- id: kingma2015adam
+  title: 'Adam: A Method for Stochastic Optimization'
+  authors: Diederik P. Kingma and Jimmy Ba
+  year: 2015
+  venue: ICLR
+  arxiv: '1412.6980'
+  used_for: Optimiser
+  code_location: 'train.py: main'
+changes:
+- text: Training stops at a wall-clock limit (about an eighth of the anchor's steps) instead of 800,000 steps.
+  code: 'train.py: main (--max-hours)'
+- text: The forward pass runs under bf16 autocast.
+  code: 'train.py: main'
+- text: Sampling uses deterministic DDIM with x₀ clipping on 25 or 100 steps instead of the anchor's 1,000-step ancestral sampler.
+  code: 'model.py: generate'

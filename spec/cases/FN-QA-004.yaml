@@ -1,0 +1,132 @@
+id: FN-QA-004
+title: "Numerical reasoning over financial reports with a frozen 1.5B model: a retrieval and program pipeline for FinQA"
+template: C-SPEC-001
+anchor: {authors: "Zhiyu Chen, Wenhu Chen, Charese Smiley, Sameena Shah, Iana Borova, Dylan Langdon, Reema Moussa, Matt Beane, Ting-Hao Huang, Bryan Routledge, William Yang Wang", title: "FinQA: A Dataset of Numerical Reasoning over Financial Data", arxiv: "2109.00122"}
+baseline: "TF-IDF evidence retrieval, four nearest training questions with their gold evidence and program as few-shot examples, greedy decoding of one FinQA program and its execution (the reference submission; its code is shown under `interface/baseline/`)"
+reference_verification: "Partly executed: the case's program executor reproduces the gold answer of all 8,281 FinQA train, dev and test questions; the reference's retriever was run on the real dev split (the gold evidence is fully inside its top 8 facts for 81.7% of questions, 89.2% of gold facts recalled) and its preparation program on the real training split (6,243 exemplars, 1 s); the pipeline, metrics and bootstrap interval were run end to end on the real dev split with a stand-in that returns the gold program for three questions in four (execution accuracy 0.751). The frozen model has not run here (no PyTorch); the operator runs the reference at activation."
+mode: checkpoint
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/finqa.py]
+task: |
+  Design a **pipeline around a frozen Qwen2.5-1.5B-Instruct** — evidence retrieval over a report's text and tables, prompting or decoding strategy, program generation and repair, verification, self-consistency, small trained components — that gives the **highest execution accuracy** on held-out **FinQA** questions about earnings reports.
+
+  - Submit the pipeline code, a checkpoint (for example indexes, exemplar banks, adapters or a small reranker you train in the sandbox) and the program that produced it. The evaluator calls your `answer()` on the held-out questions with the frozen model available and scores the answers; it never retrains.
+  - Each question comes with the report's text before and after a table and the table itself; the answer is a number (or yes/no) obtained by a few arithmetic steps over values in them. You may return the answer, a FinQA program that the evaluator executes, or both.
+  - The model's weights are fixed: you may add adapters with at most 20M trained parameters in total, but no other pretrained model and no external data.
+  - You may build on any public work (retriever-generator pipelines, program-of-thought and program-aided prompting, self-consistency, tool use, table linearisation, small-model fine-tuning), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only), FinQA (Chen et al. 2021, `github.com/czyssrs/FinQA` @0f16e286, MIT licence; reports from FinTabNet), verbatim:
+
+  | File | Questions | Contents per question |
+  |---|---|---|
+  | `train.json` | 6,251 | `pre_text`, `post_text`, `table`, `qa` with the question, the gold program, its executed answer `exe_ans` and the gold evidence `gold_inds` |
+  | `dev.json` | 883 | the same |
+
+  `$ABENCH_MODELS_DIR/Qwen2.5-1.5B-Instruct/` holds the frozen model (Apache-2.0, revision 989aa798).
+
+  The held-out set is FinQA's test split (1,147 questions); only the question, texts and table of each reach your pipeline, after the timed phase. The authors' private test set has no public answers and is not used. Because the test questions are public on the internet, the sandbox has no network and no data from outside it may be used.
+interface: "Implement `load(checkpoint_dir, models_dir, device)` and `answer(state, items) -> list` in `pipeline.py`. Each item is a dict with `id`, `question`, `pre_text` and `post_text` (lists of sentences) and `table` (list of rows of strings, the first row the header); return, per item, a dict with `answer` (a number, a numeric string or \"yes\"/\"no\") and/or `program` (a FinQA program, executed by the evaluator with `interface/finqa.py`). Write a `train.py` that produces the checkpoint from the public data."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **Execution accuracy** (primary) | Fraction of the 1,147 held-out questions whose answer equals the gold executed value (FinQA's convention: percentages as fractions, rounded to 5 decimals; tolerance max(5e-5, 1e-4·\|gold\|)); the submitted `answer`, or the executed `program` when no answer is given | — |
+  | Program accuracy | Fraction whose submitted program executes to the gold value; share of questions with a program and with a valid one | reported |
+  | By difficulty | Accuracy on one-step and multi-step questions, and on questions whose evidence is in the table or only in the text | reported |
+  | Cost | Milliseconds per question (batches of 32, one GPU), load time | reported |
+
+  No threshold applies to any metric: a submission is valid if it loads, answers every question within the time limits and the code follows the rules (see below).
+
+  **Measurement and decision**
+
+  - One run with a seed you do not know (it fixes the shuffled order); accuracies are means over questions. `answer()` is called on batches of 32 questions in that order, after loading has finished (killed at 600 s); all questions must be answered within 3,600 s on one GPU.
+  - The primary metric is reported with a 95% bootstrap interval over questions; submissions whose intervals overlap are tied on it.
+  - The final ABench score is driven mainly by execution accuracy, and also considers how different the pipeline is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 5
+  dev_budget: "3 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), transformers, NumPy, SciPy, scikit-learn"
+  notes: |
+    - `selfcheck.py` runs your pipeline on the dev split (`--quick`: 64 questions) and prints execution accuracy and the other metrics.
+    - `interface/finqa.py` is the evaluator's executor and answer comparison; the reference keeps a copy of it in `src/`.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── pipeline.py         # required: load() and answer()
+    ├── train.py            # required: produces checkpoint/ from the public data
+    ├── checkpoint/         # required: indexes, exemplars, adapters; at most 500 MB
+    ├── src/                # optional: other .py modules
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - Outside `checkpoint/`, files may only be `.py`, `.yaml`, `.yml`, `.md` and `.txt`, at most 200,000 bytes in total.
+rules: |
+  - Use only the provided model and data; adapters may add at most 20M trained parameters; no other pretrained model, no external data, no network.
+  - `answer()` treats each question on its own: no use of other questions of the batch, no state kept between calls, and no lookup of answers by question text.
+interface_md: |
+  # FN-QA-004 interface
+
+  ## Entry point: `pipeline.py`
+
+  ```python
+  def load(checkpoint_dir: str, models_dir: str, device: str):
+      """models_dir/Qwen2.5-1.5B-Instruct holds the frozen model (Hugging Face format)."""
+
+  def answer(state, items: list[dict]) -> list[dict]:
+      """items: {"id", "question", "pre_text": [str], "post_text": [str], "table": [[str]]};
+      return one dict per item with "answer" (number or "yes"/"no") and/or "program" (FinQA program)."""
+  ```
+
+  ## FinQA programs (`finqa.py`)
+
+  `subtract(5829, 5735), divide(#0, 5735)`: steps separated by commas; operations add, subtract, multiply, divide,
+  exp, greater, table_max, table_min, table_sum, table_average (the last four take a table row's header and `none`);
+  `#i` is the result of step i; constants `const_100`, `const_1000`, `const_m1`; `14%` means 0.14.
+
+  ## Evaluator code you can read
+
+  `finqa.py` (executor and answer comparison), `stages.py`, `metrics.py`, `abench_metrics.py`, `abench_stage.py`,
+  `selfcheck.py`, and the reference submission under `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), transformers, NumPy, SciPy, scikit-learn. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 3.0, session_hours: 5}
+  data:
+    public_dir: sandbox/data/FN-QA-004
+    public:
+      - {path: sandbox/data/FN-QA-004/train.json, sha256: pending}
+      - {path: sandbox/data/FN-QA-004/dev.json, sha256: pending}
+    hidden: {path: sandbox/hidden/FN-QA-004/hidden.npz.enc, sha256_plain: pending, keys: "items_json (given after the timed phase); gold, steps, has_table_evidence (evaluator only)"}
+    models_dir: sandbox/models/FN-QA-004
+    models:
+      - {name: Qwen2.5-1.5B-Instruct, path: sandbox/models/FN-QA-004/Qwen2.5-1.5B-Instruct, tree_sha256: pending, revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306, license: Apache-2.0}
+    sources:
+      - name: "FinQA (Chen et al. 2021), dataset/train.json, dev.json, test.json"
+        url: https://github.com/czyssrs/FinQA
+        revision: 0f16e2867befa6840783e58be38c9efb9229d742
+        license: MIT
+        verified: "2026-10-23: commit, licence file, question counts and sha256 of the three files from a clone; the executor reproduces every gold answer"
+      - name: "Qwen2.5-1.5B-Instruct (Qwen Team 2024)"
+        url: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct
+        revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306
+        license: Apache-2.0
+        verified: "2026-10-22: revision, licence and file list from the Hugging Face API (C-SPEC-001)"
+  submission:
+    kind: code_plus_checkpoint
+    entry: pipeline.py
+    required_files: [train.py]
+    checkpoint_dir: checkpoint
+    checkpoint_max_bytes: 524288000
+    allowed_top_level: [README.md, pipeline.py, train.py, src, checkpoint, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 526288000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch and transformers versions frozen at activation)"
+    seeds: [2109]
+    code_audit: "the operator checks that answer() keeps no state between calls and does not look up answers by question text"

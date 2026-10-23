@@ -28,6 +28,7 @@ class Frozen:
     hidden: dict[str, np.ndarray]                     # one npz, encrypted, under sandbox/hidden/<ID>/hidden.npz.enc
     sources_sha256: dict[str, str] = field(default_factory=dict)
     models: dict[str, Path] = field(default_factory=dict)   # name -> source directory, copied to sandbox/models/<ID>/<name>
+    judge_models: dict[str, Path] = field(default_factory=dict)  # evaluator-only models (never in a sandbox): sandbox/judge_models/<ID>/<name>
     raw_files: dict[str, Path] = field(default_factory=dict)  # extra public files copied verbatim (name -> source path)
     notes: dict = field(default_factory=dict)
 
@@ -99,6 +100,15 @@ def dev_indices(n: int, frac: float, seed: int, y: np.ndarray | None = None) -> 
         k = max(1, int(round(len(idx) * frac)))
         out.append(rng.choice(idx, size=k, replace=False))
     return np.sort(np.concatenate(out)).astype(np.int64)
+
+
+def text_pack(xs) -> tuple[np.ndarray, np.ndarray]:
+    """Many documents as (UTF-8 bytes uint8, offsets int64 of length N + 1); see cases/TC-FT-001/harness/textpack.py.
+    Used instead of text_array when documents are long, where a fixed-width <U array would be mostly padding."""
+    enc = [str(x).encode("utf-8") for x in xs]
+    off = np.zeros(len(enc) + 1, np.int64)
+    np.cumsum([len(b) for b in enc], out=off[1:])
+    return np.frombuffer(b"".join(enc), np.uint8).copy(), off
 
 
 def text_array(xs) -> np.ndarray:

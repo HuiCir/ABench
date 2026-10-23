@@ -1,0 +1,60 @@
+case: U-KAN-009
+title: 'The MLP Layer as Its Own Reference'
+abstract: >-
+  This reference submission returns the evaluator's baseline layer, a linear map followed by SiLU [@elfwing2018silu],
+  so that the case's plumbing can be checked end to end; its error ratio is 1 up to run-to-run noise. It is the layer
+  that Kolmogorov-Arnold networks set out to replace [@liu2024kan], and the one that a comparison at matched
+  parameters and compute often finds hard to beat outside symbolic tasks [@yu2024fairer].
+sections:
+- title: Introduction
+  paras:
+  - >-
+    The case asks for a layer that beats the MLP layer at equal parameters. A submission that is the MLP layer
+    defines the zero point of the error ratio.
+- title: Related Work
+  paras:
+  - >-
+    KANs place learnable univariate functions, parametrised by B-splines, on the edges of the network and report
+    better accuracy than MLPs on function fitting and PDE solving [@liu2024kan]. A later comparison at matched
+    parameters and FLOPs finds MLPs ahead on most tasks except symbolic formula fitting [@yu2024fairer].
+- title: Method
+  paras:
+  - >-
+    make_layer returns nn.Linear(d_in, d_out) followed by nn.SiLU, without the activation on the output layer, with
+    PyTorch's default initialisation.
+- title: Design Rationale
+  paras:
+  - >-
+    None beyond being the baseline: it lets the operator check that the evaluator's two training runs agree.
+- title: Scope and Limitations
+  paras:
+  - >-
+    It is not a method; any submission should be compared with it.
+references:
+- id: liu2024kan
+  title: 'KAN: Kolmogorov-Arnold Networks'
+  authors: Ziming Liu, Yixuan Wang, Sachin Vaidya, Fabian Ruehle, James Halverson, Marin Soljačić, Thomas Y. Hou and Max Tegmark
+  year: 2024
+  venue: arXiv
+  arxiv: '2404.19756'
+  used_for: Anchor
+  code_location: null
+- id: yu2024fairer
+  title: 'KAN or MLP: A Fairer Comparison'
+  authors: Runpeng Yu, Weihao Yu and Xinchao Wang
+  year: 2024
+  venue: arXiv
+  arxiv: '2407.16674'
+  used_for: Related work (matched comparison)
+  code_location: null
+- id: elfwing2018silu
+  title: Sigmoid-Weighted Linear Units for Neural Network Function Approximation in Reinforcement Learning
+  authors: Stefan Elfwing, Eiji Uchibe and Kenji Doya
+  year: 2018
+  venue: Neural Networks
+  arxiv: '1702.03118'
+  used_for: The SiLU activation
+  code_location: 'layer.py: make_layer'
+changes:
+- text: None relative to the baseline; the anchor's spline edges are not used.
+  code: 'layer.py: make_layer'

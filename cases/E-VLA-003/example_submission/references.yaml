@@ -1,0 +1,38 @@
+schema: abench.references/v2
+references:
+- id: kim2024openvla
+  title: 'OpenVLA: An Open-Source Vision-Language-Action Model'
+  authors: Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair, Rafael Rafailov,
+    Ethan Foster, Grace Lam, Pannag Sanketi, Quan Vuong, Thomas Kollar, Benjamin Burchfiel, Russ Tedrake, Dorsa
+    Sadigh, Sergey Levine, Percy Liang and Chelsea Finn
+  year: 2024
+  venue: CoRL
+  arxiv: '2406.09246'
+  used_for: 'Anchor: a vision-language model turned into a policy over LIBERO-style 7-dimensional actions'
+  code_location: 'policy.py: Policy.act'
+- id: shukor2025smolvla
+  title: 'SmolVLA: A Vision-Language-Action Model for Affordable and Efficient Robotics'
+  authors: Mustafa Shukor, Dana Aubakirova, Francesco Capuano, Pepijn Kooijmans, Steven Palma, Adil Zouitine, Michel
+    Aractingi, Caroline Pascal, Martino Russi, Andres Marafioti, Simon Alibert, Matthieu Cord, Thomas Wolf and Remi
+    Cadene
+  year: 2025
+  venue: arXiv
+  arxiv: '2506.01844'
+  used_for: Reading SmolVLM2 at layer 16 and giving images at 512 x 512 without splitting
+  code_location: 'src/features.py: LAYER, configure'
+- id: zhao2023act
+  title: Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware
+  authors: Tony Z. Zhao, Vikash Kumar, Sergey Levine and Chelsea Finn
+  year: 2023
+  venue: RSS
+  arxiv: '2304.13705'
+  used_for: Predicting chunks of continuous actions with L1 loss
+  code_location: 'src/head.py: Head; train.py'
+- id: liu2023libero
+  title: 'LIBERO: Benchmarking Knowledge Transfer for Lifelong Robot Learning'
+  authors: Bo Liu, Yifeng Zhu, Chongkai Gao, Yihao Feng, Qiang Liu, Yuke Zhu and Peter Stone
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2306.03310'
+  used_for: The tasks, demonstrations and their observation format
+  code_location: 'train.py: demo_features'

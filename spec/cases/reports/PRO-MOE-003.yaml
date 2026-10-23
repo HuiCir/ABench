@@ -1,0 +1,65 @@
+case: PRO-MOE-003
+title: 'Fine-Grained and Shared Experts with an Expert-Level Balance Loss'
+abstract: >-
+  This submission follows DeepSeekMoE [@dai2024deepseekmoe]: each feed-forward layer of a 12-layer decoder holds one
+  shared expert and 64 fine-grained routed experts, of which the softmax router selects six per token, and an
+  expert-level balance loss with weight 0.01 keeps routing spread. The top-k routing goes back to the sparsely gated
+  mixture of experts [@shazeer2017moe]. It stores about 1.0B parameters and uses about 0.17B per token.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    At a fixed compute per token, experts add capacity that only some tokens pay for; how finely experts are cut and
+    how the load is balanced decide how much of that capacity is useful.
+- title: Related Work
+  paras:
+  - >-
+    Sparsely gated layers route each token to a few experts [@shazeer2017moe]; DeepSeekMoE splits experts finely and
+    isolates shared experts [@dai2024deepseekmoe]; auxiliary-loss-free balancing replaces the balance loss by
+    per-expert routing biases [@wang2024lossfree].
+- title: Method
+  paras:
+  - >-
+    Width 768, 12 heads with RoPE, RMSNorm, SwiGLU experts of hidden size 512; tokens are sorted by expert and
+    processed expert by expert. AdamW (1.5e-3, betas 0.9/0.95, weight decay 0.1), 1,000 warm-up steps and cosine
+    decay to 10% over 18,000 steps of 512 x 1,024 tokens on four GPUs with DDP; a checkpoint every 500 steps.
+- title: Design Rationale
+  paras:
+  - >-
+    Six of 64 small experts give many more expert combinations than one or two large ones at the same compute; the
+    shared expert holds what every token needs, so routed experts can specialise.
+- title: Scope and Limitations
+  paras:
+  - >-
+    The per-expert loop is slow compared with grouped matrix kernels, so the 18,000 steps may not fit a 24-hour
+    session together with development; nothing here has been run in this build.
+references:
+- id: dai2024deepseekmoe
+  title: 'DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models'
+  authors: Damai Dai, Chengqi Deng, Chenggang Zhao, R.X. Xu, Huazuo Gao, Deli Chen and others
+  year: 2024
+  venue: ACL
+  arxiv: '2401.06066'
+  used_for: 'Anchor: fine-grained routed experts, shared experts and the expert-level balance loss'
+  code_location: 'model.py: MoE'
+- id: shazeer2017moe
+  title: 'Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer'
+  authors: Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton and Jeff Dean
+  year: 2017
+  venue: ICLR
+  arxiv: '1701.06538'
+  used_for: Top-k routing of tokens to experts
+  code_location: 'model.py: MoE.forward'
+- id: wang2024lossfree
+  title: Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts
+  authors: Lean Wang, Huazuo Gao, Chenggang Zhao, Xu Sun and Damai Dai
+  year: 2024
+  venue: arXiv
+  arxiv: '2408.15664'
+  used_for: The alternative balancing recipe that the operator also runs
+  code_location: 'model.py: MoE'
+changes:
+- text: A 12-layer, 768-wide configuration sized to the case's limits (0.17B active, 1.0B stored) instead of the paper's 2B and 16B models.
+  code: 'model.py: CFG'
+- text: Dense dispatch by sorting tokens per expert, without capacity limits or token dropping.
+  code: 'model.py: MoE.forward'

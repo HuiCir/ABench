@@ -108,3 +108,47 @@ def softmax_rows(P: np.ndarray) -> np.ndarray:
     P = P - P.max(1, keepdims=True)
     e = np.exp(P)
     return e / e.sum(1, keepdims=True)
+
+
+def bootstrap_ci(score, outputs: dict, reference: dict, params: dict, seconds: dict, groups: list,
+                 metric: str, n: int = 200, seed: int = 0, level: float = 0.95) -> dict | None:
+    """Percentile bootstrap interval of `metric` over held-out examples.
+
+    groups: list of {"reference": [keys], "outputs": [[stage, key], ...]} (or a function of the reference returning
+    it); arrays in one group share their first axis
+    (the examples) and are resampled together; different groups (e.g. datasets) are resampled independently.
+    score is the case's metrics.score. Returns {"low", "high", "n", "level"} or None if nothing can be resampled.
+    """
+    if callable(groups):              # cases whose held-out datasets are only known from the reference itself
+        groups = groups(reference)
+    rng = np.random.default_rng(seed)
+    sizes = []
+    for g in groups:
+        arrs = [np.asarray(reference[k]) for k in g.get("reference", [])] + \
+               [np.asarray(outputs[s][k]) for s, k in g.get("outputs", [])]
+        if not arrs:
+            return None
+        m = len(arrs[0])
+        if m == 0 or any(len(a) != m for a in arrs):
+            return None
+        sizes.append(m)
+    vals = []
+    for _ in range(n):
+        ref = dict(reference)
+        out = {s: dict(v) for s, v in outputs.items()}
+        for g, m in zip(groups, sizes):
+            idx = rng.integers(0, m, m)
+            for k in g.get("reference", []):
+                ref[k] = np.asarray(reference[k])[idx]
+            for s, k in g.get("outputs", []):
+                out[s][k] = np.asarray(outputs[s][k])[idx]
+        try:
+            v = score(out, ref, params, seconds).get(metric)
+        except Exception:            # a degenerate replicate (e.g. one class only) is skipped
+            continue
+        if v is not None and np.isfinite(v):
+            vals.append(float(v))
+    if len(vals) < n // 2:
+        return None
+    a = (1 - level) / 2
+    return {"low": float(np.quantile(vals, a)), "high": float(np.quantile(vals, 1 - a)), "n": len(vals), "level": level}

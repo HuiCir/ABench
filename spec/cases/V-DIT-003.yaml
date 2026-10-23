@@ -1,0 +1,117 @@
+id: V-DIT-003
+title: "A latent-diffusion backbone at the FLOPs of DiT-S/2: class-conditional Imagenette at 128 pixels under a fixed training recipe"
+template: A-LCTX-006
+anchor: {authors: "William Peebles, Saining Xie", title: "Scalable Diffusion Models with Transformers", arxiv: "2212.09748"}
+baseline: "DiT-S/2 (patch 2 on the 4 x 16 x 16 latent, width 384, 12 blocks, adaLN-Zero), trained by the evaluator under identical conditions (`interface/baselines/dit_s/`)"
+baseline_run: "Under exactly the same conditions (hardware, seed, latents, recipe, sampler), the evaluator also trains DiT-S/2 from `interface/baselines/dit_s/`; your FLOPs limit and FID differences are relative to it."
+reference_verification: "Partly executed: the noise schedule, the DDIM update (it recovers the clean latent exactly at the last step), class balancing and the metric arithmetic were run in the build container; the self-check data path runs on synthetic latents. Encoding Imagenette, training, sampling and FID need PyTorch, diffusers and a GPU, which were not available here; the operator runs DiT-S/2 and the reference at activation."
+mode: judge_trains
+n_seeds: 1
+show_baseline: true
+extra_interface: [harness/ldm.py, harness/baselines/dit_s/backbone.py]
+task: |
+  Design the **denoising backbone of a latent diffusion model** — tokenisation of the latent, block design, normalisation, conditioning on time and class, skip connections, attention variants, convolutional or hybrid stages — that, at **no more than 1.1 times the forward FLOPs of DiT-S/2** and trained by a **fixed recipe**, gives the **lowest FID** for class-conditional generation of Imagenette at 128 pixels.
+
+  - Submit code only: `backbone.py` with `make_backbone(latent_shape, num_classes)`. The evaluator trains it from scratch on the public VAE latents for 30,000 steps with the recipe of `interface/ldm.py` (noise prediction, linear schedule, AdamW, EMA), samples 5,000 images with 50 DDIM steps and classifier-free guidance 1.5 (and 5,000 without guidance), decodes them with the VAE and measures FID. It trains DiT-S/2 the same way.
+  - Only the backbone changes: objective, noise schedule, optimiser, number of steps, sampler and VAE are fixed. FLOPs are counted by the evaluator for one latent.
+  - You may build on any public work (DiT, U-ViT, U-Net backbones of ADM, MDT, DiffiT, SiT and REPA architectures, Hourglass and windowed attention, RMSNorm, SwiGLU, QK-norm), but the design report must state what you borrowed and what you changed.
+data: |
+  `$ABENCH_DATA_DIR/` (read-only): `latents.npz` with `latents` (9,469, 2, 4, 16, 16) float16, the Stable Diffusion VAE latents (posterior mean x 0.18215) of the Imagenette training images centre-cropped and resized to 128 pixels and of their mirror images, and `labels` (10 classes); `train_inception_stats.npz` (Inception statistics of the 128-pixel training images, for the self-check). Imagenette: fastai, Apache-2.0, images from ImageNet. `$ABENCH_MODELS_DIR/` holds the VAE (`sd-vae-ft-ema`, @f04b2c4b, MIT) and the pytorch-fid Inception weights.
+
+  The held-out set is the Inception statistics of the 3,925 Imagenette validation images at 128 pixels, and the sampling seeds (drawn with a secret seed).
+interface: "Implement `make_backbone(latent_shape, num_classes) -> torch.nn.Module` in `backbone.py`; `forward(x, t, y)` takes noisy latents x (B, 4, 16, 16), integer timesteps t (B,) in [0, 1000) and labels y (B,) in [0, num_classes], where num_classes is the null class of classifier-free guidance, and returns the predicted noise (B, 4, 16, 16)."
+metrics: |
+  | Metric | Definition | Requirement |
+  |---|---|---|
+  | **FID with guidance** (primary) | FID of 5,000 class-balanced samples (guidance 1.5, 50 DDIM steps) against the Imagenette validation images; lower is better | — |
+  | FID without guidance | The same with guidance 1 | reported |
+  | Relative to DiT-S/2 | Both FIDs minus DiT-S/2's in the same run | reported |
+  | Cost | Forward FLOPs for one latent, divided by DiT-S/2's; parameters; training time | Threshold: ≤ 1.10 |
+  | Stability | Divergence of training, non-finite samples | Threshold: none |
+  | Diversity | Trace of the sample feature covariance over the reference one | reported |
+
+  **Measurement and decision**
+
+  - One run with one seed. FID from 5,000 samples against 3,925 reference images is biased upwards and varies by about 0.5 between seeds; differences smaller than that are within noise.
+  - A submission is valid if it trains without divergence within 3,600 s, its samples are finite and its forward FLOPs are at most 1.10 times DiT-S/2's; otherwise it is invalid.
+  - The final ABench score is driven mainly by FID with guidance, and also considers how different the backbone is from existing ones and the quality of the sources cited in the design report; the exact weights are not published.
+hardware:
+  kind: gpu
+  session_hours: 10
+  dev_budget: "8 GPU-hours"
+  software: "Python 3, PyTorch (CUDA), NumPy, SciPy, diffusers, pytorch-fid"
+  notes: |
+    - `selfcheck.py` trains and samples on the public data against the training images' statistics (1,000 samples per setting; `--quick`: 2,000 steps and 200 samples).
+    - One full training run of DiT-S/2 takes about 40 minutes on the reference GPU.
+deliverables:
+  tree: |
+    $ABENCH_SUBMISSION_DIR/
+    ├── backbone.py         # required: make_backbone()
+    ├── src/                # optional: helper modules, .py only
+    ├── README.md           # optional
+    ├── report/index.html   # required: design report
+    └── references.yaml     # required: reference register
+  notes: |
+    - The code area may only contain `.py`, `.yaml`, `.yml`, `.md` and `.txt` files, at most 200,000 bytes in total.
+rules: |
+  - The backbone may only compute from its inputs (x, t, y): no pretrained weights, no files, no state kept between calls beyond its parameters and buffers.
+  - The FLOPs counted for one latent must be representative: the computation may not depend on the batch size, on whether gradients are enabled or on the training mode in a way that lowers the count.
+interface_md: |
+  # V-DIT-003 interface
+
+  ## Entry point: `backbone.py`
+
+  ```python
+  def make_backbone(latent_shape=(4, 16, 16), num_classes: int = 10) -> "torch.nn.Module":
+      """forward(x, t, y) -> predicted noise; x (B, 4, 16, 16), t (B,) long in [0, 1000),
+      y (B,) long in [0, num_classes] (num_classes = null class)."""
+  ```
+
+  ## Evaluator code you can read
+
+  `ldm.py` (schedule, training, EMA, DDIM with guidance, decoding, FLOPs), `stages.py`, `metrics.py`,
+  `abench_metrics.py`, `abench_stage.py`, `selfcheck.py`, DiT-S/2 under `baselines/dit_s/` and the reference under
+  `baseline/`.
+
+  ## Available software
+
+  Python 3, PyTorch (CUDA), NumPy, SciPy, diffusers, pytorch-fid. Nothing can be installed.
+oj:
+  agent_budget: {gpu_hours: 8.0, session_hours: 10}
+  data:
+    public_dir: sandbox/data/V-DIT-003
+    public:
+      - {path: sandbox/data/V-DIT-003/latents.npz, sha256: pending}
+      - {path: sandbox/data/V-DIT-003/train_inception_stats.npz, sha256: pending}
+    hidden: {path: sandbox/hidden/V-DIT-003/hidden.npz.enc, sha256_plain: pending, keys: "seeds (given after the timed phase); ref_mu, ref_sigma (evaluator only)"}
+    models_dir: sandbox/models/V-DIT-003
+    models:
+      - {name: sd-vae-ft-ema, path: sandbox/models/V-DIT-003/sd-vae-ft-ema, tree_sha256: pending, revision: f04b2c4b98319346dad8c65879f680b1997b204a, license: MIT}
+      - {name: inception, path: sandbox/models/V-DIT-003/inception, tree_sha256: pending, license: Apache-2.0}
+    sources:
+      - name: "Imagenette 160-pixel release (fastai), as IC-RES-002"
+        url: https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-160.tgz
+        license: "Apache-2.0 (github.com/fastai/imagenette); images from ImageNet"
+        verified: "2026-10-21 (IC-RES-002): size and md5 of the first MiB as fastai checks them"
+      - name: "Stable Diffusion VAE, fine-tuned with EMA (stabilityai/sd-vae-ft-ema)"
+        url: https://huggingface.co/stabilityai/sd-vae-ft-ema
+        revision: f04b2c4b98319346dad8c65879f680b1997b204a
+        license: MIT
+        verified: "2026-10-23: revision, licence and file list from the Hugging Face API"
+      - name: "pytorch-fid Inception weights (Seitzer 2020)"
+        url: https://github.com/mseitzer/pytorch-fid/releases/download/fid_weights/pt_inception-2015-12-05-6726825d.pth
+        license: Apache-2.0
+        verified: "2026-10-19 (V-SMP-002): FID_WEIGHTS_URL read from pytorch_fid/inception.py"
+  submission:
+    kind: code_only
+    entry: backbone.py
+    checkpoint_dir: null
+    allowed_top_level: [README.md, backbone.py, src, report, references.yaml]
+    code_suffixes: [.py, .yaml, .yml, .md, .txt]
+    code_max_bytes: 200000
+    max_bytes: 2000000
+  judge:
+    device: cuda
+    reference_gpu: "RTX 4090-class 24GB (driver, CUDA, torch and diffusers versions frozen at activation)"
+    seeds: [2212]
+    baseline: harness/baselines/dit_s

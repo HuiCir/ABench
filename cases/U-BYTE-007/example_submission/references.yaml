@@ -1,0 +1,43 @@
+schema: abench.references/v2
+references:
+- id: pagnoni2024blt
+  title: 'Byte Latent Transformer: Patches Scale Better Than Tokens'
+  authors: Artidoro Pagnoni et al.
+  year: 2024
+  venue: arXiv
+  arxiv: '2412.09871'
+  used_for: 'Anchor: dynamic patching in a local-global byte model'
+  code_location: 'model.py: SpacePatch'
+- id: slagle2024spacebyte
+  title: 'SpaceByte: Towards Deleting Tokenization from Large Language Modeling'
+  authors: Kevin Slagle
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2404.14408'
+  used_for: Patches that end at space-like bytes
+  code_location: 'model.py: SpacePatch.segments'
+- id: yu2023megabyte
+  title: 'MEGABYTE: Predicting Million-byte Sequences with Multiscale Transformers'
+  authors: Lili Yu, Dániel Simig, Colin Flaherty, Armen Aghajanyan, Luke Zettlemoyer and Mike Lewis
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.07185'
+  used_for: Local-global layout of the baseline
+  code_location: 'model.py: SpacePatch.forward'
+- id: xue2022byt5
+  title: 'ByT5: Towards a Token-Free Future with Pre-trained Byte-to-Byte Models'
+  authors: Linting Xue, Aditya Barua, Noah Constant, Rami Al-Rfou, Sharan Narang, Mihir Kale, Adam Roberts and Colin
+    Raffel
+  year: 2022
+  venue: TACL
+  arxiv: '2105.13626'
+  used_for: Related work (byte-level models)
+  code_location: null
+- id: clark2022canine
+  title: 'CANINE: Pre-training an Efficient Tokenization-Free Encoder for Language Representation'
+  authors: Jonathan H. Clark, Dan Garrette, Iulia Turc and John Wieting
+  year: 2022
+  venue: TACL
+  arxiv: '2103.06874'
+  used_for: Related work (downsampled character models)
+  code_location: null

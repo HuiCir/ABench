@@ -1,0 +1,43 @@
+schema: abench.references/v2
+references:
+- id: radford2021clip
+  title: Learning Transferable Visual Models From Natural Language Supervision
+  authors: Alec Radford et al.
+  year: 2021
+  venue: ICML
+  arxiv: '2103.00020'
+  used_for: 'Anchor: symmetric contrastive loss with a learned temperature'
+  code_location: 'train.py: main'
+- id: zhai2022lit
+  title: 'LiT: Zero-Shot Transfer with Locked-image text Tuning'
+  authors: Xiaohua Zhai, Xiao Wang, Basil Mustafa, Andreas Steiner, Daniel Keysers, Alexander Kolesnikov and Lucas
+    Beyer
+  year: 2022
+  venue: CVPR
+  arxiv: '2111.07991'
+  used_for: Locked encoders
+  code_location: 'model.py: encoders'
+- id: oquab2023dinov2
+  title: 'DINOv2: Learning Robust Visual Features without Supervision'
+  authors: Maxime Oquab et al.
+  year: 2023
+  venue: TMLR
+  arxiv: '2304.07193'
+  used_for: The frozen image encoder
+  code_location: 'model.py: image_features'
+- id: wang2020minilm
+  title: 'MiniLM: Deep Self-Attention Distillation for Task-Agnostic Compression of Pre-Trained Transformers'
+  authors: Wenhui Wang, Furu Wei, Li Dong, Hangbo Bao, Nan Yang and Ming Zhou
+  year: 2020
+  venue: NeurIPS
+  arxiv: '2002.10957'
+  used_for: The frozen text encoder
+  code_location: 'model.py: text_features'
+- id: hsieh2023sugarcrepe
+  title: 'SugarCrepe: Fixing Hackable Benchmarks for Vision-Language Compositionality'
+  authors: Cheng-Yu Hsieh, Jieyu Zhang, Zixian Ma, Aniruddha Kembhavi and Ranjay Krishna
+  year: 2023
+  venue: NeurIPS Datasets and Benchmarks
+  arxiv: '2306.14610'
+  used_for: The compositional test
+  code_location: null

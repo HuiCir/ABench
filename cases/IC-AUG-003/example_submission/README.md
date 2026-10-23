@@ -1,5 +1,3 @@
-# IC-AUG-003 example submission contract
+# IC-AUG-003 reference submission
 
-This directory intentionally contains no simulated implementation or score.
-
-A real submission should provide the files named in case/task_prompt.md, pass L0 schema checks, and leave all measurements to the benchmark runner. The scaffold is complete only after real resources, reference runs, hidden evaluation and a sandbox have been frozen.
+`policy.py`: a RandAugment-style policy (two of nine operations at one magnitude, cutout, clean final epochs) built from the aug_ops primitives. Design report: `report/index.html`; references: `references.yaml`.

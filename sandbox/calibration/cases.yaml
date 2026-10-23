@@ -1,0 +1,18 @@
+# OJ calibration (code only): the case's reference submission is trained with its own train.py and judged by
+# tools/oj_eval.py on the held-out split (sandbox/calibration/calibrate.sh).
+# final_flag: the train.py option that produces the checkpoint to judge (training plus dev rows).
+# synthetic_rows: size of the synthetic plumbing data (DATA=synthetic); real data: DATA=<raw dir> (see --list-sources).
+# device: judge device on a calibration host without the case's reference hardware (recorded; never scorable).
+TC-FT-001:
+  role: "pipeline-calibration case (index scope: calibration)"
+  final_flag: --include-dev
+  synthetic_rows: 3000
+DS-PIPE-002:
+  role: "pipeline-calibration case (index scope: calibration)"
+  final_flag: --include-dev
+  synthetic_rows: 3000
+FN-LTSF-005:
+  role: "scored case used as the real-data calibration: its ETT and electricity files are small and need no model"
+  final_flag: --final
+  synthetic_rows: 3000
+  device: cpu

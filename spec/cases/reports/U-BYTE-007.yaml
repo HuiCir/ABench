@@ -1,0 +1,94 @@
+case: U-BYTE-007
+title: 'Space Patching in a Local-Global Byte Model'
+abstract: >-
+  This submission keeps the baseline's local-global byte model and replaces its static 4-byte patches by patches that
+  end at spaces, newlines and document boundaries, the space-patching scheme that the anchor uses as a strong
+  dynamic baseline [@pagnoni2024blt; @slagle2024spacebyte]. Patch embeddings are means of the local encoder states of
+  their bytes, and each byte receives the global state of the patches before its own. Because a word with its
+  separator averages about 5.5 bytes, the global transformer runs over fewer positions than with 4-byte patches, so
+  the compute stays below the baseline's. It has not been run yet: it needs PyTorch and a GPU, which were not available
+  where the case was built.
+sections:
+- title: Introduction
+  paras:
+  - >-
+    Byte-level models avoid a tokenizer and its brittleness to spelling noise, but running a full transformer on every
+    byte is expensive. Grouping bytes into patches puts most computation on patches; the question is where patches
+    should end.
+- title: Related Work
+  paras:
+  - >-
+    MegaByte splits bytes into fixed patches handled by a global and a local model [@yu2023megabyte]. SpaceByte inserts
+    global blocks after space-like bytes [@slagle2024spacebyte]; the anchor ends patches where a small byte model's
+    next-byte entropy is high and reports space patching as a strong alternative [@pagnoni2024blt]. Character-level
+    models such as ByT5 and CANINE operate on bytes or characters with downsampling [@xue2022byt5; @clark2022canine].
+- title: Method
+  paras:
+  - >-
+    A patch starts at byte 0 and after every byte 32, 10 or 0; patch ids are a cumulative sum of the start flags, which
+    depend only on the preceding byte. A one-block local encoder with windowed attention produces byte states; their
+    mean per patch, mapped to width 384, is the patch embedding. The global transformer (8 blocks) reads a start vector
+    followed by the embeddings of patches 0..n−2, so its output at position s summarises the patches before s. Byte j
+    of patch s adds that output to the embedding of byte j − 1 and passes through a one-block local decoder.
+  algorithm_caption: Forward pass
+  algorithm:
+  - seg ← cumsum(start flags); h ← encoder(bytes)
+  - P ← W · segment_mean(h, seg); g ← global([bos, P_0, …, P_{n−2}])
+  - logits_j ← head(decoder(embed(byte_{j−1}) + U g_{seg_j}))
+- title: Design Rationale
+  paras:
+  - >-
+    Word boundaries are where the next byte is hardest to predict, so ending patches there spends global computation
+    where it matters, the anchor's argument for entropy patching in a rule that needs no extra model. Mean pooling
+    handles variable patch lengths without padding inside patches.
+- title: Scope and Limitations
+  paras:
+  - >-
+    Text without spaces (URLs, code, some scripts) produces long patches that one global step must summarise; letter
+    noise does not move patch boundaries, but deleted spaces merge words; and the model has not been run yet.
+references:
+- id: pagnoni2024blt
+  title: 'Byte Latent Transformer: Patches Scale Better Than Tokens'
+  authors: Artidoro Pagnoni et al.
+  year: 2024
+  venue: arXiv
+  arxiv: '2412.09871'
+  used_for: 'Anchor: dynamic patching in a local-global byte model'
+  code_location: 'model.py: SpacePatch'
+- id: slagle2024spacebyte
+  title: 'SpaceByte: Towards Deleting Tokenization from Large Language Modeling'
+  authors: Kevin Slagle
+  year: 2024
+  venue: NeurIPS
+  arxiv: '2404.14408'
+  used_for: Patches that end at space-like bytes
+  code_location: 'model.py: SpacePatch.segments'
+- id: yu2023megabyte
+  title: 'MEGABYTE: Predicting Million-byte Sequences with Multiscale Transformers'
+  authors: Lili Yu, Dániel Simig, Colin Flaherty, Armen Aghajanyan, Luke Zettlemoyer and Mike Lewis
+  year: 2023
+  venue: NeurIPS
+  arxiv: '2305.07185'
+  used_for: Local-global layout of the baseline
+  code_location: 'model.py: SpacePatch.forward'
+- id: xue2022byt5
+  title: 'ByT5: Towards a Token-Free Future with Pre-trained Byte-to-Byte Models'
+  authors: Linting Xue, Aditya Barua, Noah Constant, Rami Al-Rfou, Sharan Narang, Mihir Kale, Adam Roberts and Colin Raffel
+  year: 2022
+  venue: TACL
+  arxiv: '2105.13626'
+  used_for: Related work (byte-level models)
+  code_location: null
+- id: clark2022canine
+  title: 'CANINE: Pre-training an Efficient Tokenization-Free Encoder for Language Representation'
+  authors: Jonathan H. Clark, Dan Garrette, Iulia Turc and John Wieting
+  year: 2022
+  venue: TACL
+  arxiv: '2103.06874'
+  used_for: Related work (downsampled character models)
+  code_location: null
+changes:
+- text: Patches end after spaces, newlines and document boundaries instead of every 4 bytes.
+  code: 'model.py: SpacePatch.segments, SEPARATORS'
+- text: Patch embeddings are the mean of the patch's encoder states instead of the concatenation of 4 states.
+  code: 'model.py: SpacePatch.forward'
