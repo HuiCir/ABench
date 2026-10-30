@@ -1,0 +1,3 @@
+schema: abench.images_lock/v1
+# Populated only from pushed registry manifests; no unverified digests.
+images: {}

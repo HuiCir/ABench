@@ -11,7 +11,7 @@ hidden data and settings, scoring weights) never appears in the agent's view.
 | Task statement | `task.md` (copied from `case/agent/task.md`) | the source `spec/standard_cases/<ID>.yaml` or `spec/cases/<ID>.yaml` |
 | Interface | `interface/`: the files listed in `agent_visible.interface` of `oj.yaml` | other harness files (reference rules, etc.) |
 | Templates | `templates/report_template.html`, `templates/references_template.yaml` | `spec/report_profiles.yaml` |
-| Data | `data/`: `data.public` of `oj.yaml`, copied after sha256 verification | `data.hidden`: ciphertext `*.enc`; only the judge holds the key |
+| Data | `data/`: `data.public` of `oj.yaml`, copied or mounted read-only after sha256 verification | `data.hidden`: ciphertext `*.enc`; only the judge holds the key |
 | Evaluation | the rules as stated in task.md and the interface files (`stages.py`, `metrics.py`) | `oj.yaml` itself (seeds, judge configuration), the held-out data and their reference values |
 
 The agent view is built from an allowlist by `tools/sandbox_runner.py::build_agent_view`. After it is built it is scanned again with a regular expression,
@@ -39,10 +39,21 @@ submission:
   allowed_top_level: [README.md, model.py, src, checkpoint, report, references.yaml, manifest.yaml]
   max_bytes: 52428800
   report_profile: design_report_v2
+environment: {profile: cpu-sci, version: "2026.10"}
+resources:
+  budget_tier: budget
+  hardware: {reference: "8 CPU cores"}
+  wall_clock_limit_h: 4
+  leaderboard: all
+  gpus: 0
+  gpu_class: none
+  cpus: 8
+  memory: 16g
+  shm_size: 2g
 judge:
-  kind: tabular_classification   # or timed_train_classification, harness, or pending
-  n_classes: 2
-  metrics: [accuracy, roc_auc, log_loss]
+  kind: harness                # or pending
+  stages: harness/stages.py
+  metrics: harness/metrics.py
   timeout_sec: 300
   cpu_seconds: 300
   memory_mb: 4096
@@ -70,9 +81,10 @@ Implemented judge kinds:
 
 | Kind | Used by | What it does |
 |---|---|---|
-| `tabular_classification` | DS-GBM-001 (pipeline-validation micro case) | loads `model.py` + `checkpoint/` in a child process, predicts the hidden features, metrics in the parent |
-| `timed_train_classification` | IC-SPD-001 | trains from scratch per hidden seed with the case's own R/T/P timing harness, then predicts the test images |
-| `harness` | the 19 other standard cases | runs the case pipeline `harness/stages.py` through the shared stage protocol `harness/abench_stage.py` (copy of `tools/harness_kit/`), once per hidden seed (one seed for `mode: checkpoint` cases, which only load the submitted checkpoint and run inference; the seed is exported as `ABENCH_SEED`); held-out inputs appear in the run directory only after the timed phase; stages run in separate processes and only declared artifacts (`carry`) pass between them; `harness/metrics.py` computes metrics in the parent from the stage outputs and the reference values; an optional `judge.baseline` submission is run under identical conditions for relative metrics |
+| `harness` | all 73 cases, including IC-SPD-001 | runs `harness/stages.py` through shared stage protocol v1.2, once per stage and seed in a fresh container. Only declared carry artifacts cross stages; held-out inputs arrive after T, except IC-SPD-001, whose unlabeled test images are given before training as in its speedrun contract (P within 5 s of G, the predictions written within 3 s more). Host-side `metrics.py` computes metrics using labels and references held in memory. Existing baseline, bootstrap and gate semantics are preserved. |
+
+Legacy judge kinds are retained only as historical record values; current cases all use the shared harness. Resource declarations and versioned profiles are required; defaults and caps come from
+`spec/container_policy.yaml`. TC-FT-001 and DS-PIPE-002 declare `leaderboard: none`, other cases `all`.
 
 The standard reference cases (`standard: true` in `oj.yaml`) are generated from `spec/standard_cases/<ID>.yaml`; see
 `spec/standard_cases/README.md`.
@@ -90,8 +102,16 @@ The standard reference cases (`standard: true` in `oj.yaml`) are generated from 
 
 1. `validate_submission` checks the format (layout, self-reported metric files, report structure, reference consistency).
 2. Decrypt the hidden set into the judge's own temporary directory (700), verify `sha256_plain`, and split it into inputs and labels.
-3. Copy the submission to a temporary directory and start the prediction or training child with a minimal environment, disabled proxies, rlimits (CPU/memory), `setsid` and a timeout
-   (`tools/oj_predict_child.py` or the case's own runner). The child gets only the copy of the submission and the unlabeled inputs.
+3. Upload the submission, harness, public data and frozen models through safe tar transfers into read-only
+   named volumes. Start a fresh non-root judge container for each stage × seed, with no network, dropped
+   capabilities, no new privileges and case resource limits. R/T/G/P bytes use `docker start -ai` stdio;
+   submission stdout/stderr go to separate logs. Only after T does the parent upload unlabeled held-out inputs
+   into `post/` and send G. After P, download and validate outputs, then remove the container. Local selfchecks
+   use the same child protocol. Both parent and child timing intervals are retained.
+   Public/model content caches are shared across stages; run-local source-hash memoization checks metadata for
+   changes. Public files are validated against the frozen allowlist and uploaded without a temporary large-data
+   copy. Cache readiness is persistent under `ABENCH_CACHE_DIR` (default `~/.abench/cache`) and bound to the Docker
+   daemon/context and volume identity; missing metadata requires read-only content verification before reuse.
 4. The parent checks the output shape and finiteness, and computes metrics with the labels held in memory.
 5. Write `evaluation.json`: `provenance: judge_real`, `run_mode`, `scorable`, `judge_version`,
    `judge_isolation`, `submission_tree_sha256`, `verdict` (`evaluated` / `smoke_unscored` /
@@ -104,10 +124,22 @@ agent stage), `metrics`, `gates`. All temporary directories are deleted.
    examples (200 resamples, fixed seed; `abench_metrics.bootstrap_ci`), per run, and in the record the mean of the
    per-run bounds. Rankings treat differences inside the interval as ties; the tie rule is stated in each task
    statement that has one.
-7. **Environment.** In `run_mode: benchmark` the judge compares its child's interpreter and `ABENCH_JUDGE_PYTHONPATH`
-   with the lock of the case's profile (`spec/env/profiles.yaml`, `spec/env/lock/<profile>.json`, written inside the
-   profile image by `tools/record_environment.py`). A missing lock or any difference in Python, installed packages,
-   the torch build or the GPU model makes the record unscorable (`environment` in `evaluation.json`).
+7. **Environment.** Image digests must match the platform-specific published locks in
+   `spec/env/images.lock.yaml`, keyed `name@version`: a case runs the profile version its spec pins, so a newer
+   version of the profile never changes an older case's environment. Agent image versions add their CLI pin and
+   `-b<recipe>` packaging identity, covering Node and the harness packaging recipe. Build identities also track the
+   platform and actual parent image. Only needed profile × harness combinations are built; cases reuse their
+   environment images, and runtime task files do not require rebuilding. Persistent per-build locks and successful
+   environment checks prevent duplicate concurrent builds (`ABENCH_IMAGE_BUILD_CACHE`, normally
+   `~/.cache/abench/images`). These local cache records never substitute for published digest locks.
+   Dependency environments are recorded inside profile
+   images using `tools/record_environment.py` (`spec/env/lock/<profile>@<version>.json`). Changing a profile's
+   packages means a new version in `spec/env/profiles.yaml`; published versions are never rebuilt. Local
+   development images can validate the pipeline but are unscorable.
+   The host's `tools/` tree must match `ABENCH_JUDGE_TOOLS_SHA256`. The container path does not require
+   `ABENCH_JUDGE_PYTHONPATH`. Scoring also requires `linux/amd64` and the case's GPU count on idle cards (Pro: an
+   exclusive 4-GPU node). A GPU model other than the reference class does not affect scoring; it is recorded
+   (`judge_gpu_inventory`, `judge_gpu_class_matches`, `agent_hardware`) and reported.
 
 `run_mode: smoke` produces `smoke_unscored` directly once the submission format passes, without decrypting the hidden set or starting the judge;
 `metrics` is `null`; only `run_mode: benchmark` runs on the hidden set.
@@ -133,6 +165,13 @@ Evaluation starts only after the agent process ends and its working directory is
 
 - `agent_run.json`: `provenance` is `smoke_real` (`--smoke`) or `benchmark_real`, and it records `run_mode`,
   `isolation`, `prompt_sha256`, the names of passed environment variables, and kept and dropped files.
+- **CLI identity.** Before authentication and development-budget metering, pinned harnesses run an offline version
+  probe without model credentials. Missing, timed-out, unrecognized or mismatched versions reject setup.
+  `harness_version.json` records `requested_version`, `actual_version`, `verified`, status and log hashes, including
+  failures before `agent_run.json` exists. Successful runs also record `harness_cli_version` in the agent and sandbox
+  records and `run_config.requested_cli_version` / `actual_cli_version`. The existing `harness_version` stays the
+  release/source pin; ZCode's executable has its own `cli_version` pin. Formal runs require matching verified CLI
+  evidence; mock, oracle and command adapters have no pinned CLI probe.
 - Only `run_mode: benchmark` records can be scorable; a smoke run is recorded as `smoke_unscored` and never decrypts
   the hidden set.
 - **Result data files** in the submission whose names start with `metrics`, `result(s)`, `score(s)`, `evaluation` or `eval_result(s)`
@@ -142,43 +181,30 @@ Evaluation starts only after the agent process ends and its working directory is
 
 ## 6. Isolation levels
 
-The `isolation` field records the actual isolation of the run:
+`isolation` and `sandbox` record the actual agent environment. The Docker backend creates a uid-1000 container
+with no network, dropped capabilities, no new privileges, explicit limits and read-only input volumes. Research
+traffic uses the Unix socket of a separate egress sidecar. Docker inspect and in-container probes verify network,
+mounts and permissions. `open` networking is always unscorable. The host backend records `host_soft` and requires
+`--smoke`; it cannot establish filesystem or network isolation.
 
-- `host_soft`: the agent runs on the host as the same user as the operator. The view is read-only, environment variables are allowlisted and the prompt contains no judge-side material,
-  but at the file-system level the process may still read other parts of the repository (including ciphertexts and key files). **Suitable for smoke only.**
-- `wrapper:<id>`: wraps the agent via `--agent-wrapper` in isolation accepted by the allowlist in `spec/wrapper_policy.yaml`
-  (separate user or container, only the view and workspace mounted; network `egress` — research hosts only, through
-  the runner's logging proxy and enforced by a per-user firewall, `spec/egress_policy.yaml` — or `none`; `open` is
-  never scorable). Container images must be pinned with
-  `@sha256:<64-hex-digest>`; non-isolating prefixes such as `env`, `true` and `sh -c` are rejected.
-  Formal runs must use this level; `claude -p` may use `bypassPermissions` only under a wrapper.
+`judge_isolation: container` means each stage ran in a fresh verified judge container. Inputs and carry artifacts
+are transferred with bounded tar extraction that rejects links, devices and traversal. Held-out inputs arrive
+only after T; labels, references and keys stay in the host parent. `judge_isolation_detail` retains configuration
+and attestation evidence. `host_soft` judging is unscorable. Legacy `child_user_netns` records retain their
+historical meaning; the former sudo compatibility code was removed after the Linux rootless Docker milestones passed.
 
-`judge_isolation` records where the submission's code ran during judging (hidden labels always stay in the parent's
-memory; children get the copy of the submission and unlabeled inputs only):
+Transfer deadlines include blocking archive reads/writes and waiting for Docker. Cleanup is best effort per
+object and records successful `removed` objects, `failed` attempts and `remaining` IDs; cleanup counts are successful
+removals rather than attempted deletions. A separate `cleanup.json` preserves the final agent/sidecar cleanup
+outcome even when setup fails before `agent_run.json`. The original failure remains authoritative if cleanup also
+fails. Judge stage records retain their own cleanup evidence. Shared cache volumes are retained for reuse unless
+explicitly collected with `./abench gc --caches`.
 
-- `child_user_netns` / `child_user`: `ABENCH_JUDGE_CHILD_USER` is set (e.g. `abench-judge`, created with
-  `useradd --system --no-create-home`), the judge runs as root and starts every child through
-  `unshare --net -- setpriv --reuid U --regid G --clear-groups --` (without `unshare` if `ABENCH_JUDGE_CHILD_NETNS=0`).
-  Before anything is decrypted, a preflight as that user checks that the repository, `sandbox/hidden/`, the
-  ciphertext, the key and its directory are unreachable, the dependency path readable, the network unreachable and no
-  process of the user running (`judge_isolation_detail`). The child gets the judge's copies of the case harness,
-  public data and frozen models in the judge's temporary directory (mode 711, hard links where possible); held-out
-  inputs there are mode 600 and reach the child only through `post/` after the timed phase. The parent never follows
-  a symbolic link the child made (outputs, metadata, logs, carried files; `post/` is recreated by the parent), copies
-  the outputs out of the child's directory before reading them, and kills every process of the child user after
-  each stage. `timed_train_classification` (IC-SPD-001) has no child launcher yet and records `host_soft`.
-- `host_soft`: children run as the operator. In `run_mode: benchmark` this makes the record unscorable.
+The hidden key must be outside the repository, a regular non-symlink file with mode 0600. Generate it separately
+on each host with `tools/hidden_store.py keygen`. Neither its path nor its contents enter the agent environment.
+Only credential variable names enter records. Model URL/protocol/source are recorded in `model_endpoint`.
 
-`ABENCH_JUDGE_DEVICE` overrides the device of `oj.yaml` (calibration on a host without the reference GPU); the record
-gets `judge_device_override` and is not scorable.
-
-The prediction child's Python dependencies are marked trusted and scorable only when `ABENCH_JUDGE_PYTHONPATH` points to a frozen evaluation virtualenv and
-`ABENCH_JUDGE_TOOLS_SHA256` is set to the hash of the current `tools/` tree; when these variables are not set locally,
-the judge falls back to the operator's user-site for plumbing smoke runs, but records
-`judge_dependency.trusted: false`, so even an `evaluated` result is not scorable.
-
-The runner refuses benchmark runs without `--agent-wrapper`. In the wrapper command,
-`${ABENCH_VIEW_DIR}`, `${ABENCH_WORKSPACE}`, `${ABENCH_SUBMISSION_DIR}`,
-`${ABENCH_DATA_DIR}` and `${ABENCH_CHECKPOINT_DIR}` are expanded by the runner; a container wrapper
-must still mount these absolute paths itself and explicitly pass through the `ABENCH_*` variables it needs. The hidden key must be outside the repository,
-not a symlink, with permissions `0600`; the key path never enters the agent view.
+`agent_run.json` adds `sandbox`, `model_endpoint`, `run_config` and `catalog`; existing field names remain valid.
+The catalog snapshot fixes difficulty, resource class, area, subset, task type and leaderboard membership for
+later reports. The default `all` suite includes Pro and entry-level groups; pipeline-calibration cases do not
+enter scored summaries. `ABENCH_JUDGE_DEVICE` overrides remain recorded and unscorable.

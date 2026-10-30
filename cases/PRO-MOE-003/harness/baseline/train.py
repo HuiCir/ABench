@@ -1,4 +1,4 @@
-"""Reference recipe for PRO-MOE-003 (DeepSeekMoE-style fine-grained experts with a balance loss).
+"""Public training baseline for PRO-MOE-003 (DeepSeekMoE-style fine-grained experts with a balance loss).
 
 Launch (registered with the supervisor, from this directory):
   python3 pro_audit.py run --name moe --code . -- torchrun --standalone --nproc_per_node=4 train.py

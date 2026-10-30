@@ -1,0 +1,9 @@
+{"type":"system","subtype":"init","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","model":"fake-model"}
+{"type":"system","subtype":"api_retry","attempt":1,"max_retries":10,"retry_delay_ms":570,"error_status":500,"error":"server_error","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","uuid":"c446f476-d596-4886-83b8-d1c087788606"}
+{"type":"system","subtype":"api_retry","attempt":2,"max_retries":10,"retry_delay_ms":1065,"error_status":500,"error":"server_error","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","uuid":"737df2af-2464-4191-b8aa-19b753457ea2"}
+{"type":"system","subtype":"api_retry","attempt":3,"max_retries":10,"retry_delay_ms":2303,"error_status":500,"error":"server_error","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","uuid":"94065315-89c7-4615-9545-7e7961a7dfa5"}
+{"type":"system","subtype":"api_retry","attempt":4,"max_retries":10,"retry_delay_ms":4028,"error_status":500,"error":"server_error","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","uuid":"7eedbf6d-876f-444a-a63e-e0a18a4ab2df"}
+{"type":"system","subtype":"api_retry","attempt":5,"max_retries":10,"retry_delay_ms":9160,"error_status":500,"error":"server_error","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","uuid":"7458d3d1-21f8-4858-b4a0-4decf549ad10"}
+{"type":"system","subtype":"api_retry","attempt":6,"max_retries":10,"retry_delay_ms":17405,"error_status":500,"error":"server_error","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","uuid":"b35fea47-b848-47c0-9ce2-77f69eaa3ec1"}
+{"type":"system","subtype":"api_retry","attempt":7,"max_retries":10,"retry_delay_ms":32545,"error_status":500,"error":"server_error","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","uuid":"436a2356-7885-496a-a618-33f1ee115081"}
+{"type":"system","subtype":"api_retry","attempt":8,"max_retries":10,"retry_delay_ms":37932,"error_status":500,"error":"server_error","session_id":"b33c8954-33ab-42c8-a0a8-0daa928c9462","uuid":"6e56e07e-7803-4517-80c7-ac2c4f251673"}

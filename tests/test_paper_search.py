@@ -100,7 +100,7 @@ class PaperSearch(unittest.TestCase):
         cmd = ('sh -c \'python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" search "associative recall" >/dev/null; '
                'python3 "$ABENCH_VIEW_DIR/tools/abench_papers.py" show 2101.00001 >/dev/null\'')
         r = subprocess.run([sys.executable, str(ROOT / "tools" / "sandbox_runner.py"), "--case", "A-LIN-002",
-                            "--harness", "command", "--command", cmd, "--smoke", "--papers-index", str(self.index),
+                            "--harness", "command", "--command", cmd, "--backend", "host", "--smoke", "--papers-index", str(self.index),
                             "--result-root", str(res), "--run-id", "papers-test", "--timeout-seconds", "60"],
                            capture_output=True, text=True, env={k: v for k, v in os.environ.items()
                                                                 if not k.startswith("ABENCH_")})

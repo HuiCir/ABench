@@ -114,3 +114,18 @@ oj:
     reference_hardware: "one node with 4 × H100 80GB SXM (NVLink); driver, CUDA, NCCL and torch versions frozen at activation"
     seeds: [0, 1]
     code_audit: "the operator inspects serve.py for cached answers or special handling of the load generator"
+
+environment:
+  profile: pro-h100
+  version: '2026.10'
+resources:
+  budget_tier: pro
+  hardware:
+    reference: 4 x H100 80GB SXM with NVLink
+  wall_clock_limit_h: 24.0
+  leaderboard: all
+  gpus: 4
+  gpu_class: h100
+  cpus: 32
+  memory: 128g
+  shm_size: 16g

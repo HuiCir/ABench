@@ -38,7 +38,8 @@ def sections(md: str) -> dict[str, str]:
 def check_case(cid: str) -> dict:
     case = ROOT / "cases" / cid / "case"
     oj = yaml.safe_load((case / "oj.yaml").read_text(encoding="utf-8")) or {}
-    task_path = case / "agent" / "task.md"
+    vis = oj.get("agent_visible") or {}
+    task_path = case.parent / vis.get("task", "case/agent/task.md")
     md = task_path.read_text(encoding="utf-8") if task_path.is_file() else ""
     sec = sections(md)
     issues: list[str] = []
@@ -82,13 +83,17 @@ def check_case(cid: str) -> dict:
         req = (oj.get("submission") or {}).get("required_files") or []
         if oj.get("standard") and "train.py" not in req:
             issues.append("checkpoint submission without required train.py (the program that produced the checkpoint)")
-    vis = oj.get("agent_visible") or {}
     iface = vis.get("interface") or []
     if not iface:
         issues.append("oj.yaml: no agent-visible interface files")
     for rel in iface:
-        if not (ROOT / "cases" / cid / rel).is_file():
+        source = case.parent / rel
+        if not source.is_file():
             issues.append(f"interface file does not exist: {rel}")
+            continue
+        hits = leaky(source.read_text(encoding="utf-8", errors="replace"), leak_allow(oj))
+        if hits:
+            issues.append(f"interface contains disallowed judge-side terms: {rel}: {hits}")
     if oj.get("task_statement") != "v2.1":
         issues.append("oj.yaml: task_statement: v2.1 not declared")
     judge = oj.get("judge") or {}

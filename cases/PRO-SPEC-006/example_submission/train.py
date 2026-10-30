@@ -1,4 +1,4 @@
-"""Reference recipe for PRO-SPEC-006: an EAGLE-3 draft for Qwen3-8B (Li et al. 2025).
+"""Public training baseline for PRO-SPEC-006: an EAGLE-3 draft for Qwen3-8B (Li et al. 2025).
 
 Launch (registered with the supervisor, from this directory):
   python3 pro_audit.py run --name eagle3 --code . -- python3 train.py

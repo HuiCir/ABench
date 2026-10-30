@@ -8,6 +8,7 @@ mode: checkpoint
 n_seeds: 1
 show_baseline: true
 extra_interface: [harness/legaltasks.py]
+leak_allow: [scoring]  # Public label normalization and label selection, shared with development.
 task: |
   Design a **pipeline around a frozen Qwen2.5-1.5B-Instruct** — prompt construction, retrieval of rules or examples, decomposition into sub-questions, calibration of label choices, ensembling, small trained components — that gives the **highest mean balanced accuracy** on **LegalBench** classification tasks: twenty tasks you can develop on, scored on new rows, and fifteen tasks you never see, given only at evaluation with their instructions, labels and a few examples.
 
@@ -130,3 +131,18 @@ oj:
     reference_gpu: "RTX 4090-class 24GB (model, driver, CUDA, torch and transformers versions frozen at activation)"
     seeds: [2308]
     code_audit: "the operator checks that predict() does not branch on task names and keeps no state between calls"
+
+environment:
+  profile: gpu-torch-hf
+  version: '2026.10'
+resources:
+  budget_tier: budget
+  hardware:
+    reference: RTX 4090 24GB
+  wall_clock_limit_h: 5
+  leaderboard: all
+  gpus: 1
+  gpu_class: reference24
+  cpus: 8
+  memory: 32g
+  shm_size: 2g

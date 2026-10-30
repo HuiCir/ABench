@@ -1,6 +1,6 @@
 """Leak check of agent-visible text: judge-side terms that must not appear in a task statement or interface file.
 
-Used by tools/validate_task_statement.py (statements) and tools/sandbox_runner.py (every file copied into the agent
+Used by tools/validate_task_statement.py (statements and interfaces) and tools/sandbox_runner.py (every file copied into the agent
 view, checked again at run time). A case may allow the evaluation-rule terms it has to state (metrics, thresholds,
 held-out data) through agent_visible.leak_allow in case/oj.yaml; the NEVER_ALLOW terms are never exempt.
 """
@@ -21,19 +21,6 @@ LEAK_TERMS = [
 # The terms below are never exempt: they point to reference methods and their results, scoring coefficients and judge-side files.
 NEVER_ALLOW = {"reference method", "reference recipe", "reference pool", "reference envelope", "envelope", "noise floor", "precomputed", "reference_pool",
                "anti_gaming", "scoring_config", "metric_registry", "eval_protocol", "overall score", "probe", "fidelity"}
-
-
-def leaky(text: str, allow=()) -> list[str]:
-    """Judge-side terms found in text (case-insensitive substring match), minus the case's leak_allow."""
-    ok = {a.lower() for a in (allow or ())} - NEVER_ALLOW
-    # paper titles in the anchor line (e.g. "Pitfalls of Graph Neural Network Evaluation") are not judge-side content
-    text = re.sub(r"(?m)^(?:Anchor: .*|# [A-Z]+-[A-Z0-9]+-\d{3}: .*)$", "", text)
-    low = text.lower()
-    return [t for t in LEAK_TERMS if t in low and t not in ok]
-
-
-def leak_allow(oj) -> list[str]:
-    return list((((oj or {}).get("agent_visible") or {}).get("leak_allow")) or [])
 
 
 def leaky(text: str, allow=()) -> list[str]:

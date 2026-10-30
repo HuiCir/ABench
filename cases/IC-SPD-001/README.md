@@ -17,3 +17,7 @@ CIFAR-10 in 3.29 Seconds on a Single GPU* (arXiv:2404.00498).
 - `harness/` — agent-visible interface: `interface.md`, `gpu_sandbox.md`, `speedrun_harness.py` (the timed child),
   `speedrun_runner.py` (the timing parent, shared by the evaluator and the self-check) and `selfcheck.py`.
 - `example_submission/` — reference submission (`method.py`, `report/index.html`, `references.yaml`).
+
+The stable authored OJ contract is `spec/handcrafted/IC-SPD-001.yaml`; regenerate its contract and shared protocol
+helpers with `python3 tools/build_standard_cases.py --case IC-SPD-001`. Task, interface and selfcheck filenames
+remain unchanged. Frozen data hashes are kept in `case/data_lock.yaml`, outside the versioned suite identity.

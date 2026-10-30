@@ -5,6 +5,7 @@
 /sandbox/models/
 *.key
 *.enc
+/.env
 /_to_delete/
 # caches
 __pycache__/
@@ -12,3 +13,6 @@ __pycache__/
 .ruff_cache/
 .DS_Store
 .pytest_cache/
+
+# durable local job manifests and logs
+/jobs/

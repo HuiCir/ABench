@@ -32,6 +32,20 @@ agent_visible:
 agent_budget:
   h100_hours: 96.0
   session_hours: 24.0
+environment:
+  profile: pro-h100
+  version: '2026.10'
+resources:
+  budget_tier: pro
+  hardware:
+    reference: 4 x H100 80GB SXM with NVLink
+  wall_clock_limit_h: 24.0
+  leaderboard: all
+  gpus: 4
+  gpu_class: h100
+  cpus: 32
+  memory: 128g
+  shm_size: 16g
 data:
   public_dir: sandbox/data/PRO-ARL-001
   public:

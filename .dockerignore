@@ -1,0 +1,14 @@
+.git
+runs
+jobs
+sandbox/data
+sandbox/hidden
+sandbox/models
+sandbox/judge_models
+**/__pycache__
+**/node_modules
+**/.venv
+**/*.pyc
+**/*.key
+**/*.enc
+.env

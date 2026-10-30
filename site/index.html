@@ -102,10 +102,10 @@
       <article class="panel"><h3>Run modes and isolation</h3>
         <table class="mini"><thead><tr><th>Run</th><th>Isolation</th><th>Result</th></tr></thead><tbody>
           <tr><td><span class="tag plain">smoke</span></td><td>host_soft: same system user, read-only view, environment-variable allowlist</td><td>Checks only process and format, never decrypts the hidden set, recorded as <span class="mono">smoke_unscored</span>, unscored</td></tr>
-          <tr><td><span class="tag">benchmark</span></td><td>dedicated user <span class="mono">abench-agent</span>, research egress (logging proxy + per-user firewall), or no network (netns / container); preflight proves the repository, hidden set and key are unreadable</td><td>The judge runs with its children as <span class="mono">abench-judge</span> in a network namespace; only such records can be scored</td></tr>
-          <tr><td><span class="tag red">benchmark</span></td><td>no wrapper, unrestricted network, or judge children as the operator</td><td>Refused to start, or recorded as not scorable</td></tr>
+          <tr><td><span class="tag">benchmark</span></td><td>non-root Docker container with no network; research egress passes through a Unix socket to a logging sidecar; inspect and runtime probes verify isolation</td><td>Each judge stage runs in a fresh non-root container; labels and the key stay in the host parent. Scoring also requires locked images and reference hardware</td></tr>
+          <tr><td><span class="tag red">benchmark</span></td><td>host backend, unrestricted network, unlocked images, or nonreference hardware</td><td>Refused to start, or recorded as not scorable</td></tr>
         </tbody></table>
-        <p class="panel-note">The key must be outside the repository, with permissions 0600, not a symlink, and never in the agent's environment variables. At the deadline the agent's process group is killed; leftover processes and temporary files of the agent user are removed and recorded.</p>
+        <p class="panel-note">The key must be outside the repository, with permissions 0600, not a symlink, and never in the agent's environment variables. At the deadline the agent container is killed; objects created by the run are removed by their run label. No sudo is needed.</p>
       </article>
     </div>
     <div class="oj-grid">

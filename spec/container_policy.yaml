@@ -1,0 +1,11 @@
+schema: abench.container_policy/v1
+user: '1000:1000'
+limits: {cpus: 64, memory: 512g, shm_size: 128g, pids: 8192, gpus: 4}
+defaults:
+  cpu-sci: {cpus: 8, memory: 16g, shm_size: 1g, pids: 1024, gpus: 0}
+  gpu-torch: {cpus: 8, memory: 32g, shm_size: 8g, pids: 2048, gpus: 1}
+  gpu-torch-hf: {cpus: 8, memory: 32g, shm_size: 8g, pids: 2048, gpus: 1}
+  gpu-torch-diffusion: {cpus: 8, memory: 32g, shm_size: 8g, pids: 2048, gpus: 1}
+  gpu-torch-sim: {cpus: 8, memory: 32g, shm_size: 8g, pids: 2048, gpus: 1}
+  gpu-torch-cuda-dev: {cpus: 8, memory: 32g, shm_size: 8g, pids: 2048, gpus: 1}
+  pro-h100: {cpus: 64, memory: 512g, shm_size: 128g, pids: 8192, gpus: 4}

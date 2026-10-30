@@ -108,3 +108,18 @@ oj:
     reference_gpu: "RTX 4090-class 24GB (driver, CUDA and torch versions frozen at activation)"
     seeds: [1809]
     baseline: harness/baselines/unet
+
+environment:
+  profile: gpu-torch
+  version: '2026.10'
+resources:
+  budget_tier: budget
+  hardware:
+    reference: RTX 4090 24GB
+  wall_clock_limit_h: 10
+  leaderboard: all
+  gpus: 1
+  gpu_class: reference24
+  cpus: 8
+  memory: 32g
+  shm_size: 2g

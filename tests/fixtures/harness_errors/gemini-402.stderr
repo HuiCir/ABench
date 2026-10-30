@@ -1,0 +1,1 @@
+Error when talking to Gemini API Full report available at: /tmp/tmp1f7w7zvk/tmp/gemini-client-error-Turn.run-sendMessageStream-2026-10-29T05-27-55-837Z.json _ApiError: {"error":{"code":402,"message":"Insufficient Balance (fake).","status":"FAILED_PRECONDITION"}}

@@ -1,0 +1,68 @@
+schema: abench.images/v1
+# Profile image versions come from spec/env/profiles.yaml; agent images add their pinned CLI version
+# (e.g. agent-claude-gpu-torch:2026.10-claude2.1.312). Published digests: images.lock.yaml, keyed name@version.
+namespace: ghcr.io/huicir/abench
+# Node.js runtime copied into every agent image (DSH and ZCode need Node 24).
+node: 24.14.0
+# Harness CLIs, one agent image per harness and profile. Adapters (tools/agents) read their version from here.
+harnesses:
+  claude:
+    version: 2.1.312
+    npm: '@anthropic-ai/claude-code'
+    env: {DISABLE_AUTOUPDATER: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'}
+  codex:
+    version: 0.165.0
+    npm: '@openai/codex'
+  gemini:
+    version: 0.66.0
+    npm: '@google/gemini-cli'
+  dsh:
+    version: 0.2.1-rc.2
+    npm: '@deepseek-ai/dsh'
+    env: {DSH_TELEMETRY_MODE: DISABLED}
+  zcode:
+    # not published on npm: built from the tagged source; `zcode --version` reports the CLI package version
+    version: 3.15.1
+    cli_version: 0.16.9
+    source:
+      repository: https://github.com/zai-org/ZCode
+      tag: v3.15.1
+      commit: aac4755666d09fdcd70272fcf063c077a639015f
+      pnpm: 10.33.2
+images:
+  cpu-sci:
+    name: cpu-sci
+    platforms:
+    - linux/amd64
+    - linux/arm64
+  gpu-torch:
+    name: gpu-torch
+    platforms:
+    - linux/amd64
+  gpu-torch-hf:
+    name: gpu-torch-hf
+    platforms:
+    - linux/amd64
+  gpu-torch-diffusion:
+    name: gpu-torch-diffusion
+    platforms:
+    - linux/amd64
+  gpu-torch-sim:
+    name: gpu-torch-sim
+    platforms:
+    - linux/amd64
+  gpu-torch-cuda-dev:
+    name: gpu-torch-cuda-dev
+    platforms:
+    - linux/amd64
+  pro-h100:
+    name: pro-h100
+    platforms:
+    - linux/amd64
+  egress:
+    name: egress
+    version: '2026.10'
+    source: python:3.11.13-slim-bookworm
+    platforms:
+    - linux/amd64
+    - linux/arm64

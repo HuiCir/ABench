@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 import yaml
+from catalog import load_catalog, snapshot, distribution
 
 ROOT = Path(__file__).resolve().parents[1]
 CASE = ROOT / "cases" / "B-OPT-001"
@@ -174,6 +175,8 @@ def registry() -> dict:
 def main():
     index = yaml.safe_load((ROOT / "index.yaml").read_text(encoding="utf-8"))
     reg = registry()
+    catalog = load_catalog(ROOT)
+    catalog_by = {row["id"]: row for row in catalog}
 
     # Keep the browser view honest about scaffold readiness.  The index status
     # describes the repository artifact (all current entries are ``scaffold``),
@@ -189,6 +192,9 @@ def main():
             item["anchor_status"] = (card or {}).get("status")
             item["oj"] = oj_summary(str(cid))
             item["registry"] = reg.get(str(cid), {})
+            item["catalog"] = snapshot(catalog_by[str(cid)])
+            item["difficulty"] = catalog_by[str(cid)]["difficulty"]
+            item["budget"] = catalog_by[str(cid)]["resource_tier"]
 
     # ---- paper snapshot (hero citation graph)
     snap = jl(CASE / "case/paper_snapshot/seed_neighborhood.jsonl") + jl(CASE / "case/paper_snapshot/resolver_cache.jsonl")
@@ -269,9 +275,12 @@ def main():
     data = {
         "_note": "Only the training losses and judge outputs in the historical demo of B-OPT-001 are simulated; no results were generated for the new cases, and formal scoring must use a real runner",
         "index": index,
+        "catalog_filters": {key: sorted({str(row[key]) for row in catalog})
+                            for key in ("difficulty", "resource_tier", "area", "group", "type", "subset")},
+        "catalog_distribution": distribution(catalog),
         "standard": standard_cases(index),
         "areas": yaml.safe_load((ROOT / "spec" / "areas.yaml").read_text(encoding="utf-8"))["areas"],
-        "launch": {"case": "TC-FT-001", "script": "sandbox/run_local_claude_tc_ft_001.sh",
+        "launch": {"case": "TC-FT-001", "script": "./abench doctor; ./abench images pull; ./abench calibrate TC-FT-001; ./abench run --case TC-FT-001 --agent mock",
                    "steps": ["preflight", "key", "data", "mock", "agent", "judge"],
                    "verified": "all six steps run in a cloud container with synthetic data and a stub claude CLI (2026-10-20); "
                                "the runner and judge path calibrated end to end on 2026-10-23 (see Calibration runs)",
@@ -286,9 +295,9 @@ def main():
                 {"case": "FN-LTSF-005", "data": "real ETT + electricity",
                  "primary": "MSE ratio 0.999 [0.993, 1.007]", "agent": "train.py --final 4.7 min"},
             ],
-            "note": ("Code-only OJ calibration (sandbox/calibration/calibrate.sh): the case's reference submission is trained with "
-                     "its own train.py and judged by tools/oj_eval.py on the held-out split, with the submission's code "
-                     "running as abench-judge in a network namespace; no agent is involved. The record gives the base score "
+            "note": ("OJ calibration (./abench calibrate CASE): the oracle adapter trains the reference submission with "
+                     "its own train.py in a container and tools/oj_eval.py judges the held-out split in fresh stage containers. "
+                     "The historical numbers above predate the Docker migration. The record gives the base score "
                      "of the case and its interval. Calibration runs are never scorable (synthetic data, or a case awaiting "
                      "its data freeze)."),
         },

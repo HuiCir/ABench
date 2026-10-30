@@ -1,0 +1,27 @@
+{
+  "schema": "abench.env_lock/v1",
+  "profile": "cpu-sci",
+  "software": {
+    "python": "3.11.13",
+    "implementation": "CPython",
+    "distributions": {
+      "joblib": "1.5.1",
+      "numpy": "2.2.6",
+      "pip": "24.0",
+      "pyyaml": "6.0.2",
+      "scikit-learn": "1.6.1",
+      "scipy": "1.15.3",
+      "setuptools": "65.5.1",
+      "threadpoolctl": "3.6.0",
+      "wheel": "0.45.1"
+    },
+    "torch": null
+  },
+  "software_sha256": "acb97249906c1c01bf09325310d04242d240b26d6d4eed5883b545a215cf8fbd",
+  "hardware": {
+    "gpus": [],
+    "cpu": "aarch64",
+    "machine": "aarch64",
+    "system": "Linux"
+  }
+}

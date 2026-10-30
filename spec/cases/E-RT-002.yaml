@@ -138,3 +138,18 @@ oj:
     reference_gpu: "RTX 4090-class 24GB with 8 CPU cores (driver, CUDA, torch, MuJoCo and robosuite versions frozen at activation)"
     seeds: [7]
     code_audit: "the operator checks that planner and controller share no channel besides the episode loop and that nothing in the checkpoint is a table of states or trajectories"
+
+environment:
+  profile: gpu-torch-sim
+  version: '2026.10'
+resources:
+  budget_tier: budget
+  hardware:
+    reference: RTX 4090 24GB
+  wall_clock_limit_h: 10
+  leaderboard: all
+  gpus: 1
+  gpu_class: reference24
+  cpus: 8
+  memory: 32g
+  shm_size: 2g

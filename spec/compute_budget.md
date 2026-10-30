@@ -12,7 +12,7 @@ If any of these terms keeps the paper's original scale (full data, original mode
 
 ## 2. Reference hardware and budget caps
 
-**Budget reference card**: one GPU with 24GB of memory (RTX 4090 class). Every Budget case must be completable on this card; wall-clock metrics (step time, speedup, latency) are always measured on the reference card. `budget_tier: pro` is an explicit exception that can enter only the separate leaderboard of `spec/pro_set.md`; the runner must not interpret it as "24GB by default, switched conditionally". This also unifies the two earlier conflicting rules of "24GB admission" and "H100 evaluation".
+**Budget reference card**: one GPU with 24GB of memory (RTX 4090 class). Every Budget case must be completable on this card, and budgets and wall-clock metrics (step time, speedup, latency) are defined on it. Runs on another GPU model, for Budget and for Pro (still an exclusive 4-GPU node), are scored; the GPU model of the agent and the judge is recorded and reported next to the result, so results from different cards can be told apart. `budget_tier: pro` is an explicit exception that is included in the default `all` suite and reported separately by resource class (`spec/pro_set.md`); the runner must not interpret it as "24GB by default, switched conditionally". This also unifies the two earlier conflicting rules of "24GB admission" and "H100 evaluation".
 
 Machine-readable protocols must write the two resource classes as separate fields: `budget_tier: budget|pro`, `hardware.reference`, `wall_clock_limit_h` and `leaderboard` must appear together; if any is missing, preflight must refuse to start rather than infer the hardware from strings or environment variables.
 
@@ -22,7 +22,7 @@ Machine-readable protocols must write the two resource classes as separate field
 | medium | ≤ 4 GPU-h | ≤ 2 GPU-h | ≤ 30 GPU-h |
 | high | ≤ 8 GPU-h | ≤ 6 GPU-h | ≤ 80 GPU-h |
 
-high is the hard cap of the Budget edition; there is no higher tier. A case that does not fit in high has only three options: change the proxy or postpone it to v2 (judgment tasks, T7, were retired on 2026-10-22); tasks that are genuinely industrial essentials go into the separately ranked Pro Set (resource tier pro, see `pro_set.md`).
+high is the hard cap of the Budget edition; there is no higher tier. A case that does not fit in high has only three options: change the proxy or postpone it to v2 (judgment tasks, T7, were retired on 2026-10-22); tasks that are genuinely industrial essentials go into the Pro resource group in the all suite (resource tier pro, see `pro_set.md`).
 
 **Difficulty level** is independent of the resource tier:
 
