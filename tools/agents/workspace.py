@@ -228,25 +228,6 @@ def resource_limits(oj: dict, sandbox: dict, timeout_seconds: float) -> dict:
                      for g in sandbox.get('gpu_inventory') or []]}
 
 
-def resource_prompt(resources: dict) -> str:
-    """Make the actual allocation explicit; host-wide memory/core counts are not a sandbox budget."""
-    return """
-Actual allocation for this session
-- The resource JSON below describes this run. Task hardware descriptions name the reference hardware.
-- CPU quota, RAM, /dev/shm and PID limits apply to ALL your processes combined, including the agent itself.
-  /proc/meminfo, free, os.cpu_count() and nproc may report the host, not your container's allocation.
-- Budget parallel experiments together; leave RAM headroom for sparse-matrix copies, data loaders and compilation.
-  /dev/shm is part of RAM, not additional RAM. Inspect /sys/fs/cgroup/memory.current, memory.max and memory.events
-  (oom_kill) and cpu.max when diagnosing resource use. A killed child may indicate RAM exhaustion without a traceback.
-- GPU memory is separate from RAM. Reported GPU free memory is a startup observation, not a reservation or a VRAM cap;
-  shared-GPU availability can change. Recheck it before allocating large models.
-  Recorded GPU indices are host identifiers; enumerate the container's visible CUDA devices before choosing an index.
-- session_seconds is the wall-clock cap; development_budget is the separate compute allowance.
-  ABENCH_DEADLINE gives the absolute deadline. If enforced is false, the listed requested limits are not verified caps.
-- The same JSON is available at $ABENCH_RESOURCE_LIMITS.
-""" + json.dumps(resources, ensure_ascii=False, indent=2) + "\n"
-
-
 def agent_prompt(paths: dict[str, Path], network: str = "none") -> str:
     view = paths["view"]
     task = (view / "task.md").read_text(encoding="utf-8")

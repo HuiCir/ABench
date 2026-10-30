@@ -15,7 +15,7 @@ import uuid
 import yaml
 from agents import get_agent
 from agents.models import resolve
-from agents.workspace import resource_limits, resource_prompt
+from agents.workspace import resource_limits
 from runtime.agent import DockerAgentEnvironment, HostSoftEnvironment
 from runtime.cleanup import shielded
 
@@ -212,13 +212,11 @@ def run(args):
                 prompt = prompt.replace(str(paths[name]),str(runpaths[name]))
         if args.smoke:
             prompt += '\nThis is an unscored smoke run: prioritize a complete baseline submission, self-check, report and references within the deadline before further experiments.\n'
-        def build_launch(prompt):
-            launch = adapter.launch(args,runpaths,prompt,endpoint)
-            if args.backend == 'host':
-                launch.argv[:] = [str(control/x.removeprefix('/abench/control/')) if x.startswith('/abench/control/') else x for x in launch.argv]
-            # A harness that takes the prompt as an argument (zcode) records its hash, not the text, among the argv.
-            return launch, ['<prompt sha256:'+s.sha256_bytes(prompt.encode())+'>' if x == prompt else x for x in launch.argv]
-        launch, recorded_argv = build_launch(prompt)
+        launch = adapter.launch(args,runpaths,prompt,endpoint)
+        if args.backend == 'host':
+            launch.argv[:] = [str(control/x.removeprefix('/abench/control/')) if x.startswith('/abench/control/') else x for x in launch.argv]
+        # A harness that takes the prompt as an argument (zcode) records its hash, not the text, among the argv.
+        recorded_argv = ['<prompt sha256:'+s.sha256_bytes(prompt.encode())+'>' if x == prompt else x for x in launch.argv]
         catalog = snapshot(next(r for r in load_catalog() if r['id'] == args.case))
         run_config = {'case':args.case,'harness':args.harness,'harness_version':adapter.version,
                       'requested_cli_version':adapter.requested_cli_version,'actual_cli_version':None,
@@ -252,15 +250,10 @@ def run(args):
         sandbox['shared_gpu_validation'] = shared_gpu
         sandbox['gpu_inventory'] = selected_gpus
         sandbox['image_attestation'] = attestation
+        # Recorded for the operator only; the agent's prompt and environment stay as on main.
         allocation = resource_limits(oj, sandbox, args.timeout_seconds)
-        prompt += resource_prompt(allocation)
-        # Rebuild the launch after Docker has verified its actual limits, so stdin/argv prompts agree.
-        launch, recorded_argv = build_launch(prompt)
-        resource_json = json.dumps(allocation,ensure_ascii=False,indent=2) + '\n'
-        launch.files['.abench-resource-limits.json'] = resource_json
-        env['ABENCH_RESOURCE_LIMITS'] = str(runpaths['home'] / '.abench-resource-limits.json')
         run_config['resource_limits'] = allocation
-        (result/'resource_limits.json').write_text(resource_json)
+        (result/'resource_limits.json').write_text(json.dumps(allocation,ensure_ascii=False,indent=2) + '\n')
         net = {'mode':args.network,'policy':pol}
         if pol:
             net.update(policy_version=pol['policy_version'],policy_sha256=pol['policy_sha256'],

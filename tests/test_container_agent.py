@@ -97,21 +97,19 @@ open('/abench/workspace/submission/result.txt','w').write('blocked')
         from judge_container import DockerStageLauncher
         from agents.workspace import resource_limits
         record = self.start()
-        limits = resource_limits(self.oj, record, 10)
-        self.environment.write_files({'resources.json': json.dumps(limits)})
-        code = """import pathlib,subprocess,sys,os,json
-limits=json.loads(pathlib.Path(os.environ['ABENCH_RESOURCE_LIMITS']).read_text())
-assert limits['limits']['memory_bytes']==int(pathlib.Path('/sys/fs/cgroup/memory.max').read_text())
+        limits = resource_limits(self.oj, record, 10)['limits']
+        # The recorded limits are the ones the container's cgroup enforces.
+        code = f"""import pathlib,subprocess,sys
+assert {limits['memory_bytes']}==int(pathlib.Path('/sys/fs/cgroup/memory.max').read_text())
 quota,period=map(int,pathlib.Path('/sys/fs/cgroup/cpu.max').read_text().split())
-assert limits['limits']['cpu_cores']==quota/period
+assert {limits['cpu_cores']}==quota/period
 pathlib.Path('/abench/workspace/task-only.txt').write_text('private scratch')
 pathlib.Path('/tmp/task-only.txt').write_text('private temporary file')
 pathlib.Path('/abench/workspace/submission/answer.txt').write_text('42')
 subprocess.Popen([sys.executable,'-c','import time; time.sleep(300)'], start_new_session=True,
                  stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 """
-        self.assertEqual(self.execute(code,env={'TASK_ONLY_ENV':'private',
-            'ABENCH_RESOURCE_LIMITS':'/abench/workspace/.home/resources.json'})[0], 'succeeded')
+        self.assertEqual(self.execute(code,env={'TASK_ONLY_ENV':'private'})[0], 'succeeded')
         collected = self.environment.collect()
         self.assertFalse(self.environment.docker.inspect(self.environment.cid)['State']['Running'])
         self.environment.close()

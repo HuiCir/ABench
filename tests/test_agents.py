@@ -14,11 +14,11 @@ sys.path.insert(0, str(ROOT / 'tools'))
 from agents import get_agent
 from agents.models import resolve
 from egress_proxy import EgressProxy, decide, policy_for_case, summarize_log
-from agents.workspace import resource_limits, resource_prompt
+from agents.workspace import resource_limits
 
 
 class ResourceInputTest(unittest.TestCase):
-    def test_verified_container_limits_and_shortened_deadline_reach_the_prompt(self):
+    def test_verified_container_limits_and_shortened_deadline_are_recorded(self):
         import yaml
         oj = yaml.safe_load((ROOT / 'cases/TC-FT-001/case/oj.yaml').read_text())
         sandbox = {'backend': 'docker', 'resources_enforced': True, 'resources': oj['resources'],
@@ -31,10 +31,6 @@ class ResourceInputTest(unittest.TestCase):
         self.assertEqual(info['limits']['cpu_cores'], 8)
         self.assertEqual(info['session_seconds'], 1800)
         self.assertEqual(info['development_budget'], oj['agent_budget'])
-        prompt = resource_prompt(info)
-        self.assertIn('17179869184', prompt)
-        self.assertIn('ALL your processes combined', prompt)
-        self.assertIn('/proc/meminfo', prompt)
         sandbox['resources_enforced'] = False
         info = resource_limits(oj, sandbox, 1800)
         self.assertIsNone(info['limits']['memory_bytes'])
