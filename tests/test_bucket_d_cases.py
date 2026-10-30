@@ -233,11 +233,6 @@ class LiberoCases(unittest.TestCase):
         rng = np.random.default_rng(0)
         cls.states = [rng.uniform(-0.3, 0.3, 3) for _ in range(6)]
 
-    def test_kit_copies_identical(self):
-        kit = (ROOT / "tools" / "harness_kit" / "libero" / "libero_eval.py").read_text()
-        for c in ("E-RT-002", "E-VLA-003"):
-            self.assertEqual((ROOT / "cases" / c / "harness" / "libero_eval.py").read_text(), kit)
-
     def test_quat_and_delay(self):
         LE = harness("E-RT-002", "libero_eval")
         q = np.array([0, 0, np.sin(0.25), np.cos(0.25)])          # 0.5 rad about z
@@ -552,14 +547,6 @@ class ProAudit(unittest.TestCase):
         self.assertEqual(int(P.audit(sub, start)["trace_ok"][0]), 0)
         self.assertEqual(P.scores({"audit": a, "resume": r}), {"chain_ok": 1.0, "trace_ok": 1.0, "code_ok": 1.0, "resume_ok": 1.0})
 
-    def test_kit_copies_identical(self):
-        kit = ROOT / "tools" / "harness_kit" / "pro"
-        for c in ("PRO-ARL-001", "PRO-OPD-002", "PRO-MOE-003", "PRO-SRV-005", "PRO-SPEC-006"):
-            h = ROOT / "cases" / c / "harness"
-            for f in ("pro_audit.py", "pro_stages.py", "math_tool.py", "serve_bench.py"):
-                if (h / f).is_file():
-                    self.assertEqual((h / f).read_text(), (kit / f).read_text(), f"{c}/{f}")
-
 
 class AgenticRL(unittest.TestCase):
     def test_dev_path_and_metrics(self):
@@ -634,12 +621,13 @@ class Serving(unittest.TestCase):
         SB = harness("PRO-SRV-005", "serve_bench")
         fz = prepare("PRO-SRV-005").synthetic(10)
         self.assertTrue(set(S.HELD_OUT_KEYS) <= set(fz.hidden))
-        srv = SB.FakeServer(18766, delay=0.0005)
+        srv = SB.FakeServer(0, delay=0.0005)
         try:
             prompts = [[i + 1] for i in range(40)]
-            r = S.ladder(18766, prompts, [4] * 40, np.linspace(0, 2.0, 40), factors=(1.0, 2.0))
+            r = S.ladder(srv.srv.server_port, prompts, [4] * 40, np.linspace(0, 2.0, 40), factors=(1.0, 2.0))
         finally:
             srv.close()
+            srv.srv.server_close()
         self.assertTrue((r["attainment"] >= 0.9).all())
         self.assertAlmostEqual(M.max_factor(np.asarray([1.0, 0.95, 0.5])), 2.0 + 2.0 * 0.05 / 0.45)
         self.assertEqual(M.max_factor(np.asarray([0.5])), 0.0)

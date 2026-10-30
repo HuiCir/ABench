@@ -30,6 +30,20 @@ agent_visible:
 agent_budget:
   gpu_hours: 6.0
   session_hours: 8
+environment:
+  profile: gpu-torch-hf
+  version: '2026.10'
+resources:
+  budget_tier: budget
+  hardware:
+    reference: RTX 4090 24GB
+  wall_clock_limit_h: 8
+  leaderboard: all
+  gpus: 1
+  gpu_class: reference24
+  cpus: 8
+  memory: 32g
+  shm_size: 2g
 data:
   public_dir: sandbox/data/T-MM-004
   public:

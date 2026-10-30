@@ -1,11 +1,9 @@
-"""Research egress of the agent stage: policy matching, the logging proxy and the per-user firewall
-(tools/egress_proxy.py, spec/egress_policy.yaml). The firewall test needs root, iptables and the user abench-agent."""
+"""Hostname egress policy and hash-chained TCP proxy for host smoke."""
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import pwd
 import shutil
 import socket
 import subprocess
@@ -139,49 +137,6 @@ class Proxy(unittest.TestCase):
     def test_direct_mode_refuses_private_targets(self):
         self.assertIsNone(E._public_address("localhost", 443))
         self.assertIsNone(E._public_address("127.0.0.1", 443))
-
-
-def _root_ok():
-    try:
-        pwd.getpwnam("abench-agent")
-    except KeyError:
-        return False
-    return E.Firewall.available()[0]
-
-
-@unittest.skipUnless(_root_ok(), "needs root, iptables and the user abench-agent")
-class FirewallTest(unittest.TestCase):
-    def test_only_the_proxy_and_own_loopback_servers(self):
-        uid = pwd.getpwnam("abench-agent").pw_uid
-        foreign = socket.socket()
-        foreign.bind(("127.0.0.1", 0))
-        foreign.listen(4)
-        fport = foreign.getsockname()[1]
-        proxy = socket.socket()
-        proxy.bind(("127.0.0.1", 0))
-        proxy.listen(4)
-        pport = proxy.getsockname()[1]
-        fw = E.Firewall(uid, pport)
-        rec = fw.install()
-        probe = ("import socket, sys\n"
-                 "def t(h, p):\n"
-                 "    try:\n"
-                 "        socket.create_connection((h, p), timeout=3).close(); return 'ok'\n"
-                 "    except OSError as e: return 'refused'\n"
-                 "own = socket.socket(); own.bind(('127.0.0.1', 0)); own.listen(1)\n"
-                 f"print(t('127.0.0.1', {pport}), t('127.0.0.1', {fport}), t('140.82.112.3', 443),"
-                 " t('127.0.0.1', own.getsockname()[1]))\n")
-        try:
-            self.assertIn(fport, rec["rejected_foreign_loopback_ports"])
-            r = subprocess.run(["sudo", "-u", "abench-agent", "--", sys.executable, "-c", probe],
-                               capture_output=True, text=True, timeout=60)
-            self.assertEqual(r.stdout.split(), ["ok", "refused", "refused", "ok"], r.stderr)
-        finally:
-            fw.remove()
-            foreign.close()
-            proxy.close()
-        out = subprocess.run(["iptables", "-S"], capture_output=True, text=True).stdout
-        self.assertNotIn(fw.chain, out)
 
 
 if __name__ == "__main__":

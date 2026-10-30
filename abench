@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ABENCH_ROOT="$(cd "$(dirname "$0")" && pwd)"
+exec "${PYTHON:-python3}" "$ABENCH_ROOT/tools/abench.py" "$@"

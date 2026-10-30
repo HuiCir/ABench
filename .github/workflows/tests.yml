@@ -1,0 +1,38 @@
+name: Tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 -m pip install numpy pyyaml scipy scikit-learn pandas==2.2.3
+      - run: python3 -m unittest discover -s tests
+      - run: python3 tools/validate_task_statement.py --strict
+      - run: python3 tools/build_standard_cases.py --check
+      - run: python3 tools/verify_registry.py --check
+      - run: python3 tools/test_split.py --check
+      - run: python3 tools/images.py generate --check
+  docker-cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 -m pip install numpy pyyaml scipy scikit-learn pandas==2.2.3
+      - run: ./abench images build --profile cpu-sci
+      - name: Verify Docker agent and judge isolation
+        env:
+          ABENCH_TEST_IMAGE: ghcr.io/huicir/abench/cpu-sci:2026.10
+        run: |
+          python3 -m unittest discover -s tests -p test_container_judge.py
+          python3 -m unittest discover -s tests -p test_container_agent.py
+      - run: ./abench calibrate DS-PIPE-002 --data synthetic

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# ABench plumbing agent: walks the Workflow of a checkpoint-mode standard case using ONLY the agent view, without an
-# LLM. It proves that the launch path works before real agent time is spent:
-#   view readable -> paper tool callable -> reference code runs -> selfcheck passes -> submission collected -> judged.
-#   python3 tools/sandbox_runner.py --case TC-FT-001 --harness command --smoke --device cpu \
-#       --command "bash $PWD/sandbox/mock_agent.sh"
+# ABench plumbing agent: walks the Workflow of a standard case using ONLY the agent view, without an LLM. It proves
+# that the launch path works before real agent time is spent:
+#   view readable -> paper tool callable -> baseline code runs -> selfcheck passes -> submission collected -> judged.
+#   ./abench run --case DS-GBM-001 --agent mock
+# It submits the interface's baseline that provides the required code files (interface/baseline/ or
+# interface/baselines/<name>/), trained into checkpoint/ when the case requires a checkpoint. A case whose view has
+# no such baseline stops at the develop step.
 # Everything it does is logged to stdout (kept in the run record as logs/agent_stdout.log).
 set -euo pipefail
 V="$ABENCH_VIEW_DIR"; SUB="$ABENCH_SUBMISSION_DIR"; PY="${PYTHON:-python3}"
@@ -28,12 +30,25 @@ ls "$ABENCH_DATA_DIR"
 
 step "2 retrieve (offline paper search)"
 $PY "$V/tools/abench_papers.py" info || echo "  (no paper index installed: search unavailable, continuing)"
-$PY "$V/tools/abench_papers.py" search "text classification n-gram linear" -n 3 || true
+QUERY="$(sed -n 's/^Anchor: [^*]*\*\([^*]*\)\*.*/\1/p' "$V/task.md" | head -1)"
+$PY "$V/tools/abench_papers.py" search "${QUERY:-$ABENCH_CASE_ID}" -n 3 || true
 
-step "3 develop: start from interface/baseline"
-cp "$V"/interface/baseline/*.py "$SUB"/
-(cd "$SUB" && $PY train.py --data "$ABENCH_DATA_DIR" --out "$SUB/checkpoint")
-du -sh "$SUB/checkpoint"
+step "3 develop: start from the interface's baseline"
+RULES="$V/interface/submission_rules.json"
+CODE="$($PY -c 'import json, sys; print(" ".join(f for f in json.load(open(sys.argv[1]))["required"] if f.endswith(".py")))' "$RULES")"
+BASE=""
+for d in "$V/interface/baseline" "$V"/interface/baselines/*; do
+  [ -d "$d" ] || continue
+  ok=1; for f in $CODE; do [ -f "$d/$f" ] || ok=0; done
+  [ "$ok" = 1 ] && { BASE="$d"; break; }
+done
+[ -n "$BASE" ] || { echo "  no baseline in the view provides the required code ($CODE): nothing to develop from"; exit 1; }
+echo "  baseline: ${BASE#$V/}  required code: $CODE"
+cp "$BASE"/*.py "$SUB"/
+if $PY -c 'import json, sys; sys.exit("checkpoint" not in json.load(open(sys.argv[1]))["required"])' "$RULES"; then
+  (cd "$SUB" && $PY train.py --data "$ABENCH_DATA_DIR" --out "$SUB/checkpoint")
+  du -sh "$SUB/checkpoint"
+fi
 
 step "4 verify with the self-check"
 $PY "$V/interface/selfcheck.py" --quick

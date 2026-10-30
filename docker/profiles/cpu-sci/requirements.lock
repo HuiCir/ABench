@@ -1,0 +1,8 @@
+# input-sha256: c47c110b4699c9bd7cd6ecb8d1328bd2a588ce5ae71d64a16ce653a0ec38cbd7
+# Resolved transitive dependencies; regenerate with images resolve.
+joblib==1.5.1
+numpy==2.2.6
+pyyaml==6.0.2
+scikit-learn==1.6.1
+scipy==1.15.3
+threadpoolctl==3.6.0

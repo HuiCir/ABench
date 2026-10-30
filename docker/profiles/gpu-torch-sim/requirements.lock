@@ -1,0 +1,22 @@
+# input-sha256: 70d2c5d6f9417f6606e41be3792227b27f5a5c514f5d2929267973748bf760d2
+# Resolved transitive dependencies; regenerate with images resolve.
+cffi==2.1.1
+cloudpickle==3.1.2
+farama-notifications==0.0.6
+gym-pusht==0.1.5
+gymnasium==0.29.1
+imageio==2.38.1
+lazy-loader==0.6
+networkx==3.6.1
+numpy==2.2.6
+opencv-python==5.0.0.93
+packaging==26.3
+pillow==13.0.0
+pycparser==3.12
+pygame==2.6.1
+pymunk==7.3.1
+scikit-image==0.26.0
+scipy==1.15.3
+shapely==2.2.0
+tifffile==2026.3.3
+typing_extensions==4.16.0

@@ -1,0 +1,5 @@
+Attempt 1 failed with status 429. Retrying with backoff... _ApiError: {"error":{"code":429,"message":"Rate limit reached (fake).","status":"RESOURCE_EXHAUSTED"}}
+Attempt 2 failed with status 429. Retrying with backoff... _ApiError: {"error":{"code":429,"message":"Rate limit reached (fake).","status":"RESOURCE_EXHAUSTED"}}
+Attempt 3 failed with status 429. Retrying with backoff... _ApiError: {"error":{"code":429,"message":"Rate limit reached (fake).","status":"RESOURCE_EXHAUSTED"}}
+Attempt 4 failed with status 429. Retrying with backoff... _ApiError: {"error":{"code":429,"message":"Rate limit reached (fake).","status":"RESOURCE_EXHAUSTED"}}
+Attempt 5 failed with status 429. Retrying with backoff... _ApiError: {"error":{"code":429,"message":"Rate limit reached (fake).","status":"RESOURCE_EXHAUSTED"}}

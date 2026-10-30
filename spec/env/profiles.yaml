@@ -1,57 +1,82 @@
-# ABench environment profiles: DRAFT (2026-10-21), not yet resolved or tested.
-#
-# Every standard case runs its sandbox and its judge in the same profile image. The constraints below are the draft
-# the operator resolves into an image at activation; the exact versions are then recorded with
-#   python3 tools/record_environment.py --profile <name> --out spec/env/lock/<name>.json
-# inside that image, and the judge refuses to score when its environment differs from the lock
-# (python3 tools/record_environment.py --check spec/env/lock/<name>.json, run by the operator before every batch).
-# Nothing here is a tested pin: versions are constraints, chosen to cover what the cases' code uses.
-schema: abench.env_profiles/v0
-status: draft
+schema: abench.env_profiles/v1
+status: pinned-build-inputs
 profiles:
   cpu-sci:
-    python: ">=3.10,<3.13"
-    packages: {numpy: ">=1.26,<2.3", scipy: ">=1.11", scikit-learn: ">=1.4", pyyaml: ">=6"}
-    hardware: "8 CPU cores, no GPU"
+    python: 3.11.13
+    packages:
+      numpy: 2.2.6
+      scipy: 1.15.3
+      scikit-learn: 1.6.1
+      pyyaml: 6.0.2
+      joblib: 1.5.1
+      threadpoolctl: 3.6.0
+    hardware: 8 CPU cores, no GPU
+    version: '2026.10'
+    base: python:3.11.13-slim-bookworm
   gpu-torch:
-    python: ">=3.10,<3.13"
-    packages: {torch: ">=2.5,<2.9 (CUDA build)", triton: "matching torch", numpy: ">=1.26,<2.3", pyyaml: ">=6"}
-    hardware: "one RTX 4090-class 24 GB GPU; driver and CUDA runtime recorded in the lock"
+    python: 3.11.13
+    packages:
+      torch: 2.8.0
+      triton: 3.4.0
+      numpy: 2.2.6
+      scipy: 1.15.3
+      scikit-learn: 1.6.1
+      pyyaml: 6.0.2
+      safetensors: 0.6.2
+    hardware: one RTX 4090-class 24 GB GPU; driver and CUDA runtime recorded in the
+      lock
+    version: '2026.10'
+    base: python:3.11.13-slim-bookworm
   gpu-torch-hf:
     extends: gpu-torch
-    packages: {transformers: ">=4.44", tokenizers: "matching transformers", safetensors: ">=0.4"}
-    env: {HF_HUB_OFFLINE: "1", TRANSFORMERS_OFFLINE: "1"}
+    packages:
+      transformers: 4.55.4
+      tokenizers: 0.21.4
+      safetensors: 0.6.2
+      torchaudio: 2.8.0
+    env:
+      HF_HUB_OFFLINE: '1'
+      TRANSFORMERS_OFFLINE: '1'
+    version: '2026.10'
+    python: 3.11.13
   gpu-torch-diffusion:
     extends: gpu-torch
-    packages: {scipy: ">=1.11", diffusers: ">=0.30", pytorch-fid: "==0.3.0"}
-    env: {HF_HUB_OFFLINE: "1"}
-    note: "pytorch-fid's Inception weights (pt_inception-2015-12-05-6726825d.pth) are frozen into the models dir, not downloaded"
+    packages:
+      scipy: 1.15.3
+      diffusers: 0.35.1
+      pytorch-fid: 0.3.0
+    env:
+      HF_HUB_OFFLINE: '1'
+    note: pytorch-fid's Inception weights (pt_inception-2015-12-05-6726825d.pth) are
+      frozen into the models dir, not downloaded
+    version: '2026.10'
+    python: 3.11.13
   gpu-torch-sim:
     extends: gpu-torch
-    packages: {gymnasium: ">=0.29", gym-pusht: ">=0.1.5"}
+    packages:
+      gymnasium: 0.29.1
+      gym-pusht: 0.1.5
+    version: '2026.10'
+    python: 3.11.13
   gpu-torch-cuda-dev:
     extends: gpu-torch
-    packages: {ninja: ">=1.11"}
-    system: "CUDA toolkit (nvcc) matching torch.version.cuda, for torch.utils.cpp_extension.load_inline"
+    packages:
+      ninja: 1.11.1.4
+    system: CUDA toolkit (nvcc) matching torch.version.cuda, for torch.utils.cpp_extension.load_inline
+    version: '2026.10'
+    python: 3.11.13
+    base: nvidia/cuda:12.8.1-devel-ubuntu24.04
   pro-h100:
-    python: ">=3.10,<3.13"
-    packages: {torch: ">=2.7,<2.9 (CUDA 12.6+ build; FlexAttention BlockMask.from_kv_blocks)", triton: "matching torch",
-               numpy: ">=1.26,<2.3"}
-    hardware: "one node, 4 x H100 80GB SXM with NVLink; NCCL version recorded in the lock"
-cases:
-  TC-FT-001: cpu-sci
-  DS-PIPE-002: cpu-sci
-  RS-SEQ-001: gpu-torch
-  GN-OGB-002: gpu-torch
-  PH-NO-001: gpu-torch
-  U-LOOP-003: gpu-torch
-  A-LIN-002: gpu-torch
-  B-OPT-001: gpu-torch
-  T-OPT-002: gpu-torch
-  IC-SPD-001: gpu-torch
-  C-QNT-003: gpu-torch-hf
-  X-LORA-004: gpu-torch-hf
-  V-SMP-002: gpu-torch-diffusion
-  E-ACT-001: gpu-torch-sim
-  K-FA-003: gpu-torch-cuda-dev
-  PRO-SPD-004: pro-h100
+    python: 3.11.13
+    packages:
+      torch: 2.8.0
+      triton: 3.4.0
+      numpy: 2.2.6
+      scipy: 1.15.3
+      pyyaml: 6.0.2
+      transformers: 4.55.4
+      safetensors: 0.6.2
+    hardware: one node, 4 x H100 80GB SXM with NVLink; NCCL version recorded in the
+      lock
+    version: '2026.10'
+    base: python:3.11.13-slim-bookworm

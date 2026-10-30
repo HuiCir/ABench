@@ -1,7 +1,7 @@
 """Record or check the software and hardware environment of an ABench profile image (spec/env/profiles.yaml).
 
-  python3 tools/record_environment.py --profile gpu-torch --out spec/env/lock/gpu-torch.json   # inside the image
-  python3 tools/record_environment.py --check spec/env/lock/gpu-torch.json                     # before judging
+  python3 tools/record_environment.py --profile gpu-torch --out spec/env/lock/gpu-torch@2026.10.json   # inside the image
+  python3 tools/record_environment.py --check spec/env/lock/gpu-torch@2026.10.json                     # before judging
 
 The lock holds the Python version, every installed distribution and its version, and, when present, the versions of
 torch / CUDA / cuDNN / NCCL, the GPU names and driver (nvidia-smi) and the CPU model. --check compares the software part
@@ -33,7 +33,7 @@ def _torch() -> dict | None:
     except Exception:
         t["cudnn"] = None
     try:
-        t["nccl"] = ".".join(map(str, torch.cuda.nccl.version())) if torch.cuda.is_available() else None
+        t["nccl"] = ".".join(map(str, torch.cuda.nccl.version()))
     except Exception:
         t["nccl"] = None
     return t

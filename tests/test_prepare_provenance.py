@@ -68,7 +68,7 @@ class SeedEscrow(unittest.TestCase):
             key.parent.mkdir()
             key.write_bytes(b"k")
             p = Path(run.escrow_seed("X-TEST-001", "ABENCH_TEST_SEED", key, "ab" * 32))
-            self.assertEqual(p.parent, key.parent / "seeds")
+            self.assertEqual(p.parent, (key.parent / "seeds").resolve())
             self.assertEqual(stat.S_IMODE(p.stat().st_mode), 0o600)
             rec = json.loads(p.read_text())
             self.assertEqual((rec["seed"], rec["case"], rec["hidden_sha256_plain"]), ("424242", "X-TEST-001", "ab" * 32))

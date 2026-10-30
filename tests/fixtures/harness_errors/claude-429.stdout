@@ -1,0 +1,9 @@
+{"type":"system","subtype":"init","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","model":"fake-model"}
+{"type":"system","subtype":"api_retry","attempt":1,"max_retries":10,"retry_delay_ms":571,"error_status":429,"error":"rate_limit","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","uuid":"be0280fa-00b5-4fd7-abc7-c981f86650fa"}
+{"type":"system","subtype":"api_retry","attempt":2,"max_retries":10,"retry_delay_ms":1196,"error_status":429,"error":"rate_limit","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","uuid":"af8491a5-0391-471d-a513-af710115f517"}
+{"type":"system","subtype":"api_retry","attempt":3,"max_retries":10,"retry_delay_ms":2440,"error_status":429,"error":"rate_limit","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","uuid":"e7a79fb3-a048-4e58-ba02-7e806719a64c"}
+{"type":"system","subtype":"api_retry","attempt":4,"max_retries":10,"retry_delay_ms":4743,"error_status":429,"error":"rate_limit","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","uuid":"859a3c1d-3959-4d34-a689-39e8c4c4ad00"}
+{"type":"system","subtype":"api_retry","attempt":5,"max_retries":10,"retry_delay_ms":9555,"error_status":429,"error":"rate_limit","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","uuid":"f3a6e6ef-e0ec-4d6a-be34-f44fe227506e"}
+{"type":"system","subtype":"api_retry","attempt":6,"max_retries":10,"retry_delay_ms":17732,"error_status":429,"error":"rate_limit","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","uuid":"6712e6d2-0994-47be-a156-0663485cb382"}
+{"type":"system","subtype":"api_retry","attempt":7,"max_retries":10,"retry_delay_ms":32282,"error_status":429,"error":"rate_limit","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","uuid":"aaac6f9f-5ee5-40a3-a413-7f93cac8a809"}
+{"type":"system","subtype":"api_retry","attempt":8,"max_retries":10,"retry_delay_ms":36399,"error_status":429,"error":"rate_limit","session_id":"50a5f9c3-2a0d-46a1-89b3-8b7063892bd3","uuid":"801a05fd-9d29-40b9-92c8-1eddade10cfb"}

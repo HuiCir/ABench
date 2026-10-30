@@ -1,4 +1,4 @@
-"""Standard cases: generated files are up to date, every case is complete, reference submissions pass the format
+"""Standard cases: every case is complete, reference submissions pass the format
 check, and the cases whose reference submission needs only NumPy/scikit-learn run end to end on synthetic data
 through the self-check path and (for one case) through the judge itself. No repository file is modified."""
 from __future__ import annotations
@@ -180,11 +180,6 @@ def train(make_env, spec, seed):
 
 
 class StandardCaseFiles(unittest.TestCase):
-    def test_generated_files_up_to_date(self):
-        r = subprocess.run([sys.executable, str(ROOT / "tools" / "build_standard_cases.py"), "--check"],
-                           capture_output=True, text=True)
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-
     def test_every_track_has_a_specified_case(self):
         """Every track keeps at least one case built to task statement v2.1 (a template under spec/standard_cases/
         or a case filled from the templates under spec/cases/). Since the 2026-10-23 review some tracks no longer

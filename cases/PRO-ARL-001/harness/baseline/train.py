@@ -1,4 +1,4 @@
-"""Reference recipe for PRO-ARL-001: DAPO (Yu et al. 2025) with the Python tool, from Qwen3-4B-Base.
+"""Public training baseline for PRO-ARL-001: DAPO (Yu et al. 2025) with the Python tool, from Qwen3-4B-Base.
 
 Launch (registered with the supervisor, from this directory):
   python3 pro_audit.py run --name dapo --code . -- torchrun --standalone --nproc_per_node=3 train.py

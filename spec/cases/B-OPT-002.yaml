@@ -113,3 +113,18 @@ oj:
     seeds: [2302, 6675, 1729]
     baseline: harness/baselines/adamw
     code_audit: "the operator replays search.py on the public data and checks that program.yaml is among its results"
+
+environment:
+  profile: gpu-torch
+  version: '2026.10'
+resources:
+  budget_tier: budget
+  hardware:
+    reference: RTX 4090 24GB
+  wall_clock_limit_h: 10
+  leaderboard: all
+  gpus: 1
+  gpu_class: reference24
+  cpus: 8
+  memory: 32g
+  shm_size: 2g

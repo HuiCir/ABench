@@ -46,10 +46,39 @@ class SpeedrunTiming(unittest.TestCase):
         return runner.run_once(sub, self.d / "train.npz", self.d / "x.npy", seed, self.d / run, device="cpu",
                                timeout=60, predict_cap=2.0, tail_slack=1.0)
 
-    def test_honest(self):
-        r = self.run_sub(HONEST)
+    def test_migrated_metric_preserves_cross_seed_median_and_max(self):
+        metric_spec = importlib.util.spec_from_file_location("speedrun_metrics", ROOT / "cases/IC-SPD-001/harness/metrics.py")
+        metric = importlib.util.module_from_spec(metric_spec)
+        metric_spec.loader.exec_module(metric)
+        rows = [{"train_seconds_mean": t, "train_seconds_median": t, "train_seconds_max": t,
+                 "accuracy_cifar10_mean": 0.95, "accuracy_cifar10_1_mean": 0.81} for t in (1.,2.,100.)]
+        result = metric.aggregate(rows)
+        self.assertEqual(result["train_seconds_median"], 2.)
+        self.assertEqual(result["train_seconds_max"], 100.)
+        self.assertEqual(result["train_seconds_mean"], 34.333333)
+        self.assertEqual(metric.GATES, [{"metric":"accuracy_cifar10_mean", "min":0.94},
+                                        {"metric":"accuracy_cifar10_1_mean", "min":0.80}])
+
+    def test_migrated_gate_preserves_legacy_threshold_field(self):
+        from tools.oj_eval import _gates
+        gate={"metric":"accuracy_cifar10_mean","min":0.94}
+        for value,passed in ((0.94,True),(0.939,False)):
+            result=_gates([gate],{"accuracy_cifar10_mean":value})[gate["metric"]]
+            self.assertEqual(result['threshold'],0.94)
+            self.assertEqual(result['min'],0.94)
+            self.assertIsNone(result['max'])
+            self.assertEqual(result['pass'],passed)
+
+    def test_test_images_are_given_before_training_and_predict_is_capped_from_go(self):
+        """As with --x-test, the unlabeled test images exist from the start; P comes within predict_cap of G."""
+        code = HONEST.replace("def train(data, seed, device):",
+                              "def train(data, seed, device):\n    import os\n"
+                              "    assert os.path.isfile(os.path.join('pre', 'held_pre.npz'))")
+        r = self.run_sub(code)
         self.assertEqual(r["status"], "ok", r.get("stderr_tail"))
         self.assertEqual(np.load(r["pred_path"]).shape, (50, 10))
+        self.assertLess(r["predict_seconds"], 2.0)
+        self.assertNotIn("post_inputs", {k for k, v in r["phase_seconds"].items() if v > 0.5})
 
     def test_early_handshake_is_violation(self):
         code = HONEST.replace("def train(data, seed, device):",

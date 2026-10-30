@@ -1,4 +1,4 @@
-"""Reference recipe for PRO-OPD-002: on-policy distillation of Qwen3-8B into Qwen3-1.7B-Base (after GKD, Agarwal et
+"""Public training baseline for PRO-OPD-002: on-policy distillation of Qwen3-8B into Qwen3-1.7B-Base (after GKD, Agarwal et
 al. 2024, with the reverse KL estimated on the student's own samples).
 
 Launch (registered with the supervisor, from this directory):

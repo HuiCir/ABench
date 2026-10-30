@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""Egress control for the agent stage: a logging forward proxy plus a per-user firewall (operator side).
-
-The agent's session is online (spec/egress_policy.yaml): it may look up literature, code and documentation at any
-point. The runner starts `EgressProxy` on 127.0.0.1 as the operator, points the agent's HTTP(S)_PROXY at it and,
-with `Firewall`, rejects every other connection of the agent user (iptables/ip6tables owner match), so all traffic
-passes the proxy. The proxy
-
-  - accepts `CONNECT host:port` (HTTPS) and absolute-URI HTTP requests, for the ports in the policy;
-  - allows or denies by host name (TLS is not inspected);
-  - resolves names itself (the agent needs no DNS) and refuses hosts that resolve to loopback or private addresses;
-  - optionally chains to an upstream proxy (ABENCH_EGRESS_UPSTREAM=http://host:port, for operator networks that
-    themselves egress through a proxy);
-  - writes one hash-chained JSON line per connection (time, method, host, port, decision, bytes each way, seconds)
-    to the run record; the agent cannot write it. Connections that download more than LARGE_DOWNLOAD bytes are
-    listed in the summary for the operator's review (data mirrored on an allowed host, e.g. GitHub, is the
-    residual risk of host-level filtering).
-
-Policy matching and the case deny list are in `policy_for_case`; `python3 tools/egress_proxy.py --case ID` prints
-the effective policy of a case.
-"""
+"""Hostname policy and hash-chained egress proxy (Unix socket sidecar or host smoke TCP)."""
 from __future__ import annotations
 
 import argparse
@@ -28,14 +9,12 @@ import json
 import os
 import select
 import socket
-import subprocess
 import threading
 import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "spec" / "egress_policy.yaml"
@@ -54,6 +33,7 @@ def _match(host: str, pattern: str) -> bool:
 
 
 def load_policy() -> dict[str, Any]:
+    import yaml
     raw = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8"))
     if not isinstance(raw, dict) or raw.get("schema") != "abench.egress/v1":
         raise RuntimeError(f"invalid egress policy: {POLICY_PATH}")
@@ -78,7 +58,7 @@ def _hosts_of(obj: Any) -> list[str]:
     return out
 
 
-def policy_for_case(oj: dict[str, Any], harness: str) -> dict[str, Any]:
+def policy_for_case(oj: dict[str, Any], harness: str, endpoint: dict | None = None) -> dict[str, Any]:
     """Effective allow/deny lists of one case and harness."""
     p = load_policy()
     data = oj.get("data") or {}
@@ -95,13 +75,20 @@ def policy_for_case(oj: dict[str, Any], harness: str) -> dict[str, Any]:
     case_deny += list(net.get("deny") or [])
     allow = literature + list(p.get("allow") or []) + list((p.get("harness_allow") or {}).get(harness) or []) \
         + list(net.get("allow") or [])
-    return {"policy_version": p["schema"], "policy_sha256": hashlib.sha256(POLICY_PATH.read_bytes()).hexdigest(),
+    if endpoint:
+        official = list((p.get("harness_allow") or {}).get(harness) or [])
+        allow = [h for h in allow if h not in official] + [endpoint["host"]]
+    return {"model_endpoint": endpoint, "policy_version": p["schema"], "policy_sha256": hashlib.sha256(POLICY_PATH.read_bytes()).hexdigest(),
             "ports": [int(x) for x in p.get("ports") or [443]], "allow": allow,
             "deny": list(p.get("deny") or []), "case_deny": sorted(set(case_deny)), "case_source_hosts": src_hosts}
 
 
 def decide(policy: dict[str, Any], host: str, port: int) -> tuple[bool, str]:
-    if port not in policy["ports"]:
+    ep = policy.get("model_endpoint")
+    model_target = bool(ep and host.lower().rstrip(".") == ep["host"] and port == ep["port"])
+    if ep and host.lower().rstrip(".") == ep["host"] and not model_target:
+        return False, "model endpoint port mismatch"
+    if port not in policy["ports"] and not model_target:
         return False, f"port {port} not allowed"
     for pat in policy["case_deny"]:
         if _match(host, pat):
@@ -109,6 +96,8 @@ def decide(policy: dict[str, Any], host: str, port: int) -> tuple[bool, str]:
     for pat in policy["deny"]:
         if _match(host, pat):
             return False, f"data or model hub ({pat})"
+    if model_target:
+        return True, "model_api"
     for pat in policy["allow"]:
         if _match(host, pat):
             return True, f"allowed ({pat})"
@@ -146,20 +135,32 @@ def _public_address(host: str, port: int) -> tuple[str, int] | None:
 
 class EgressProxy:
     def __init__(self, policy: dict[str, Any], log_path: Path, upstream: str | None = None,
-                 idle_timeout: float = 300.0):
+                 idle_timeout: float = 300.0, unix_socket: str | Path | None = None):
         self.policy, self.log, self.idle = policy, _Log(log_path), idle_timeout
         self.upstream = None
         if upstream:
             u = urlsplit(upstream)
             self.upstream = (u.hostname, u.port or 80)
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(("127.0.0.1", 0))
+        self.unix_socket = Path(unix_socket) if unix_socket else None
+        if self.unix_socket:
+            self.unix_socket.parent.mkdir(parents=True, exist_ok=True)
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.sock.bind(str(self.unix_socket))
+            self.unix_socket.chmod(0o666)
+            self.port = None
+        else:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.sock.bind(("127.0.0.1", 0))
+            self.port = self.sock.getsockname()[1]
+        self.sock.settimeout(0.5)
         self.sock.listen(256)
-        self.port = self.sock.getsockname()[1]
         self.stats = {"connections": 0, "allowed": 0, "denied": 0, "bytes_down": 0, "bytes_up": 0,
                       "hosts": {}, "large_downloads": []}
         self._stop = threading.Event()
+        self._connections = set()
+        self._workers = []
+        self._connection_lock = threading.Lock()
         self._t = threading.Thread(target=self._serve, daemon=True)
 
     # -- lifecycle
@@ -174,6 +175,16 @@ class EgressProxy:
         except OSError:
             pass
         self._t.join(timeout=5)
+        with self._connection_lock:
+            clients = list(self._connections)
+        for client in clients:
+            try:
+                client.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        deadline = time.monotonic() + 5
+        for worker in self._workers:
+            worker.join(timeout=max(0, deadline-time.monotonic()))
         raw = self.log.path.read_bytes()
         hosts = sorted(self.stats["hosts"].items(), key=lambda kv: -kv[1]["n"])
         return {"connections": self.stats["connections"], "allowed": self.stats["allowed"],
@@ -186,9 +197,15 @@ class EgressProxy:
         while not self._stop.is_set():
             try:
                 c, _ = self.sock.accept()
+            except socket.timeout:
+                continue
             except OSError:
                 return
-            threading.Thread(target=self._handle, args=(c,), daemon=True).start()
+            worker = threading.Thread(target=self._handle, args=(c,), daemon=True)
+            with self._connection_lock:
+                self._connections.add(c)
+                self._workers.append(worker)
+            worker.start()
 
     # -- one client connection
     def _read_head(self, c: socket.socket) -> bytes | None:
@@ -222,6 +239,17 @@ class EgressProxy:
         self.log.write(rec)
 
     def _connect(self, host: str, port: int) -> socket.socket:
+        ep = self.policy.get("model_endpoint") or {}
+        private_allowed = ep.get("allow_private") and host == ep.get("host") and port == ep.get("port")
+        # Literal/private local targets are forbidden even when chaining. The trusted
+        # upstream resolves public host names (local DNS may be a proxy fake-IP range).
+        private_literal = host == "localhost" or host.endswith(".localhost")
+        try:
+            private_literal |= not ipaddress.ip_address(host).is_global
+        except ValueError:
+            pass
+        if private_literal and not private_allowed:
+            raise OSError("private target is not an explicitly allowed model endpoint")
         if self.upstream:
             s = socket.create_connection(self.upstream, timeout=30)
             s.sendall(f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n".encode())
@@ -236,7 +264,7 @@ class EgressProxy:
                 s.close()
                 raise OSError(f"upstream proxy refused: {status.decode('latin-1')[:80]}")
             return s
-        addr = _public_address(host, port)
+        addr = (host, port) if private_allowed else _public_address(host, port)
         if addr is None:
             raise OSError("host does not resolve to a public address")
         return socket.create_connection(addr, timeout=30)
@@ -324,93 +352,57 @@ class EgressProxy:
             except Exception:  # noqa: BLE001
                 pass
         finally:
+            with self._connection_lock:
+                self._connections.discard(c)
             try:
                 c.close()
             except OSError:
                 pass
 
 
-# ------------------------------------------------------------------ firewall
-def _listening_foreign_ports(uid: int) -> list[int]:
-    """TCP ports in LISTEN state that belong to other users (from /proc/net/tcp{,6}); the agent must not reach the
-    loopback ones (another user's service, or an operator proxy that would bypass the policy)."""
-    ports = set()
-    for name in ("/proc/net/tcp", "/proc/net/tcp6"):
+def summarize_log(path: Path) -> dict[str, Any]:
+    raw = Path(path).read_bytes()
+    prev, ok = "0" * 64, True
+    stats = {"connections": 0, "allowed": 0, "denied": 0, "bytes_down": 0, "bytes_up": 0,
+             "hosts": {}, "large_downloads": []}
+    for line in raw.splitlines():
         try:
-            lines = Path(name).read_text().splitlines()[1:]
-        except OSError:
-            continue
-        for line in lines:
-            cols = line.split()
-            if len(cols) < 8 or cols[3] != "0A":            # 0A = LISTEN
-                continue
-            if int(cols[7]) == uid:
-                continue
-            ports.add(int(cols[1].rsplit(":", 1)[1], 16))
-    return sorted(ports)
-
-
-class Firewall:
-    """iptables/ip6tables rules for one agent uid: TCP to the proxy port and to the agent's own loopback servers is
-    allowed; TCP to loopback ports other users listen on when the run starts, and every other connection (any
-    protocol, including DNS) is rejected. Services that other users start on loopback during the run are not
-    covered."""
-
-    def __init__(self, uid: int, proxy_port: int):
-        self.uid, self.proxy_port = uid, proxy_port
-        self.chain = f"ABENCH_EGRESS_{uid}"
-        self.installed: list[str] = []
-        self.foreign_ports: list[int] = []
-
-    @staticmethod
-    def available() -> tuple[bool, str]:
-        import shutil
-        if os.name != "posix" or not hasattr(os, "geteuid") or os.geteuid() != 0:
-            return False, "needs root"
-        if not Path("/proc/net/tcp").exists():
-            return False, "/proc/net/tcp not found"
-        for tool in ("iptables", "ip6tables"):
-            if not shutil.which(tool):
-                return False, f"{tool} not found"
-        r = subprocess.run(["iptables", "-S", "OUTPUT"], capture_output=True, text=True)
-        if r.returncode != 0:
-            return False, "iptables unusable: " + r.stderr.strip()[:200]
-        return True, "iptables owner match"
-
-    def _run(self, tool: str, *args: str, check: bool = True) -> subprocess.CompletedProcess:
-        r = subprocess.run([tool, "-w", *args], capture_output=True, text=True)
-        if check and r.returncode != 0:
-            raise RuntimeError(f"{tool} {' '.join(args)}: {r.stderr.strip()}")
-        return r
-
-    def install(self) -> dict[str, Any]:
-        self.foreign_ports = [p for p in _listening_foreign_ports(self.uid) if p != self.proxy_port]
-        for tool, lo in (("iptables", "127.0.0.0/8"), ("ip6tables", "::1/128")):
-            self._run(tool, "-N", self.chain, check=False)
-            self._run(tool, "-F", self.chain)
-            if tool == "iptables":
-                self._run(tool, "-A", self.chain, "-p", "tcp", "-d", "127.0.0.1", "--dport", str(self.proxy_port),
-                          "-j", "ACCEPT")
-            for p in self.foreign_ports:
-                self._run(tool, "-A", self.chain, "-p", "tcp", "-d", lo, "--dport", str(p), "-j", "REJECT")
-            self._run(tool, "-A", self.chain, "-p", "tcp", "-o", "lo", "-d", lo, "-j", "ACCEPT")   # own servers
-            self._run(tool, "-A", self.chain, "-j", "REJECT")
-            self._run(tool, "-I", "OUTPUT", "1", "-m", "owner", "--uid-owner", str(self.uid), "-j", self.chain)
-            self.installed.append(tool)
-        return {"enforced": True, "method": "iptables/ip6tables owner match", "chain": self.chain,
-                "proxy_port": self.proxy_port, "rejected_foreign_loopback_ports": self.foreign_ports}
-
-    def remove(self) -> None:
-        for tool in self.installed:
-            while self._run(tool, "-D", "OUTPUT", "-m", "owner", "--uid-owner", str(self.uid), "-j", self.chain,
-                            check=False).returncode == 0:
-                pass
-            self._run(tool, "-F", self.chain, check=False)
-            self._run(tool, "-X", self.chain, check=False)
-        self.installed = []
+            e = json.loads(line)
+            ok &= e.get("prev_sha256") == prev
+            prev = hashlib.sha256(line).hexdigest()
+            stats["connections"] += 1
+            stats["allowed" if e["allowed"] else "denied"] += 1
+            for k in ("bytes_down", "bytes_up"):
+                stats[k] += e.get(k, 0)
+            h = stats["hosts"].setdefault(e["host"], {"n": 0, "allowed": e["allowed"], "bytes_down": 0})
+            h["n"] += 1
+            h["bytes_down"] += e.get("bytes_down", 0)
+            if e.get("bytes_down", 0) >= LARGE_DOWNLOAD:
+                stats["large_downloads"].append(e)
+        except (ValueError, KeyError, TypeError):
+            ok = False
+    return {**stats, "chain_ok": bool(ok), "log_sha256": hashlib.sha256(raw).hexdigest(),
+            "log_entries": len(raw.splitlines())}
 
 
 def main() -> int:
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "serve":
+        ap = argparse.ArgumentParser(description="Unix socket sidecar proxy")
+        ap.add_argument("--policy", required=True)
+        ap.add_argument("--socket", required=True)
+        ap.add_argument("--log", required=True)
+        a = ap.parse_args(sys.argv[2:])
+        px = EgressProxy(json.loads(Path(a.policy).read_text()), Path(a.log),
+                         upstream=os.environ.get("ABENCH_EGRESS_UPSTREAM"), unix_socket=a.socket).start()
+        import signal
+        done = threading.Event()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            signal.signal(sig, lambda *_: done.set())
+        done.wait()
+        px.stop()
+        return 0
+    import yaml
     ap = argparse.ArgumentParser(description="Print the effective egress policy of a case")
     ap.add_argument("--case", required=True)
     ap.add_argument("--harness", default="claude")

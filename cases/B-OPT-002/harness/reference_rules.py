@@ -1,7 +1,6 @@
-"""Functional update rules of the reference methods (for behavioral probes and code divergence).
+"""Public functional update rules of known optimizers for the development similarity check.
 
-Real training uses the official implementations; these simplified versions only need to match them in "update direction".
-In the formal benchmark, SOAP, Sophia and Schedule-Free are wired into the probes by recording updates from their official implementations; they are not included in this file.
+These simplified versions represent update directions; use the official implementations for training.
 """
 from __future__ import annotations
 

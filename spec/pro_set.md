@@ -2,7 +2,7 @@
 
 ## 1. Why it is needed
 
-The Budget edition squeezes every case onto one 24GB card, which allows large-scale, low-cost comparison of agents, but cannot answer a reasonable objection: **can the agent do the tasks production settings truly depend on, with industrial-scale compute**? The Pro Set picks a few problems that are widely used in industry and cannot be done without large compute, provides ample resources, and ranks them separately.
+The Budget edition squeezes every case onto one 24GB card, which allows large-scale, low-cost comparison of agents, but cannot answer a reasonable objection: **can the agent do the tasks production settings truly depend on, with industrial-scale compute**? The Pro Set picks a few problems that are widely used in industry and cannot be done without large compute, provides ample resources, and includes them in the default all suite with a separate resource breakdown.
 
 | Item | Rule |
 |---|---|
@@ -10,7 +10,7 @@ The Budget edition squeezes every case onto one 24GB card, which allows large-sc
 | Wall clock | 24 hours, covering development, debugging and final training; allocated by the agent |
 | Network | Isolated; only allowlisted mirrors of the HF Hub and pip are open |
 | Starting weights | Only the allowlisted HF models specified by the case; hashes recorded by the benchmark operator |
-| Leaderboard | A separate Pro leaderboard, not mixed with the Budget edition |
+| Leaderboard | Included in the all suite; report Pro resources separately from Budget resources |
 
 ## 2. Verification: audit instead of retraining
 

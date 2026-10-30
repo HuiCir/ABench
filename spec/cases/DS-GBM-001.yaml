@@ -119,3 +119,18 @@ oj:
     reference_hardware: "8 CPU cores (model frozen at activation)"
     seeds: [1603, 2754]          # kept secret by the operator
     baseline: harness/baselines/hgb
+
+environment:
+  profile: cpu-sci
+  version: '2026.10'
+resources:
+  budget_tier: budget
+  hardware:
+    reference: 8 CPU cores
+  wall_clock_limit_h: 4
+  leaderboard: all
+  gpus: 0
+  gpu_class: none
+  cpus: 8
+  memory: 16g
+  shm_size: 2g

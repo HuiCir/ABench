@@ -377,7 +377,7 @@
       [...box.querySelectorAll(".mp-toc i, .mp-main > *")].forEach((n, i) => fade(n, 60 + i * 70, 260, 3));
     }
     function visJudge(box) {
-      const rows = [["Format check", "layout, allowlist, report structure, consistent references", "ok"], ["Decrypt hidden set", "the judge holds the key exclusively and decrypts into its own temporary directory", "ok"], ["Run the submission", "the child runs as the user abench-judge in a new network namespace and gets only a copy of the submission and the features; resource limits", "ok"],
+      const rows = [["Format check", "layout, allowlist, report structure, consistent references", "ok"], ["Decrypt hidden set", "the judge holds the key exclusively and decrypts into its own temporary directory", "ok"], ["Run the submission", "each stage runs in a fresh non-root Docker container with no network; held-out features arrive after timing and labels stay in the parent", "ok"],
         ["Compute metrics", "labels exist only in the parent process's memory", "ok"], ["B-OPT-001: retraining judge", "trains from scratch on hidden settings with a fixed small LM; data still to be frozen", "wait"]];
       box.innerHTML = `<div class="dr-flow">${rows.map(r => `<div class="fl ${r[2]}"><span class="d"></span><span class="c"><b>${r[0]}</b><span>${r[1]}</span></span></div>`).join("")}</div>
         <p class="panel-note" style="margin-top:8px">See the step-by-step animation in the "OJ evaluation" section below.</p>`;
@@ -560,7 +560,7 @@
       { id: "exp", name: "Report with an experiments section", stop: 3, notes: { 3: ["section '4 Experimental Results'", "red"] }, verdict: "submission_invalid", vtext: "the report covers design rationale only, not experiments" },
       { id: "smoke", name: "Smoke run", stop: 4, notes: { 4: ["no decryption", "amber"] }, verdict: "smoke_unscored", vtext: "validates process and format only; unscored" },
       { id: "hub", name: "Fetching the test set online", stop: null, notes: { 1: ["huggingface.co → 403", "amber"] }, verdict: "evaluated", vtext: "the request is denied by the egress policy and written to egress_log.jsonl; the agent keeps working with the public data", metrics: { accuracy: 0.96875, roc_auc: 0.994135, log_loss: 0.173018 } },
-      { id: "nowrap", name: "Benchmark without isolation", stop: 0, notes: { 0: ["refused to start", "red"] }, verdict: "refused", vtext: "benchmark requires an allow-listed wrapper (dedicated user with research egress, or no network)" },
+      { id: "nowrap", name: "Benchmark without isolation", stop: 0, notes: { 0: ["refused to start", "red"] }, verdict: "refused", vtext: "benchmark requires verified Docker isolation, a restricted network path and locked images" },
     ];
     const ssw = $("#ojScenario");
     ssw.innerHTML = SC.map(s => `<button type="button" role="tab" data-id="${s.id}">${s.name}</button>`).join("");
@@ -1062,10 +1062,10 @@
       $("#caseCount").textContent = `Showing ${n} / ${allCases.length}`;
     }
     function render() {
-      chips("#fArea", "area", AREAS.map(a => a.id), AREA_NAME);
-      chips("#fGroup", "group", GROUP_ORDER, GROUP_TITLE);
-      chips("#fDiff", "diff", LEVELS, { low: "low", medium: "medium", high: "high" });
-      chips("#fRes", "res", ["low", "medium", "high", "pro"], LEVEL_ZH);
+      chips("#fArea", "area", A.catalog_filters.area, AREA_NAME);
+      chips("#fGroup", "group", GROUP_ORDER.filter(g => A.catalog_filters.group.includes(g)), GROUP_TITLE);
+      chips("#fDiff", "diff", LEVELS.filter(d => A.catalog_filters.difficulty.includes(d)), { low: "low", medium: "medium", high: "high" });
+      chips("#fRes", "res", ["low", "medium", "high", "pro"].filter(r => A.catalog_filters.resource_tier.includes(r)), LEVEL_ZH);
       chips("#fStatus", "status", ["real_gpu", "real_cpu", "synthetic", "mock", "none"], REFRUN_ZH);
       chips("#fKind", "kind", ["code_only", "code_plus_checkpoint", "report_only"], KIND_ZH);
       search.value = st.q;

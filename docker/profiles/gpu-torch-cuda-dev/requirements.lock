@@ -1,0 +1,3 @@
+# input-sha256: 6b3213f4299b9ae17c40ece5a0059556d828e793da79a39ef87b133d77399e27
+# Resolved transitive dependencies; regenerate with images resolve.
+ninja==1.11.1.4

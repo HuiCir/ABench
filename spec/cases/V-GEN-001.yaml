@@ -164,3 +164,18 @@ oj:
     seeds:
     - 2006
     - 11239
+
+environment:
+  profile: gpu-torch-diffusion
+  version: '2026.10'
+resources:
+  budget_tier: budget
+  hardware:
+    reference: RTX 4090 24GB
+  wall_clock_limit_h: 4.0
+  leaderboard: all
+  gpus: 1
+  gpu_class: reference24
+  cpus: 8
+  memory: 32g
+  shm_size: 2g

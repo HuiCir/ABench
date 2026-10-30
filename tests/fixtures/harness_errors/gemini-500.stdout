@@ -1,0 +1,2 @@
+{"type":"init","timestamp":"2026-10-29T05:29:13.023Z","session_id":"b99481dc-cd78-40d5-ae7e-8425e2fbc4e9","model":"fake-model"}
+{"type":"message","timestamp":"2026-10-29T05:29:13.023Z","role":"user","content":"Reply pong for the ABench probe."}

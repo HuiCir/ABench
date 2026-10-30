@@ -153,6 +153,13 @@ def main() -> int:
     else:
         oj["data"].pop("synthetic", None)
     oj_path.write_text(yaml.safe_dump(oj, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    # Keep frozen data separate from the stable authored contract and suite identity.
+    lock = {"case_id": "IC-SPD-001", "activation": oj["judge"].get("activation"),
+            "synthetic": bool(a.synthetic), **{key: oj["data"][key] for key in
+            ("public_dir", "public", "hidden", "sources_sha256")}}
+    (oj_path.parent / "data_lock.yaml").write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
+    import build_standard_cases
+    build_standard_cases.build_handcrafted(ROOT / "spec/handcrafted/IC-SPD-001.yaml", check=False)
     print(f"public {pub} {len(ytr)} rows (dev {len(dev)}); hidden {hid} {len(xh)} rows (encrypted)"
           + ("  [SYNTHETIC]" if a.synthetic else ""))
     return 0

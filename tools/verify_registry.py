@@ -87,7 +87,7 @@ def index_cases() -> list[tuple[dict, dict]]:
 
 
 def spec_of(cid: str) -> dict | None:
-    for d in ("cases", "standard_cases"):
+    for d in ("cases", "standard_cases", "handcrafted"):
         p = ROOT / "spec" / d / f"{cid}.yaml"
         if p.is_file():
             return yaml.safe_load(p.read_text(encoding="utf-8"))
@@ -184,6 +184,11 @@ def check(rows: list[dict]) -> list[str]:
             errs.append(f"{cid}: active requires review tier 1 or 2")
         if r["design"] == "designed" and not r["next_step"].strip() and r["activation"] != "active":
             errs.append(f"{cid}: next_step is empty")
+    from catalog import load_catalog, catalog_errors
+    try:
+        errs.extend(catalog_errors(load_catalog(ROOT), ROOT))
+    except (ValueError, KeyError, OSError) as error:
+        errs.append(f"catalog: {error}")
     return errs
 
 

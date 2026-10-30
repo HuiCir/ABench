@@ -67,8 +67,12 @@ allow:
   # packages for development (the submission may still use only the software the task statement lists)
   - pypi.org
   - files.pythonhosted.org
-harness_allow:
+harness_allow:               # official default model host of each harness; a configured endpoint replaces it
   claude: [api.anthropic.com]
+  codex: [api.openai.com]
+  gemini: [generativelanguage.googleapis.com]
+  dsh: [api.deepseek.com]
+  zcode: [api.z.ai]
 deny:
   # dataset and model hubs: data and weights come only from $ABENCH_DATA_DIR / $ABENCH_MODELS_DIR
   - huggingface.co

@@ -12,6 +12,12 @@ e = json.loads(p.read_text())
 print(f"record        {p}")
 print(f"judge         verdict={e.get('verdict')} scorable={e.get('scorable')} isolation={e.get('judge_isolation')}")
 print(f"              reason: {e.get('scoreability_reason')}")
+judge_gpus = [g["name"] for g in e.get("judge_gpu_inventory") or [] if g]
+agent = e.get("agent_hardware") or {}
+if judge_gpus or agent.get("gpus"):
+    reference = e.get("judge_gpu_class_matches") is not False and agent.get("gpu_class_matches") is not False
+    print(f"gpus          agent {', '.join(g['name'] for g in agent.get('gpus') or []) or '-'}; "
+          f"judge {', '.join(judge_gpus) or '-'}" + ("" if reference else "  (non-reference)"))
 d = e.get("judge_isolation_detail") or {}
 if d:
     pf = d.get("preflight") or {}

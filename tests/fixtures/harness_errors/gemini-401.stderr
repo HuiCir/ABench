@@ -1,0 +1,1 @@
+Error when talking to Gemini API Full report available at: /tmp/tmp7hzg__qg/tmp/gemini-client-error-Turn.run-sendMessageStream-2026-10-29T05-27-54-148Z.json _ApiError: {"error":{"code":401,"message":"Invalid API key provided (fake).","status":"UNAUTHENTICATED"}}
