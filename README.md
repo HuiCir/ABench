@@ -242,9 +242,17 @@ legacy deferred placeholders are preserved as `evaluation.deferred.json`, and in
 
 Agent containers run as uid 1000 with dropped capabilities, no new privileges, explicit resource limits and
 `--network none`. Read-only inputs and a Unix proxy socket arrive through named volumes and tar transfers. Docker
-inspect and runtime probes check the effective configuration. Every stage × seed uses a new judge container;
+inspect and runtime probes check the effective configuration. Every stage × seed uses a new judge container.
+The agent prompt and `$ABENCH_RESOURCE_LIMITS` JSON report verified container RAM, CPU quota, shared memory,
+PID limits, startup memory headroom and the run's actual session deadline/compute allowance. All experiments
+share those limits; `/proc/meminfo` and CPU enumeration may show the host instead. GPU free memory is a startup
+observation, not reserved VRAM. A copy is saved as `resource_limits.json` with the run.
 R/T/G/P stdio handshakes delay held-out inputs until the timed phase ends. Safe archive extraction rejects links,
 devices, traversal and oversized outputs. Signals and deadlines clean up run-labeled objects.
+Mount verification checks the named volume identity as well as its destination and access mode. Task and judge
+containers must be confirmed stopped before collecting artifacts, even when a Docker client has already exited.
+Format-only rejection, smoke and pending cases report `judge_isolation: not_started` with
+`judge_backend_requested`; they have not executed submission code in a judge stage.
 
 Public data is validated against the frozen hashes and uploaded directly into shared read-only caches, without
 first copying large files into a temporary agent view. Source hashes are memoized within the run and invalidated

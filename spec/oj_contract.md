@@ -19,7 +19,7 @@ and the run aborts if any evaluator-side name (`oj.yaml`, `hidden`, `*.enc`, `*.
 judge files) appears.
 
 Judge-side terms in the task statement are checked against `LEAK_TERMS` in `tools/leak_check.py` (hidden, evaluation, metric, threshold, reference pool,
-Pareto, leaderboard, ablation…); a case may allow the evaluation-rule terms through `agent_visible.leak_allow`, but never the terms in `NEVER_ALLOW`. `tools/validate_task_statement.py` checks every statement, and the runner checks `task.md` and every agent-visible interface file again when it builds the view.
+Pareto, leaderboard, ablation…); a case may allow the evaluation-rule terms through `agent_visible.leak_allow`, but never the terms in `NEVER_ALLOW`. `tools/validate_task_statement.py` checks every statement, including that its Sandbox Guide states the session length, development compute allowance and CPU/GPU allocation that the runner applies from `oj.yaml`, and the runner checks `task.md` and every agent-visible interface file again when it builds the view.
 
 ## 2. `case/oj.yaml`
 

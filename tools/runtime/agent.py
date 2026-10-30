@@ -11,7 +11,7 @@ import uuid
 
 from containers import Docker, DockerError, DockerPathMissing
 from container_policy import create_options, verify_inspect, resources_for
-from runtime.cleanup import cleanup_objects
+from runtime.cleanup import cleanup_objects, stop_container
 
 CONTAINER_PATHS = {k: Path(v) for k, v in {
     'view': '/abench/view', 'workspace': '/abench/workspace', 'home': '/abench/workspace/.home',
@@ -194,6 +194,9 @@ try:
  open('/abench/view/.write_probe','w').close(); r['view_readonly']=False
 except OSError: r['view_readonly']=True
 r['uid']=os.getuid()
+try:
+ r['memory_current_bytes']=int(open('/sys/fs/cgroup/memory.current').read())
+except (OSError,ValueError): r['memory_current_bytes']=None
 print(json.dumps(r))
 '''
         probes = json.loads(d.exec(self.cid, ['python3','-c',probe]).stdout)
@@ -263,13 +266,12 @@ print(json.dumps(r))
                                    ('oom_kills', r'oom_kill (\d+)')):
                 match = re.search(pattern, usage.stdout)
                 self.record[field] = int(match[1]) if match else None
-            # Stop every child/background process before collecting mutable artifacts.
-            d.kill(self.cid)
-            if d.inspect(self.cid)['State'].get('Running'):
-                raise DockerError('agent container is still running; refusing to collect mutable artifacts')
-            self.record['stopped_before_collection'] = True
         else:
             self.record['cpu_usage_usec'] = None
+        # Stop every child/background process before collecting mutable artifacts.
+        state = stop_container(d, self.cid)
+        self.record['stopped_before_collection'] = True
+        self.record['container_oom_killed'] = bool(state.get('OOMKilled'))
         target = self.host_paths['root'] / 'download'
         d.download(self.cid,'/abench/workspace/submission',target / 'submission',max_bytes=32*1024**3)
         # Download only declared artifacts, not arbitrary HOME/temp content.

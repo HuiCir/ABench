@@ -33,6 +33,39 @@ class ArchiveTest(unittest.TestCase):
             safe_extract(make_tar(td),out)
             self.assertEqual((Path(out)/'x').read_text(),'hello')
 class PolicyTest(unittest.TestCase):
+    def guide(self, case):
+        import yaml
+        from validate_task_statement import sections
+        root = Path(__file__).resolve().parents[1]/'cases'/case/'case'
+        return sections((root/'agent/task.md').read_text())['Sandbox Guide'], yaml.safe_load((root/'oj.yaml').read_text())
+
+    def test_every_sandbox_guide_states_the_allocation_of_oj_yaml(self):
+        from validate_task_statement import allocation_issues
+        for path in sorted((Path(__file__).resolve().parents[1]/'cases').glob('*/case/oj.yaml')):
+            with self.subTest(case=path.parts[-3]):
+                self.assertEqual(allocation_issues(*self.guide(path.parts[-3])), [])
+
+    def test_a_guide_that_disagrees_with_oj_yaml_is_reported(self):
+        from validate_task_statement import allocation_issues
+        guide, oj = self.guide('TC-FT-001')
+        for old, new, field in [('8 CPU cores', '4 CPU cores', 'CPU cores'), ('at most 3 hours', 'at most 2 hours', 'session'),
+                                ('capped at 8 CPU-core-hours', 'capped at 3 CPU-core-hours', 'agent_budget.cpu_core_hours'),
+                                ('no GPU', 'one GPU', 'GPUs'), ('no GPU', 'no GPU, 2 GiB RAM', 'RAM bytes'),
+                                ('capped at 8 CPU-core-hours', 'capped at an unspecified amount', 'cannot read')]:
+            with self.subTest(field=field):
+                self.assertIn(old, guide)
+                issues = allocation_issues(guide.replace(old, new), oj)
+                self.assertTrue(issues and all(field in issue for issue in issues), issues)
+
+    def test_gpu_count_comes_from_the_hardware_label_and_vram_is_not_ram(self):
+        from validate_task_statement import allocation_issues
+        guide, oj = self.guide('PRO-ARL-001')
+        self.assertEqual(allocation_issues(guide.replace('in one node', 'in one node, one GPU per rank'), oj), [])
+        guide, oj = self.guide('IC-SPD-001')
+        self.assertIn('24GB reference GPU', guide)          # VRAM, not a container RAM statement
+        self.assertEqual(allocation_issues(guide, oj), [])
+        self.assertIn('GPUs', allocation_issues(guide.replace('One 24GB reference GPU', '2 24GB reference GPUs'), oj)[0])
+
     def test_secure_flags(self):
         args=create_options({'cpus':8,'memory':'16g','pids':1024,'shm_size':'2g','gpus':0})
         for flag in ['--network','--cap-drop','--security-opt','--user','--init','--pids-limit','--memory','--cpus']:
@@ -57,6 +90,14 @@ class GPUInspectTest(unittest.TestCase):
         self.assertFalse(verify_inspect(inspected,gpus=['3'])['verified'])
         inspected['HostConfig']['DeviceRequests'][0]['Count']=-1
         self.assertFalse(verify_inspect(inspected,gpus=['2'])['verified'])
+
+    def test_mount_must_be_the_expected_volume_not_only_the_expected_path(self):
+        inspected = self.base()
+        inspected['Mounts'] = [{'Type': 'volume', 'Name': 'judge-input', 'Destination': '/abench/view', 'RW': False}]
+        mounts = ['type=volume,src=judge-input,dst=/abench/view,readonly']
+        self.assertTrue(verify_inspect(inspected, mounts=mounts)['verified'])
+        inspected['Mounts'][0]['Name'] = 'agent-workspace'
+        self.assertFalse(verify_inspect(inspected, mounts=mounts)['checks']['mounts'])
     def test_cdi_selection_and_extra_device(self):
         inspected=self.base();inspected['HostConfig']['Devices']=[{'PathOnHost':'nvidia.com/gpu=2'}]
         self.assertTrue(verify_inspect(inspected,gpus=['2'])['verified'])

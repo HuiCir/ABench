@@ -298,11 +298,8 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
     dependency = _dependency_attestation(image, locked) if launcher else _dependency_attestation()
     rec: dict[str, Any] = {"schema_version": "2.0", "case_id": case, "judge_version": JUDGE_VERSION,
                            "provenance": "judge_real", "run_mode": run_mode,
-                           # The parent evaluator and predictor currently run
-                           # under the operator account.  Keep this explicit
-                           # so a benchmark record cannot be mistaken for a
-                           # fully container-isolated judge.
-                           "judge_isolation": "host_soft",
+                           # Format-only rejection, smoke and pending cases execute no submission stage.
+                           "judge_isolation": "not_started", "judge_backend_requested": backend,
                            "scorable": run_mode == "benchmark",
                            "judge_dependency": dependency,
                            "submission_tree_sha256": tree_hash(submission),

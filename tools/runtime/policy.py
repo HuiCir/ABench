@@ -121,14 +121,15 @@ def verify_inspect(inspected, image=None, network='none', mounts=None, resources
     if image:
         checks['image'] = cfg.get('Image') == image
     if mounts is not None:
-        actual = {(m['Destination'], bool(m.get('RW'))) for m in inspected.get('Mounts',[])}
+        actual = {(m['Destination'], bool(m.get('RW')), m.get('Name')) for m in inspected.get('Mounts',[])}
         expected = set()
         for m in mounts:
             if isinstance(m,str):
                 fields = dict(x.split('=',1) for x in m.split(',') if '=' in x)
-                expected.add((fields.get('dst') or fields.get('target') or fields.get('destination'), 'readonly' not in m.split(',')))
+                expected.add((fields.get('dst') or fields.get('target') or fields.get('destination'),
+                              'readonly' not in m.split(','), fields.get('src') or fields.get('source')))
             else:
-                expected.add((m['destination'], not m.get('readonly',False)))
+                expected.add((m['destination'], not m.get('readonly',False), m.get('source') or m.get('name')))
         checks['mounts'] = actual == expected
     enforcement = {'enforced': bool(resources_enforced), 'requested': {}, 'actual': {}}
     if resources:
