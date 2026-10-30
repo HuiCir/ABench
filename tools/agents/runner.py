@@ -66,6 +66,7 @@ def run(args):
     import egress_proxy
     from catalog import case_lock, check_run_lock, load_catalog, snapshot, suite_cases
     from images import resolve_image, image_attestation
+    from container_policy import calibration_cpu_cap
     oj = yaml.safe_load((s.ROOT / 'cases' / args.case / 'case/oj.yaml').read_text())
     limit = float(oj['resources']['wall_clock_limit_h'])*3600
     args.timeout_seconds = args.timeout_seconds if args.timeout_seconds is not None else limit
@@ -183,7 +184,7 @@ def run(args):
         env, passed = s.agent_env(args,runpaths)
         env['PATH'] = '/usr/local/bin:/usr/bin:/bin' if args.backend == 'docker' else os.environ.get('PATH','')
         for name in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMEXPR_NUM_THREADS'):
-            env[name] = str(oj['resources']['cpus'])
+            env[name] = str(calibration_cpu_cap(oj['resources'])[0]['cpus'])
         env['ABENCH_RETRIEVAL_LOG'] = str(runpaths['retrieval_log'])
         if papers:
             env['ABENCH_PAPERS_INDEX'] = '/abench/papers/current.sqlite' if args.backend == 'docker' else str(paths['papers']/'current.sqlite')

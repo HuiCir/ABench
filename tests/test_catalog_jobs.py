@@ -151,6 +151,12 @@ class JobTests(unittest.TestCase):
     def setUpClass(cls):
         cls.by = {r['id']: r for r in catalog.load_catalog()}
 
+    def setUp(self):
+        # Plans skip cases that need more cores than the host has; a GitHub runner has only 4.
+        cpus = patch('jobs.os.cpu_count', return_value=64)
+        cpus.start()
+        self.addCleanup(cpus.stop)
+
     def test_matrix_estimate_and_skip_missing_hardware(self):
         plan = jobs.plan([self.by['TC-FT-001'], self.by['PRO-SPD-004']], ['mock', 'oracle'], [None, 'm'], 2, inventory=[])
         self.assertEqual(len(plan['entries']), 16)

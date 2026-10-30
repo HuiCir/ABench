@@ -28,6 +28,8 @@ class DockerAgentTest(unittest.TestCase):
         (self.paths['view']/'task.md').write_text('test task\n')
         self.args=SimpleNamespace(case='TC-FT-001',run_id='integration-test',gpus=None,network='none')
         self.oj=yaml.safe_load((ROOT/'cases/TC-FT-001/case/oj.yaml').read_text())
+        # Docker refuses more CPUs than the host has, and a GitHub runner has 4; the checks do not depend on it.
+        self.oj['resources']={**self.oj['resources'],'cpus':2}
         self.environment=None
 
     def tearDown(self):

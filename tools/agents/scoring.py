@@ -28,6 +28,8 @@ def apply_agent_attestation(evaluation: dict, agent_record: dict) -> dict:
         reasons.append('agent Docker cleanup is incomplete')
     if sandbox.get('shared_gpu_validation'):
         reasons.append('shared GPU validation; exclusive GPU allocation is not guaranteed')
+    if sandbox.get('validation_cpu_cap'):
+        reasons.append(sandbox['validation_cpu_cap'])
     if sandbox.get('validation_cpu_override'):
         reasons.append('CPU validation override of a GPU case')
     elif sandbox.get('hardware_matches') is not True and not sandbox.get('shared_gpu_validation'):
@@ -60,5 +62,7 @@ def apply_agent_attestation(evaluation: dict, agent_record: dict) -> dict:
     if reasons:
         evaluation['scorable'] = False
         previous = evaluation.get('scoreability_reason')
-        evaluation['scoreability_reason'] = '; '.join(dict.fromkeys(x for x in [previous, *reasons] if x))
+        # The judge may already give the same reason (a CPU override or cap applies to both containers).
+        pieces = [piece for x in [previous, *reasons] if x for piece in x.split('; ')]
+        evaluation['scoreability_reason'] = '; '.join(dict.fromkeys(pieces))
     return evaluation

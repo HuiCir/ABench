@@ -36,3 +36,5 @@ jobs:
           python3 -m unittest discover -s tests -p test_container_judge.py
           python3 -m unittest discover -s tests -p test_container_agent.py
       - run: ./abench calibrate DS-PIPE-002 --data synthetic
+        env:
+          ABENCH_CALIBRATION_MAX_CPUS: 4     # GitHub runners have 4 CPUs; DS-PIPE-002 declares 8

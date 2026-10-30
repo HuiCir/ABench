@@ -17,6 +17,12 @@ class JobResumeStateTests(unittest.TestCase):
     def setUpClass(cls):
         cls.row = next(row for row in catalog.load_catalog() if row['id'] == 'TC-FT-001')
 
+    def setUp(self):
+        # Plans skip cases that need more cores than the host has; a GitHub runner has only 4.
+        cpus = patch('jobs.os.cpu_count', return_value=64)
+        cpus.start()
+        self.addCleanup(cpus.stop)
+
     def test_normal_exit_and_resume_preserve_provider_agent_and_deferred_outcomes(self):
         # Transient failures exhaust one retry; HTTP 402 and authentication failures stop immediately.
         cases = [

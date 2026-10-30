@@ -66,6 +66,24 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(allocation_issues(guide, oj), [])
         self.assertIn('GPUs', allocation_issues(guide.replace('One 24GB reference GPU', '2 24GB reference GPUs'), oj)[0])
 
+    def test_calibration_cpu_cap_lowers_cpus_and_says_so(self):
+        import os
+        from unittest import mock
+        from container_policy import calibration_cpu_cap
+        resources = {'cpus': 8, 'memory': '16g'}
+        with mock.patch.dict(os.environ):
+            os.environ.pop('ABENCH_CALIBRATION_MAX_CPUS', None)
+            self.assertEqual(calibration_cpu_cap(resources), (resources, None))
+            os.environ['ABENCH_CALIBRATION_MAX_CPUS'] = '4'
+            capped, reason = calibration_cpu_cap(resources)
+            self.assertEqual((capped['cpus'], capped['memory'], resources['cpus']), (4, '16g', 8))
+            self.assertIn('4 of the 8 declared', reason)
+            self.assertEqual(calibration_cpu_cap({'cpus': 2}), ({'cpus': 2}, None))
+            for bad in ('0', '-1', '2.5', 'four'):
+                os.environ['ABENCH_CALIBRATION_MAX_CPUS'] = bad
+                with self.assertRaises(ValueError):
+                    calibration_cpu_cap(resources)
+
     def test_secure_flags(self):
         args=create_options({'cpus':8,'memory':'16g','pids':1024,'shm_size':'2g','gpus':0})
         for flag in ['--network','--cap-drop','--security-opt','--user','--init','--pids-limit','--memory','--cpus']:

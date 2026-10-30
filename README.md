@@ -47,7 +47,9 @@ authentication from its host-side client; build arguments alone do not configure
 `calibrate` creates a private work copy in `~/.abench/calibration/<run-id>`, freezes the data there, runs the oracle
 adapter in Docker, and judges its submission in fresh stage containers. It creates `~/.abench/hidden.key` with mode
 0600 if missing; keys are generated on each host and never copied with the code. Results appear in the original
-checkout under `runs/<case>/<run-id>/`. Synthetic data is only a plumbing check.
+checkout under `runs/<case>/<run-id>/`. Synthetic data is only a plumbing check. On a host with fewer cores than the
+case declares, such as a 4-core CI runner, `ABENCH_CALIBRATION_MAX_CPUS=N` gives the containers at most N CPUs;
+the record states the cap and the run is never scored.
 
 For a real calibration, download the pinned sources first:
 

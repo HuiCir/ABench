@@ -11,6 +11,18 @@ def bytes_value(value):
     if not match:
         raise ValueError(f'invalid memory quantity: {value}')
     return int(float(match[1]) * 1024 ** ('kmgt'.index(match[2]) + 1 if match[2] else 0))
+def calibration_cpu_cap(resources):
+    """ABENCH_CALIBRATION_MAX_CPUS lets an unscored calibration run on a host with fewer cores than the case declares
+    (a 4-core CI runner): containers get at most that many CPUs, and the returned reason makes the run unscorable."""
+    import os
+    raw = os.environ.get('ABENCH_CALIBRATION_MAX_CPUS')
+    if not raw:
+        return resources, None
+    if not raw.isdigit() or int(raw) <= 0:
+        raise ValueError('ABENCH_CALIBRATION_MAX_CPUS must be a positive integer')
+    if float(resources['cpus']) <= int(raw):
+        return resources, None
+    return {**resources, 'cpus': int(raw)}, f"calibration CPU cap: {raw} of the {resources['cpus']} declared CPU cores"
 def resources_for(oj):
     env = oj.get('environment') or {}
     profile = env.get('profile') or oj.get('profile')

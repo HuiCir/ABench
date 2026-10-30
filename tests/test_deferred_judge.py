@@ -162,6 +162,7 @@ class DeferredJudgeTests(unittest.TestCase):
 
     def test_development_hardware_restriction_survives_reference_judge(self):
         for flags in ({'hardware_matches':False},{'validation_cpu_override':True},
+                      {'validation_cpu_cap':'calibration CPU cap: 4 of the 8 declared CPU cores'},
                       {'shared_gpu_validation':True},{'hardware_matches':None}):
             with self.subTest(flags=flags):
                 record=copy.deepcopy(self.record)
@@ -174,6 +175,12 @@ class DeferredJudgeTests(unittest.TestCase):
                     self.assertIn('exclusive GPU allocation is not guaranteed', reason)
                 elif flags.get('validation_cpu_override'):
                     self.assertIn('CPU validation override', reason)
+                elif flags.get('validation_cpu_cap'):
+                    self.assertIn('calibration CPU cap: 4 of the 8', reason)
+                    judged = {'scorable':False,'judge_platform':'linux/amd64',
+                              'scoreability_reason':'synthetic data; '+flags['validation_cpu_cap']}
+                    reason = apply_agent_attestation(judged,record)['scoreability_reason']
+                    self.assertEqual(reason.count('calibration CPU cap'), 1, reason)
                 else:
                     self.assertIn('resource allocation', reason)
 
