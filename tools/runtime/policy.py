@@ -45,8 +45,9 @@ def host_scaled(resources, docker_info=None):
     total, cpus = int(raw.get('MemTotal') or 0), int(raw.get('NCPU') or 0)
     if not scale or total <= 0 or cpus <= 0:
         return resources
-    memory = int(total * float(scale['memory_fraction']))
-    return {**resources, 'cpus': cpus, 'memory': memory, 'shm_size': int(memory * float(scale['shm_fraction'])),
+    mib = 1024 ** 2   # whole MiB: the kernel rounds memory.max down to a page, and records must equal the cgroup
+    memory = int(total * float(scale['memory_fraction'])) // mib * mib
+    return {**resources, 'cpus': cpus, 'memory': memory, 'shm_size': int(memory * float(scale['shm_fraction'])) // mib * mib,
             'pids': int(scale['pids'])}
 
 def gpu_mode(info=None):

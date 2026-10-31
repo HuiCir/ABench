@@ -79,6 +79,8 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual((scaled['cpus'],scaled['memory'],scaled['shm_size'],scaled['pids']),(64,90*1024**3,45*1024**3,65536))
         self.assertEqual(scaled['gpus'],declared['gpus'])
         self.assertEqual(host_scaled(declared,{}),declared)
+        odd=host_scaled(declared,{'raw':{'MemTotal':100*1024**3+12345,'NCPU':4}})
+        self.assertEqual((odd['memory']%2**20,odd['shm_size']%2**20),(0,0))
         args=create_options(scaled)
         self.assertEqual(args[args.index('--memory')+1],str(90*1024**3))
         inspected={'HostConfig':{'Memory':int(args[args.index('--memory')+1]),'ShmSize':bytes_value(args[args.index('--shm-size')+1]),
