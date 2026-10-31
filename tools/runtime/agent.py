@@ -10,8 +10,8 @@ import time
 import uuid
 
 from containers import Docker, DockerError, DockerPathMissing
-from container_policy import create_options, verify_inspect, resources_for
-from runtime.cleanup import cleanup_objects
+from container_policy import create_options, verify_inspect, resources_for, host_scaled
+from runtime.cleanup import cleanup_objects, stop_container
 
 CONTAINER_PATHS = {k: Path(v) for k, v in {
     'view': '/abench/view', 'workspace': '/abench/workspace', 'home': '/abench/workspace/.home',
@@ -108,19 +108,8 @@ class DockerAgentEnvironment(AgentEnvironment):
             raise DockerError(f'helper container deletion failed: {cid}: {result.stderr}')
         self.ids.remove(cid)
 
-    def start(self):
+    def _initialize_volumes(self, view, work, control):
         d = self.docker
-        info = d.info()
-        self.record.update({k: info[k] for k in ('rootless', 'desktop', 'platform', 'resources_enforced')})
-        resources = resources_for(self.oj)
-        if os.environ.get('ABENCH_CALIBRATION_CPU') == '1':
-            resources = {**resources,'gpus':0}
-            self.record['validation_cpu_override'] = True
-        self.record['resources'] = resources
-        view, work, control = (self._volume(k) for k in ('view','workspace','control'))
-        mounts = [f'type=volume,src={view},dst=/abench/view,readonly',
-                  f'type=volume,src={work},dst=/abench/workspace',
-                  f'type=volume,src={control},dst=/abench/control,readonly']
         # Initialization helpers are offline, discarded, and never execute submitted code.
         init = self._create(self.image, ['sleep','infinity'], ['--network','none', '--user','0:0',
             '--mount',f'type=volume,src={view},dst=/abench/view',
@@ -141,6 +130,50 @@ class DockerAgentEnvironment(AgentEnvironment):
         d.upload(init, self.host_paths['control'], '/abench/control')
         d.exec(init, ['chown','-R','1000:1000','/abench/workspace','/abench/control'])
         self._discard_helper(init)
+
+    def _start_sidecar(self, control, info, mounts):
+        d = self.docker
+        sock = self._volume('socket')
+        side_mounts = [f'type=volume,src={sock},dst=/socket',
+                       f'type=volume,src={control},dst=/control,readonly']
+        side_resources = {'cpus':1,'memory':'1g','shm_size':'64m','pids':512,'gpus':0}
+        side_options = create_options(side_resources,network='bridge',mounts=side_mounts,docker_info=info)
+        side = self._create(self.sidecar_image,
+            ['python3','/control/egress_proxy.py','serve','--policy','/control/policy.json',
+             '--socket','/socket/proxy.sock','--log','/tmp/egress.jsonl'],
+            [*side_options,*(['-e','ABENCH_EGRESS_UPSTREAM'] if os.environ.get('ABENCH_EGRESS_UPSTREAM') else [])])
+        # Named volumes default root-owned; prepare the socket directory before dropping privilege.
+        helper = self._create(self.image,['chown','1000:1000','/socket'],
+            ['--network','none','--user','0:0','--mount',f'type=volume,src={sock},dst=/socket'])
+        d.start(helper)
+        d.run(['wait',helper])
+        self._discard_helper(helper)
+        d.start(side)
+        self.sidecar = side
+        mounts.append(f'type=volume,src={sock},dst=/run/abench-egress,readonly')
+        from images import image_attestation
+        checked = verify_inspect(d.inspect(side),image=self.sidecar_image,network='bridge',
+                                 mounts=side_mounts,resources=side_resources,image_id=d.inspect(self.sidecar_image)['Id'],resources_enforced=info['resources_enforced'])
+        self.record['sidecar'] = {'image_digest':self.sidecar_image,'inspect':checked,
+                                 'image_attestation':image_attestation(self.sidecar_image,'egress')}
+        if not checked['verified']:
+            raise DockerError('sidecar policy verification failed')
+
+    def start(self):
+        d = self.docker
+        info = d.info()
+        self.record.update({k: info[k] for k in ('rootless', 'desktop', 'platform', 'resources_enforced')})
+        resources = resources_for(self.oj)
+        if os.environ.get('ABENCH_CALIBRATION_CPU') == '1':
+            resources = {**resources,'gpus':0}
+            self.record['validation_cpu_override'] = True
+        resources = host_scaled(resources, info)
+        self.record['resources'] = resources
+        view, work, control = (self._volume(k) for k in ('view','workspace','control'))
+        mounts = [f'type=volume,src={view},dst=/abench/view,readonly',
+                  f'type=volume,src={work},dst=/abench/workspace',
+                  f'type=volume,src={control},dst=/abench/control,readonly']
+        self._initialize_volumes(view, work, control)
         if 'public_sources' in self.host_paths:
             vol = d.cached_file_volume(self.host_paths['public_sources'], self.image)
             mounts.append(f'type=volume,src={vol},dst=/abench/view/data,readonly')
@@ -152,29 +185,7 @@ class DockerAgentEnvironment(AgentEnvironment):
                 mounts.append(f'type=volume,src={vol},dst={dest},readonly')
         self.record['data_caches'] = getattr(d, 'cache_records', [])
         if self.policy:
-            sock = self._volume('socket')
-            side_mounts = [f'type=volume,src={sock},dst=/socket',
-                           f'type=volume,src={control},dst=/control,readonly']
-            side_resources = {'cpus':1,'memory':'1g','shm_size':'64m','pids':512,'gpus':0}
-            side_options = create_options(side_resources,network='bridge',mounts=side_mounts,docker_info=info)
-            side = self._create(self.sidecar_image,
-                ['python3','/control/egress_proxy.py','serve','--policy','/control/policy.json',
-                 '--socket','/socket/proxy.sock','--log','/tmp/egress.jsonl'],
-                [*side_options,*(['-e','ABENCH_EGRESS_UPSTREAM'] if os.environ.get('ABENCH_EGRESS_UPSTREAM') else [])])
-            # Named volumes default root-owned; prepare the socket directory before dropping privilege.
-            helper = self._create(self.image,['chown','1000:1000','/socket'],
-                ['--network','none','--user','0:0','--mount',f'type=volume,src={sock},dst=/socket'])
-            d.start(helper)
-            d.run(['wait',helper]); self._discard_helper(helper)
-            d.start(side); self.sidecar = side
-            mounts.append(f'type=volume,src={sock},dst=/run/abench-egress,readonly')
-            from images import image_attestation
-            checked = verify_inspect(d.inspect(side),image=self.sidecar_image,network='bridge',
-                                     mounts=side_mounts,resources=side_resources,image_id=d.inspect(self.sidecar_image)['Id'],resources_enforced=info['resources_enforced'])
-            self.record['sidecar'] = {'image_digest':self.sidecar_image,'inspect':checked,
-                                     'image_attestation':image_attestation(self.sidecar_image,'egress')}
-            if not checked['verified']:
-                raise DockerError('sidecar policy verification failed')
+            self._start_sidecar(control, info, mounts)
         net = 'bridge' if self.args.network == 'open' else 'none'
         self.mounts = mounts
         options = create_options(resources, self.args.gpus, network=net, mounts=mounts,docker_info=info)
@@ -194,6 +205,9 @@ try:
  open('/abench/view/.write_probe','w').close(); r['view_readonly']=False
 except OSError: r['view_readonly']=True
 r['uid']=os.getuid()
+try:
+ r['memory_current_bytes']=int(open('/sys/fs/cgroup/memory.current').read())
+except (OSError,ValueError): r['memory_current_bytes']=None
 print(json.dumps(r))
 '''
         probes = json.loads(d.exec(self.cid, ['python3','-c',probe]).stdout)
@@ -263,13 +277,12 @@ print(json.dumps(r))
                                    ('oom_kills', r'oom_kill (\d+)')):
                 match = re.search(pattern, usage.stdout)
                 self.record[field] = int(match[1]) if match else None
-            # Stop every child/background process before collecting mutable artifacts.
-            d.kill(self.cid)
-            if d.inspect(self.cid)['State'].get('Running'):
-                raise DockerError('agent container is still running; refusing to collect mutable artifacts')
-            self.record['stopped_before_collection'] = True
         else:
             self.record['cpu_usage_usec'] = None
+        # Stop every child/background process before collecting mutable artifacts.
+        state = stop_container(d, self.cid)
+        self.record['stopped_before_collection'] = True
+        self.record['container_oom_killed'] = bool(state.get('OOMKilled'))
         target = self.host_paths['root'] / 'download'
         d.download(self.cid,'/abench/workspace/submission',target / 'submission',max_bytes=32*1024**3)
         # Download only declared artifacts, not arbitrary HOME/temp content.

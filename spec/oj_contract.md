@@ -19,7 +19,7 @@ and the run aborts if any evaluator-side name (`oj.yaml`, `hidden`, `*.enc`, `*.
 judge files) appears.
 
 Judge-side terms in the task statement are checked against `LEAK_TERMS` in `tools/leak_check.py` (hidden, evaluation, metric, threshold, reference pool,
-Pareto, leaderboard, ablation…); a case may allow the evaluation-rule terms through `agent_visible.leak_allow`, but never the terms in `NEVER_ALLOW`. `tools/validate_task_statement.py` checks every statement, and the runner checks `task.md` and every agent-visible interface file again when it builds the view.
+Pareto, leaderboard, ablation…); a case may allow the evaluation-rule terms through `agent_visible.leak_allow`, but never the terms in `NEVER_ALLOW`. `tools/validate_task_statement.py` checks every statement, including that its Sandbox Guide states the session length, development compute allowance and CPU/GPU allocation that the runner applies from `oj.yaml`, and the runner checks `task.md` and every agent-visible interface file again when it builds the view.
 
 ## 2. `case/oj.yaml`
 
@@ -135,7 +135,9 @@ agent stage), `metrics`, `gates`. All temporary directories are deleted.
    Dependency environments are recorded inside profile
    images using `tools/record_environment.py` (`spec/env/lock/<profile>@<version>.json`). Changing a profile's
    packages means a new version in `spec/env/profiles.yaml`; published versions are never rebuilt. Local
-   development images can validate the pipeline but are unscorable.
+   development images can validate the pipeline but are unscorable, unless the operator locks their exact image IDs
+   on the host (`./abench images lock --local`, `spec/env/images.local.lock.yaml`). Such runs score, and their
+   records mark the agent, sidecar and judge images as `local` (unpublished) locks.
    The host's `tools/` tree must match `ABENCH_JUDGE_TOOLS_SHA256`. The container path does not require
    `ABENCH_JUDGE_PYTHONPATH`. Scoring also requires `linux/amd64` and the case's GPU count on idle cards (Pro: an
    exclusive 4-GPU node). A GPU model other than the reference class does not affect scoring; it is recorded

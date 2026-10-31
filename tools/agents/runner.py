@@ -13,8 +13,9 @@ import tempfile
 import time
 import uuid
 import yaml
-from agents import get_agent
+from agents import get_agent, run_label
 from agents.models import resolve
+from agents.workspace import resource_limits
 from runtime.agent import DockerAgentEnvironment, HostSoftEnvironment
 from runtime.cleanup import shielded
 
@@ -59,6 +60,64 @@ def verify_harness_version(adapter, args, environment, env, result):
     return record
 
 
+def _resolve_endpoint(args, adapter, oj):
+    """Resolve and validate model overrides before preparing a run."""
+    endpoint = resolve(adapter,args.model,args.base_url,args.allow_private_model_endpoint,oj)
+    if args.claude_model:
+        if args.harness != 'claude' or endpoint is None:
+            raise ValueError('--claude-model requires the Claude harness')
+        endpoint['model'] = args.claude_model
+        endpoint['model_override_source'] = '--claude-model'
+    if getattr(args,'effort',None):
+        if endpoint is None:
+            raise ValueError('--effort requires a harness with a model')
+        endpoint['parameters'] = {**(endpoint.get('parameters') or {}),'effort':args.effort}
+        endpoint['effort_source'] = '--effort'
+    if endpoint and not os.environ.get(endpoint['key_env']) and not args.dry_run:
+        raise ValueError('missing model credential environment variable: '+endpoint['key_env'])
+    return endpoint
+
+
+def _select_gpus(args, oj, shared_gpu):
+    """Validate the requested allocation and retain its hardware evidence."""
+    from jobs import gpu_inventory, available_for_case
+    ids = str(args.gpus or '').split(',') if args.gpus else []
+    inventory = {g['index']:g for g in gpu_inventory()}
+    resources = oj['resources']
+    if len(ids) != int(resources['gpus']) or len(set(ids)) != len(ids) or any(i not in inventory for i in ids):
+        raise ValueError('supply distinct --gpus matching the case resource count')
+    if any(not available_for_case({'resources':resources},inventory[i],shared_gpu) for i in ids):
+        raise ValueError('selected GPU lacks sufficient free low-load resources; sharing requires --allow-shared-gpu')
+    selected_gpus = [inventory[i] for i in ids]
+    # The GPU model does not affect scoring; it is recorded and reported with the result.
+    gpu_class_matches = all(g['class'] == resources['gpu_class'] for g in selected_gpus)
+    hardware_matches = not shared_gpu
+    if resources['budget_tier'] == 'pro':
+        hardware_matches = hardware_matches and len(inventory) == 4
+    if not gpu_class_matches and not args.allow_nonreference_gpu:
+        raise ValueError('non-reference GPU requires --allow-nonreference-gpu (scored; the GPU model is reported)')
+    return selected_gpus, hardware_matches, gpu_class_matches
+
+
+def _close_environment(environment, result):
+    """Keep cleanup evidence without masking an error already in flight."""
+    pending_error = sys.exc_info()[0] is not None
+    try:
+        environment.close()
+    except Exception:
+        if not pending_error:
+            raise
+    finally:
+        # Setup can fail before agent_run.json exists. Keep the cleanup outcome independently, and
+        # never let writing this diagnostic replace the original authentication/transport failure.
+        state = getattr(environment,'record',None)
+        if isinstance(state,dict) and state.get('cleanup') is not None and result.is_dir():
+            try:
+                (result/'cleanup.json').write_text(json.dumps(state['cleanup'],indent=2)+'\n')
+            except (OSError,TypeError,ValueError):
+                pass
+
+
 def run(args):
     import sandbox_runner as s
     import oj_eval
@@ -84,19 +143,7 @@ def run(args):
     if args.backend == 'host' and args.network == 'none':
         # Host smoke cannot enforce a network namespace.
         args.network = 'open'
-    endpoint = resolve(adapter,args.model,args.base_url,args.allow_private_model_endpoint,oj)
-    if args.claude_model:
-        if args.harness != 'claude' or endpoint is None:
-            raise ValueError('--claude-model requires the Claude harness')
-        endpoint['model'] = args.claude_model
-        endpoint['model_override_source'] = '--claude-model'
-    if getattr(args,'effort',None):
-        if endpoint is None:
-            raise ValueError('--effort requires a harness with a model')
-        endpoint['parameters'] = {**(endpoint.get('parameters') or {}),'effort':args.effort}
-        endpoint['effort_source'] = '--effort'
-    if endpoint and not os.environ.get(endpoint['key_env']) and not args.dry_run:
-        raise ValueError('missing model credential environment variable: '+endpoint['key_env'])
+    endpoint = _resolve_endpoint(args, adapter, oj)
     selected_gpus = []
     hardware_matches = int(oj.get('resources',{}).get('gpus',0)) == 0
     gpu_class_matches = True
@@ -105,28 +152,13 @@ def run(args):
         raise ValueError('Pro runs require exclusive hardware')
     pol = egress_proxy.policy_for_case(oj,args.harness,endpoint) if args.network == 'egress' else None
     if args.backend == 'docker' and int(oj.get('resources',{}).get('gpus',0)) and os.environ.get('ABENCH_CALIBRATION_CPU') != '1':
-        from jobs import gpu_inventory, available_for_case
-        ids = str(args.gpus or '').split(',') if args.gpus else []
-        inventory = {g['index']:g for g in gpu_inventory()}
-        resources = oj['resources']
-        if len(ids) != int(resources['gpus']) or len(set(ids)) != len(ids) or any(i not in inventory for i in ids):
-            raise ValueError('supply distinct --gpus matching the case resource count')
-        if any(not available_for_case({'resources':resources},inventory[i],shared_gpu) for i in ids):
-            raise ValueError('selected GPU lacks sufficient free low-load resources; sharing requires --allow-shared-gpu')
-        selected_gpus = [inventory[i] for i in ids]
-        # The GPU model does not affect scoring; it is recorded and reported with the result.
-        gpu_class_matches = all(g['class'] == resources['gpu_class'] for g in selected_gpus)
-        hardware_matches = not shared_gpu
-        if resources['budget_tier'] == 'pro':
-            hardware_matches = hardware_matches and len(inventory) == 4
-        if not gpu_class_matches and not args.allow_nonreference_gpu:
-            raise ValueError('non-reference GPU requires --allow-nonreference-gpu (scored; the GPU model is reported)')
+        selected_gpus, hardware_matches, gpu_class_matches = _select_gpus(args, oj, shared_gpu)
     key = s.validate_hidden_key(args.hidden_key_file) if args.hidden_key_file else None
     mode = 'smoke' if args.smoke else 'benchmark'
     judge_kind = (oj.get('judge') or {}).get('kind')
     if mode == 'benchmark' and judge_kind not in (None,'pending') and key is None and not args.defer_evaluation:
         raise ValueError('benchmark requires --hidden-key-file or --defer-evaluation')
-    result = Path(args.result_root or s.ROOT / 'runs') / args.case / args.run_id
+    result = Path(args.result_root or s.ROOT / 'runs') / run_label(args.harness, endpoint['name'] if endpoint else None) / args.case / args.run_id
     if result.exists() and any(result.iterdir()):
         raise ValueError('run record already exists and is immutable: '+str(result))
     tmp = Path(tempfile.mkdtemp(prefix='abench-agent-'))
@@ -181,8 +213,6 @@ def run(args):
         runpaths = environment.paths
         env, passed = s.agent_env(args,runpaths)
         env['PATH'] = '/usr/local/bin:/usr/bin:/bin' if args.backend == 'docker' else os.environ.get('PATH','')
-        for name in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMEXPR_NUM_THREADS'):
-            env[name] = str(oj['resources']['cpus'])
         env['ABENCH_RETRIEVAL_LOG'] = str(runpaths['retrieval_log'])
         if papers:
             env['ABENCH_PAPERS_INDEX'] = '/abench/papers/current.sqlite' if args.backend == 'docker' else str(paths['papers']/'current.sqlite')
@@ -248,6 +278,10 @@ def run(args):
         sandbox['shared_gpu_validation'] = shared_gpu
         sandbox['gpu_inventory'] = selected_gpus
         sandbox['image_attestation'] = attestation
+        # Recorded for the operator only; the agent's prompt and environment stay as on main.
+        allocation = resource_limits(oj, sandbox, args.timeout_seconds)
+        run_config['resource_limits'] = allocation
+        (result/'resource_limits.json').write_text(json.dumps(allocation,ensure_ascii=False,indent=2) + '\n')
         net = {'mode':args.network,'policy':pol}
         if pol:
             net.update(policy_version=pol['policy_version'],policy_sha256=pol['policy_sha256'],
@@ -270,7 +304,7 @@ def run(args):
                     # Jobs read this to retry transient provider failures instead of counting a failed run.
                     (result/'preflight.json').write_text(json.dumps(failure,indent=2))
                     raise ValueError(f"model preflight failed ({failure['error_type']}): {failure['message'][:200]}")
-        env['ABENCH_DEADLINE'] = str(time.time()+args.timeout_seconds)
+        env['ABENCH_DEADLINE'] = str(int(time.time()+args.timeout_seconds))   # integer Unix seconds, as on main
         if hasattr(environment,'begin_meter'):
             environment.begin_meter()
         started = s.now(); t0 = time.perf_counter(); c0 = os.times()
@@ -346,20 +380,6 @@ def run(args):
         # A second Ctrl-C or SIGTERM waits until the cleanup is done; it then reaches the caller's handlers.
         with shielded(restore=old_signals):
             if environment:
-                pending_error = sys.exc_info()[0] is not None
-                try:
-                    environment.close()
-                except Exception:
-                    if not pending_error:
-                        raise
-                finally:
-                    # Setup can fail before agent_run.json exists. Keep the cleanup outcome independently, and
-                    # never let writing this diagnostic replace the original authentication/transport failure.
-                    state = getattr(environment,'record',None)
-                    if isinstance(state,dict) and state.get('cleanup') is not None and result.is_dir():
-                        try:
-                            (result/'cleanup.json').write_text(json.dumps(state['cleanup'],indent=2)+'\n')
-                        except (OSError,TypeError,ValueError):
-                            pass
+                _close_environment(environment, result)
             s.make_writable(paths['view'])
             shutil.rmtree(tmp,ignore_errors=True)

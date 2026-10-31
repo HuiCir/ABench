@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import catalog
 import jobs
 import abench
+from agents import run_label
 from types import SimpleNamespace
 
 
@@ -150,6 +151,12 @@ class JobTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.by = {r['id']: r for r in catalog.load_catalog()}
+
+    def setUp(self):
+        # Plans skip cases that need more cores than the host has; a GitHub runner has only 4.
+        cpus = patch('jobs.os.cpu_count', return_value=64)
+        cpus.start()
+        self.addCleanup(cpus.stop)
 
     def test_matrix_estimate_and_skip_missing_hardware(self):
         plan = jobs.plan([self.by['TC-FT-001'], self.by['PRO-SPD-004']], ['mock', 'oracle'], [None, 'm'], 2, inventory=[])
@@ -300,7 +307,7 @@ class JobTests(unittest.TestCase):
             doc = jobs.plan([row], ['mock'], [None], inventory=[])
             doc.update(id='resume', suite='all@2026.10')
             entry = doc['entries'][0]
-            run = root / 'runs' / row['id'] / ('job-resume-' + entry['id'])
+            run = root / 'runs' / 'mock' / row['id'] / ('job-resume-' + entry['id'])
             run.mkdir(parents=True)
             (run / 'evaluation.json').write_text(json.dumps({'verdict': 'evaluated'}))
             with patch('catalog.load_catalog', return_value=[row]), patch('jobs.gpu_inventory', return_value=[]), patch('jobs.subprocess.Popen') as launch:
@@ -318,8 +325,9 @@ class JobTests(unittest.TestCase):
             code, text, evaluate = outcomes.pop(0)
             stdout.write(text.encode())
             stdout.flush()
-            run = Path(command[command.index('--result-root') + 1]) / command[command.index('--case') + 1] / \
-                command[command.index('--run-id') + 1]
+            # The runner's layout: <result root>/<harness>-<model>/<case>/<run id>
+            run = Path(command[command.index('--result-root') + 1]) / run_label(command[command.index('--agent') + 1]) / \
+                command[command.index('--case') + 1] / command[command.index('--run-id') + 1]
             run.mkdir(parents=True, exist_ok=True)
             (run / 'logs').mkdir(exist_ok=True)
             if evaluate:
@@ -393,7 +401,8 @@ class JobTests(unittest.TestCase):
                 row, doc, path = self._job(root, 'provider')
                 calls = []
                 def popen(command, cwd, stdout, stderr):
-                    run = Path(command[command.index('--result-root') + 1]) / row['id'] / command[command.index('--run-id') + 1]
+                    run = Path(command[command.index('--result-root') + 1]) / run_label(command[command.index('--agent') + 1]) / \
+                        row['id'] / command[command.index('--run-id') + 1]
                     run.mkdir(parents=True, exist_ok=True)
                     calls.append(run.name)
                     if len(calls) == 1:
@@ -528,6 +537,58 @@ class DoctorTests(unittest.TestCase):
             broken = root / 'broken.sqlite'
             broken.write_bytes(b'not a database')
             self.assertIn('unreadable', abench.paper_index_check(str(broken))['detail'])
+
+
+class CalibrateTests(unittest.TestCase):
+    def setUp(self):
+        self.home = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.home)
+        self.key = self.home / 'hidden.key'
+        self.key.write_text('0' * 64 + '\n')
+        row = next(r for r in catalog.load_catalog() if r['id'] == 'DS-PIPE-002')
+        self.row = copy.deepcopy(row)
+        self.calls = []
+        for target in (patch('abench.load_catalog', lambda: [self.row]), patch('abench.Path.home', lambda: self.home),
+                       patch('abench.call', lambda tool, arguments, root=abench.ROOT, env=None:
+                             self.calls.append((tool, arguments, root, env)) or 0)):
+            target.start()
+            self.addCleanup(target.stop)
+
+    def freeze(self, synthetic):
+        self.row['oj']['data'] = {**(self.row['oj'].get('data') or {}), 'synthetic': synthetic,
+                                  'hidden': {'sha256_plain': 'a' * 64}}
+
+    def test_unfrozen_data_is_refused_without_copying_or_preparing(self):
+        self.row['oj']['data'] = {**(self.row['oj'].get('data') or {}), 'hidden': {'sha256_plain': 'pending'}}
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+            abench.calibrate(['DS-PIPE-002', '--hidden-key-file', str(self.key)])
+        self.assertIn('tools/prepare/run.py --case DS-PIPE-002', err.getvalue())
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            abench.calibrate(['DS-PIPE-002', '--data', 'synthetic'])
+        self.assertEqual(self.calls, [])
+        self.assertFalse((self.home / '.abench').exists())
+
+    def test_oracle_runs_in_this_checkout_with_the_key_path(self):
+        self.freeze(synthetic=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(abench.calibrate(['DS-PIPE-002', '--hidden-key-file', str(self.key), '--run-id', 'cal-1']), 0)
+        [(tool, arguments, root, env)] = self.calls
+        self.assertEqual((tool, root), ('sandbox_runner.py', abench.ROOT))
+        option = lambda name: arguments[arguments.index(name) + 1]
+        self.assertEqual(option('--agent'), 'oracle')
+        self.assertEqual(option('--hidden-key-file'), str(self.key.resolve()))
+        self.assertEqual(option('--result-root'), str(abench.ROOT / 'runs'))
+        self.assertEqual(option('--run-id'), 'cal-1')
+        self.assertEqual(env['ABENCH_ALLOW_SYNTHETIC'], '1')
+        self.assertFalse((self.home / '.abench').exists())
+
+    def test_missing_key_is_refused_not_generated(self):
+        self.freeze(synthetic=False)
+        missing = self.home / 'absent.key'
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            abench.calibrate(['DS-PIPE-002', '--hidden-key-file', str(missing)])
+        self.assertFalse(missing.exists())
+        self.assertEqual(self.calls, [])
 
 
 if __name__ == '__main__':

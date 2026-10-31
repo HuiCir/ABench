@@ -35,4 +35,10 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p test_container_judge.py
           python3 -m unittest discover -s tests -p test_container_agent.py
-      - run: ./abench calibrate DS-PIPE-002 --data synthetic
+      - name: Calibrate DS-PIPE-002 on synthetic data
+        env:
+          ABENCH_ALLOW_SYNTHETIC: '1'
+        run: |
+          python3 tools/hidden_store.py keygen ~/.abench/hidden.key
+          python3 tools/prepare/run.py --case DS-PIPE-002 --synthetic 3000 --key-file ~/.abench/hidden.key
+          ./abench calibrate DS-PIPE-002

@@ -67,6 +67,55 @@ class ImageTests(unittest.TestCase):
                 images.manage('lock','cpu-sci',docker=FakeDocker('ghcr.io/huicir/abench/cpu-sci@'+digest('b')))
                 self.assertEqual(set(images.lock_entries()),{'cpu-sci@2026.10','cpu-sci@2026.11'})
                 self.assertEqual(images.known_versions('cpu-sci'),{'2026.10','2026.11'})
+    def test_local_lock_scores_only_the_exact_image_id(self):
+        import shutil,tempfile
+        class FakeDocker:
+            ids={}
+            def __init__(self,*a,**k):pass
+            def info(self):return {'platform':'linux/amd64','resources_enforced':True}
+            def inspect(self,ref):return {'Id':self.ids.get(ref,'sha256:'+'0'*64),'RepoDigests':[]}
+        tag='ghcr.io/huicir/abench/cpu-sci:'+images.image_version('cpu-sci')
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'spec/env').mkdir(parents=True)
+            for name in ('images.yaml','profiles.yaml'):shutil.copyfile(images.ROOT/'spec/env'/name,root/'spec/env'/name)
+            (root/'spec/env/images.lock.yaml').write_text('schema: abench.images_lock/v1\nimages: {}\n')
+            with patch.object(images,'ROOT',root),patch.object(images,'Docker',FakeDocker):
+                FakeDocker.ids={tag:'sha256:'+'a'*64}
+                self.assertEqual(images.manage('lock','cpu-sci',docker=FakeDocker(),local=True)['locked_local'],'sha256:'+'a'*64)
+                attested=images.image_attestation(tag,{'profile':'cpu-sci','version':'2026.10'})
+                self.assertEqual((attested['locked'],attested['lock']),(True,'local'))
+                self.assertEqual(images.manage('verify','cpu-sci',docker=FakeDocker())['lock'],'local')
+                FakeDocker.ids={tag:'sha256:'+'b'*64}   # rebuilt image under the same tag
+                attested=images.image_attestation(tag,{'profile':'cpu-sci','version':'2026.10'})
+                self.assertEqual((attested['locked'],attested['lock']),(False,None))
+                with self.assertRaisesRegex(ValueError,'lock it again'):
+                    images.manage('verify','cpu-sci',docker=FakeDocker())
+                import catalog
+                with patch.object(catalog,'ROOT',images.ROOT):
+                    self.assertEqual(catalog.case_lock('DS-PIPE-002')['judge_image_lock']['linux/amd64']['image_id'],'sha256:'+'a'*64)
+                import judge_container
+                import yaml
+                oj=yaml.safe_load((Path(__file__).resolve().parents[1]/'cases/DS-PIPE-002/case/oj.yaml').read_text())
+                with patch.object(judge_container,'Docker',FakeDocker):
+                    self.assertEqual(judge_container.DockerStageLauncher.for_case(oj).lock,None)
+                    FakeDocker.ids={tag:'sha256:'+'a'*64}
+                    launcher=judge_container.DockerStageLauncher.for_case(oj)
+                    self.assertEqual((launcher.locked,launcher.lock),(True,'local'))
+                digest='sha256:'+'c'*64
+                (root/'spec/env/images.lock.yaml').write_text(
+                    'images:\n  cpu-sci@2026.10:\n    linux/amd64: {digest: %s, reference: ghcr.io/huicir/abench/cpu-sci@%s}\n'%(digest,digest))
+                with self.assertRaisesRegex(ValueError,'is published'):
+                    images.manage('lock','cpu-sci',docker=FakeDocker(),local=True)
+    def test_local_locks_are_noted_in_the_score_record(self):
+        from agents.scoring import apply_agent_attestation
+        evaluation={'scorable':True,'judge_dependency':{'image_lock':'local'}}
+        record={'run_mode':'benchmark','isolation':'container','harness':'mock',
+                'sandbox':{'backend':'docker','verified':True,'image_attestation':{'locked':True,'lock':'local'},
+                           'resources_enforced':True,'hardware_matches':True,'platform':'linux/amd64'},
+                'network':{'mode':'none'},'budget':{'over_budget':False},'status':'succeeded'}
+        apply_agent_attestation(evaluation,record)
+        self.assertEqual(evaluation['image_locks'],{'agent':'local','judge':'local','sidecar':None})
+        self.assertIn('unpublished',evaluation['image_lock_note'])
     def test_every_harness_has_one_pinned_agent_dockerfile(self):
         from agents import HARNESSES,get_agent
         for name,pin in images.manifest()['harnesses'].items():

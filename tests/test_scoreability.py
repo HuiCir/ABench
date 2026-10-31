@@ -18,6 +18,22 @@ class ScoreabilityTest(unittest.TestCase):
             result=oj_eval.evaluate('TC-FT-001',Path(raw),None,'smoke',backend='docker')
         self.assertEqual(result['verdict'],'smoke_unscored')
         self.assertFalse(result['scorable'])
+        self.assertEqual(result['judge_isolation'], 'not_started')
+        self.assertEqual(result['judge_backend_requested'], 'docker')
+
+    def test_invalid_submission_does_not_claim_host_execution(self):
+        launcher = SimpleNamespace(image='image', locked=False)
+        with tempfile.TemporaryDirectory() as raw, \
+             mock.patch.object(oj_eval,'load_oj',return_value={'judge':{'kind':'harness'}}), \
+             mock.patch.object(oj_eval,'validate_submission_dir',return_value=['invalid report']), \
+             mock.patch.object(oj_eval,'_environment_check',return_value={'matches':False}), \
+             mock.patch('judge_container.DockerStageLauncher.for_case',return_value=launcher), \
+             mock.patch.object(oj_eval,'evaluate_harness') as execute:
+            result = oj_eval.evaluate('TC-FT-001',Path(raw),None,backend='docker')
+        self.assertEqual(result['verdict'], 'submission_invalid')
+        self.assertEqual(result['judge_isolation'], 'not_started')
+        self.assertEqual(result['judge_backend_requested'], 'docker')
+        execute.assert_not_called()
 
     def test_pipeline_calibration_is_excluded_even_with_trusted_images(self):
         launcher=SimpleNamespace(image='image@sha256:'+'a'*64,locked=True)
