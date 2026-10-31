@@ -177,6 +177,9 @@ def judge_run(argv: list[str]) -> int:
     ap.add_argument('--backend', choices=('docker', 'host'))
     ap.add_argument('--gpus')
     ap.add_argument('--image')
+    ap.add_argument('--rejudge', metavar='REASON',
+                    help='judge a final evaluation again (e.g. after a judge rule changed); it is archived as '
+                         'evaluation.superseded-N.json and the new record names it and the reason')
     args = ap.parse_args(argv)
     run = Path(args.run).expanduser().resolve()
     out = run / 'evaluation.json'
@@ -191,6 +194,8 @@ def judge_run(argv: list[str]) -> int:
         elif retryable_judge_failure(previous):
             # Judging failed on the infrastructure: judge the collected submission again, keeping the failure.
             archive = run / f'evaluation.judge-error-{len(list(run.glob("evaluation.judge-error-*.json"))) + 1}.json'
+        elif args.rejudge:
+            archive = run / f'evaluation.superseded-{len(list(run.glob("evaluation.superseded-*.json"))) + 1}.json'
         else:
             raise ValueError(f'evaluation record already exists and is immutable: {out}')
         if archive.exists() or archive.is_symlink():
@@ -224,6 +229,8 @@ def judge_run(argv: list[str]) -> int:
                                       run_id=record.get('run_id') or run.name)
     apply_agent_attestation(evaluation, record)
     evaluation['agent_run_sha256'] = sha256_file(agent_path)
+    if args.rejudge and archive is not None and archive.name.startswith('evaluation.superseded-'):
+        evaluation['supersedes'] = {'record': archive.name, 'verdict': previous.get('verdict'), 'reason': args.rejudge}
     text = json.dumps(evaluation, ensure_ascii=False, indent=2) + '\n'
     if previous is not None:
         # Preserve the placeholder or failed judging, and never overwrite an existing archive or final evaluation.

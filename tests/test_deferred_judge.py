@@ -148,6 +148,19 @@ class DeferredJudgeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'immutable'):
             self.invoke()
 
+    def test_an_explicit_rejudge_supersedes_a_final_evaluation_and_keeps_it(self):
+        out = self.run / 'evaluation.json'
+        final = {'verdict': 'submission_invalid', 'scorable': True, 'errors': ['old report rule']}
+        out.write_text(json.dumps(final))
+        with patch('oj_eval.evaluate', return_value={'verdict': 'evaluated', 'scorable': True}):
+            with self.assertRaisesRegex(ValueError, 'immutable'):
+                self.invoke()
+            self.assertEqual(self.invoke('--rejudge', 'report rule relaxed'), 0)
+        self.assertEqual(json.loads((self.run / 'evaluation.superseded-1.json').read_text()), final)
+        current = json.loads(out.read_text())
+        self.assertEqual(current['supersedes'], {'record': 'evaluation.superseded-1.json',
+                                                 'verdict': 'submission_invalid', 'reason': 'report rule relaxed'})
+
     def test_tampered_submission_is_rejected_before_evaluation_or_archive(self):
         placeholder = {'verdict': 'not_evaluated'}
         out = self.run / 'evaluation.json'

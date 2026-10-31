@@ -249,7 +249,10 @@ effective `oj.yaml`, the whole harness directory with its kit copies, and the ju
 removes only stopped leftovers of crashed runs older than ten minutes; `--caches` also drops unused shared data
 caches. Final evaluation records are immutable;
 legacy deferred placeholders are preserved as `evaluation.deferred.json`, and infrastructure judge failures as
-`evaluation.judge-error-N.json`, when judging completes.
+`evaluation.judge-error-N.json`, when judging completes. `--rejudge REASON` judges a final evaluation again on
+purpose (for example after a judge rule changed); the old record is kept as `evaluation.superseded-N.json` and the new
+one names it and the reason. The report check counts the bibliography by its `ltx_bibitem` entries and does not
+require the `ltx_bibliography` class on its section (a relaxation of `main`'s rule).
 
 ## Isolation and records
 
