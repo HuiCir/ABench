@@ -298,6 +298,26 @@ def _pinned_parent(docker, reference, image_id):
                 original_error.add_note(str(cleanup_error))
 
 
+def _verify_build_environment(docker, tag, profile, agent, lock_path):
+    """Check the built image against the profile lock, creating it only for a new profile."""
+    result = docker.run(['run', '--rm', '--network', 'none', tag, 'python3',
+                         '/abench/tools/record_environment.py', '--profile', profile])
+    environment = json.loads(result.stdout)
+    if agent and not lock_path.exists():
+        raise ValueError('build profile and environment lock before agent image')
+    if agent or lock_path.exists():
+        from record_environment import compare
+        differences = compare(json.loads(lock_path.read_text()), environment)
+        if differences:
+            reason = ('agent modified Python environment: ' if agent else
+                      'published profile environment changed; bump profile version: ')
+            raise ValueError(reason + str(differences))
+    else:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(json.dumps(environment, indent=2) + '\n')
+    return environment
+
+
 def _build(profile, agent, platform, docker, info, tag):
     generate()
     parent = resolve_image(profile, allow_unlocked=True, platform=platform) if agent else None
@@ -336,24 +356,7 @@ def _build(profile, agent, platform, docker, info, tag):
                 args += ['--network', os.environ['ABENCH_BUILD_NETWORK']]
             args += ['-f', str(ROOT / (f'docker/agents/{agent}/Dockerfile' if agent else f'docker/profiles/{profile}/Dockerfile')), str(ROOT)]
             docker.run(args, timeout=7200)
-        result = docker.run(['run', '--rm', '--network', 'none', tag, 'python3',
-                             '/abench/tools/record_environment.py', '--profile', profile])
-        now = json.loads(result.stdout)
-        if agent:
-            if not lock_path.exists():
-                raise ValueError('build profile and environment lock before agent image')
-            from record_environment import compare
-            differences = compare(json.loads(lock_path.read_text()), now)
-            if differences:
-                raise ValueError('agent modified Python environment: ' + str(differences))
-        elif lock_path.exists():
-            from record_environment import compare
-            differences = compare(json.loads(lock_path.read_text()), now)
-            if differences:
-                raise ValueError('published profile environment changed; bump profile version: ' + str(differences))
-        else:
-            lock_path.parent.mkdir(parents=True, exist_ok=True)
-            lock_path.write_text(json.dumps(now, indent=2) + '\n')
+        now = _verify_build_environment(docker, tag, profile, agent, lock_path)
         actual = docker.inspect(tag)
         if (actual.get('Config', {}).get('Labels') or {}).get(BUILD_LABEL) != identity:
             raise DockerError('built image identity changed before environment verification completed')
