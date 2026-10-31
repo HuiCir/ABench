@@ -35,6 +35,11 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p test_container_judge.py
           python3 -m unittest discover -s tests -p test_container_agent.py
-      - run: ./abench calibrate DS-PIPE-002 --data synthetic
+      - name: Calibrate DS-PIPE-002 on synthetic data
         env:
+          ABENCH_ALLOW_SYNTHETIC: '1'
           ABENCH_CALIBRATION_MAX_CPUS: 4     # GitHub runners have 4 CPUs; DS-PIPE-002 declares 8
+        run: |
+          python3 tools/hidden_store.py keygen ~/.abench/hidden.key
+          python3 tools/prepare/run.py --case DS-PIPE-002 --synthetic 3000 --key-file ~/.abench/hidden.key
+          ./abench calibrate DS-PIPE-002

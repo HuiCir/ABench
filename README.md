@@ -21,7 +21,9 @@ GPU cases additionally need a working NVIDIA Docker runtime on Linux.
 python3 -m pip install numpy pyyaml
 ./abench doctor
 ./abench images pull --profile cpu-sci
-./abench calibrate DS-PIPE-002 --data synthetic
+python3 tools/hidden_store.py keygen ~/.abench/hidden.key      # once per host
+ABENCH_ALLOW_SYNTHETIC=1 python3 tools/prepare/run.py --case DS-PIPE-002 --synthetic 3000 --key-file ~/.abench/hidden.key
+./abench calibrate DS-PIPE-002
 ```
 
 Image publication and locking require registry access. Until the published digests are available, build a local
@@ -44,29 +46,33 @@ When a proxy has different addresses on the host and inside Docker, keep `HTTP_P
 the host-reachable address and set `ABENCH_BUILD_PROXY` to the build-container address. BuildKit fetches registry
 authentication from its host-side client; build arguments alone do not configure that connection.
 
-`calibrate` creates a private work copy in `~/.abench/calibration/<run-id>`, freezes the data there, runs the oracle
-adapter in Docker, and judges its submission in fresh stage containers. It creates `~/.abench/hidden.key` with mode
-0600 if missing; keys are generated on each host and never copied with the code. Results appear in the original
-checkout under `runs/<case>/<run-id>/`. Synthetic data is only a plumbing check. On a host with fewer cores than the
-case declares, such as a 4-core CI runner, `ABENCH_CALIBRATION_MAX_CPUS=N` gives the containers at most N CPUs;
-the record states the cap and the run is never scored.
+`calibrate` is an optional shortcut. With this checkout's code and the data already frozen in it, the oracle
+adapter runs the reference submission in Docker and the judge evaluates it in fresh stage containers. It neither
+copies the repository nor prepares data, and it passes the hidden key only by path (`--hidden-key-file`, default
+`~/.abench/hidden.key`). Keys are generated on each host with mode 0600 and never copied with the code. Results
+appear under `runs/<case>/<run-id>/`. Data frozen with `--synthetic` is only a plumbing check. On a host with fewer
+cores than the case declares, such as a 4-core CI runner, `ABENCH_CALIBRATION_MAX_CPUS=N` gives the containers at
+most N CPUs; the record states the cap and the run is never scored.
 
-For a real calibration, download the pinned sources first:
+For a real calibration, download the pinned sources and freeze them first:
 
 ```bash
-python3 tools/prepare/run.py --case FN-LTSF-005 --list-sources
-./abench calibrate FN-LTSF-005 --data /path/to/raw
-./abench calibrate A-LIN-002 --data /path/to/raw --gpus 0
+python3 tools/prepare/run.py --case FN-LTSF-005 --list-sources       # download these files into RAW
+python3 tools/prepare/run.py --case FN-LTSF-005 --raw-dir RAW --key-file ~/.abench/hidden.key
+./abench calibrate FN-LTSF-005
+./abench calibrate A-LIN-002 --gpus 0                                 # after freezing its data the same way
 ```
 
 For IC-SPD-001, the raw directory must contain `cifar-10-python.tar.gz`, `cifar10.1_v6_data.npy` and
 `cifar10.1_v6_labels.npy` from the pinned sources in `tools/prepare_ic_spd.py`; preparation checks their hashes.
-Use `./abench calibrate IC-SPD-001 --data /path/to/raw --gpus 0` for real calibration, or
-`./abench calibrate IC-SPD-001 --data synthetic --gpus 0` for an unscored plumbing check. Missing data is a
-preparation requirement: keep `awaiting_data` until real-data calibration succeeds.
+Freeze it with `python3 tools/prepare_ic_spd.py --raw-dir RAW --key-file ~/.abench/hidden.key`, then run
+`./abench calibrate IC-SPD-001 --gpus 0`; `ABENCH_ALLOW_SYNTHETIC=1` with `--synthetic 3000` instead of `--raw-dir`
+gives an unscored plumbing check. Missing data is a preparation requirement: keep `awaiting_data` until
+real-data calibration succeeds.
 
-Generated datasets use `--data generated`; the prepare tool escrows their secret seed next to the key. If source
-verification cannot run, `--allow-unverified` records that limitation. A GPU of another model than
+Generated held-out sets are frozen by `tools/prepare/run.py` with the case's secret seed variable set (it names the
+variable) and an empty `--raw-dir`; the seed is escrowed next to the key. If source verification cannot run,
+`--allow-unverified` on `tools/prepare/run.py` records that limitation. A GPU of another model than
 the case's reference class requires `--allow-nonreference-gpu`; the result is still scored and reports the GPU
 model. Pro cases require an exclusive 4-GPU node (4 × H100 is the reference; other models likewise need the flag and
 are scored and reported).
@@ -81,6 +87,7 @@ The example is the CPU case DS-GBM-001 with the `dsh` harness; substitute the ca
 # Host (once): configuration, images, isolation checks, paper index
 python3 -m pip install numpy pyyaml
 cp .env.example .env          # model keys (key_env in spec/models.yaml); ABENCH_EGRESS_UPSTREAM if you need a proxy
+python3 tools/hidden_store.py keygen ~/.abench/hidden.key      # held-out encryption key, generated on this host
 ./abench images build --profile cpu-sci
 ./abench images build --profile cpu-sci --agent dsh
 ABENCH_TEST_IMAGE=<cpu-sci image> ABENCH_TEST_AGENT_IMAGES=dsh=<agent image> python3 -m unittest \
@@ -91,10 +98,10 @@ python3 tools/paper_search/build_paper_index.py --snapshot arxiv-metadata-oai-sn
 ln -s arxiv-full-20260831.sqlite ~/.abench/papers/current.sqlite
 ./abench doctor               # network_none and paper_index must pass; runtime_probe must not fail
 
-# Case (once): download, calibrate the judge, freeze, and only then activate
+# Case (once): download, freeze, calibrate the judge on the frozen data, and only then activate
 python3 tools/prepare/run.py --case DS-GBM-001 --list-sources       # download these files into RAW
-./abench calibrate DS-GBM-001 --data RAW
 python3 tools/prepare/run.py --case DS-GBM-001 --raw-dir RAW --key-file ~/.abench/hidden.key
+./abench calibrate DS-GBM-001
 python3 tools/prepare/run.py --case DS-GBM-001 --activate
 
 # Runs: the plumbing agent once per case (again after image, code or host changes), then any number of agent runs
@@ -127,7 +134,7 @@ export ABENCH_JUDGE_TOOLS_SHA256="$(python3 -c 'import sys; sys.path.insert(0,"t
   faster of PyTorch eager and compile, and attention cases compare with SDPA, so their speed ratios need not be 1.
   Activate only after the case-specific calibration and formal scoring prerequisites are satisfied; synthetic runs
   validate plumbing only.
-  Generated held-out sets use `--data generated` and the case's secret seed variable (e.g. `ABENCH_PH_SYM_SEED`).
+  Generated held-out sets are frozen with the case's secret seed variable set (e.g. `ABENCH_PH_SYM_SEED`).
 - **Mock run.** Calibration covers the judge side only (the oracle hands the reference submission straight to the
   judge). The plumbing agent covers the agent side without spending tokens: it reads the case's view and data, searches
   papers for the anchor's title, submits the interface baseline that provides the required code (trained into a
@@ -230,8 +237,8 @@ For unscored Budget validation, `--allow-shared-gpu` permits an occupied GPU wit
 utilization at most 10%. Cards of another model also require `--allow-nonreference-gpu` (scored, model reported). Formal runs retain the idle
 GPU requirement, and Pro runs remain exclusive. Calibration accepts the same explicit sharing flag.
 
-`./abench case check ID` validates generated files, environment and resources, then calibrates the oracle; add
-`--no-calibrate` for static checks. `./abench judge --run runs/ID/RUN` completes deferred judging once (or judges again
+`./abench case check ID` validates generated files, environment and resources, then calibrates the oracle on the
+case's frozen data; add `--no-calibrate` for static checks. `./abench judge --run runs/ID/RUN` completes deferred judging once (or judges again
 after an infrastructure failure), only against the case lock in the run's `run_lock.json` (spec, judge code, the
 effective `oj.yaml`, the whole harness directory with its kit copies, and the judge image lock), and
 `./abench gc --run-id RUN` removes every Docker object of that run (agent, sidecar and judge). Plain `./abench gc`

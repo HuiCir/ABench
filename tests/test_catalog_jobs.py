@@ -536,5 +536,57 @@ class DoctorTests(unittest.TestCase):
             self.assertIn('unreadable', abench.paper_index_check(str(broken))['detail'])
 
 
+class CalibrateTests(unittest.TestCase):
+    def setUp(self):
+        self.home = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.home)
+        self.key = self.home / 'hidden.key'
+        self.key.write_text('0' * 64 + '\n')
+        row = next(r for r in catalog.load_catalog() if r['id'] == 'DS-PIPE-002')
+        self.row = copy.deepcopy(row)
+        self.calls = []
+        for target in (patch('abench.load_catalog', lambda: [self.row]), patch('abench.Path.home', lambda: self.home),
+                       patch('abench.call', lambda tool, arguments, root=abench.ROOT, env=None:
+                             self.calls.append((tool, arguments, root, env)) or 0)):
+            target.start()
+            self.addCleanup(target.stop)
+
+    def freeze(self, synthetic):
+        self.row['oj']['data'] = {**(self.row['oj'].get('data') or {}), 'synthetic': synthetic,
+                                  'hidden': {'sha256_plain': 'a' * 64}}
+
+    def test_unfrozen_data_is_refused_without_copying_or_preparing(self):
+        self.row['oj']['data'] = {**(self.row['oj'].get('data') or {}), 'hidden': {'sha256_plain': 'pending'}}
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+            abench.calibrate(['DS-PIPE-002', '--hidden-key-file', str(self.key)])
+        self.assertIn('tools/prepare/run.py --case DS-PIPE-002', err.getvalue())
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            abench.calibrate(['DS-PIPE-002', '--data', 'synthetic'])
+        self.assertEqual(self.calls, [])
+        self.assertFalse((self.home / '.abench').exists())
+
+    def test_oracle_runs_in_this_checkout_with_the_key_path(self):
+        self.freeze(synthetic=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(abench.calibrate(['DS-PIPE-002', '--hidden-key-file', str(self.key), '--run-id', 'cal-1']), 0)
+        [(tool, arguments, root, env)] = self.calls
+        self.assertEqual((tool, root), ('sandbox_runner.py', abench.ROOT))
+        option = lambda name: arguments[arguments.index(name) + 1]
+        self.assertEqual(option('--agent'), 'oracle')
+        self.assertEqual(option('--hidden-key-file'), str(self.key.resolve()))
+        self.assertEqual(option('--result-root'), str(abench.ROOT / 'runs'))
+        self.assertEqual(option('--run-id'), 'cal-1')
+        self.assertEqual(env['ABENCH_ALLOW_SYNTHETIC'], '1')
+        self.assertFalse((self.home / '.abench').exists())
+
+    def test_missing_key_is_refused_not_generated(self):
+        self.freeze(synthetic=False)
+        missing = self.home / 'absent.key'
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            abench.calibrate(['DS-PIPE-002', '--hidden-key-file', str(missing)])
+        self.assertFalse(missing.exists())
+        self.assertEqual(self.calls, [])
+
+
 if __name__ == '__main__':
     unittest.main()

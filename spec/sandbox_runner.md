@@ -9,15 +9,17 @@ available only for unscored smoke tests. The [OJ contract](oj_contract.md) defin
 ```bash
 ./abench doctor
 ./abench images pull --profile cpu-sci
-./abench calibrate DS-PIPE-002 --data synthetic
+ABENCH_ALLOW_SYNTHETIC=1 python3 tools/prepare/run.py --case DS-PIPE-002 --synthetic 3000 --key-file ~/.abench/hidden.key
+./abench calibrate DS-PIPE-002
 ./abench run --case TC-FT-001 --agent mock --hidden-key-file ~/.abench/hidden.key
 ./abench run --case TC-FT-001 --agent claude --hidden-key-file ~/.abench/hidden.key
 ./abench run --case TC-FT-001 --agent codex --model gpt-6-astra --effort high --hidden-key-file ~/.abench/hidden.key
 ```
 
-Freeze a case's public data and encrypted split in the checkout before an agent run. Calibration makes its own
-private repository copy and writes records to the original checkout. `--data synthetic` verifies plumbing;
-`--data generated` escrows a secret generation seed; `--data /raw/path` verifies downloaded sources. Images without
+Freeze a case's public data and encrypted split in the checkout with `tools/prepare/run.py` before calibration or an
+agent run: `--raw-dir` verifies downloaded sources, generated cases escrow their secret seed, and `--synthetic N`
+(with `ABENCH_ALLOW_SYNTHETIC=1`) verifies plumbing only. Calibration uses that frozen data and this checkout's code
+directly; it copies nothing and receives the key only by path. Images without
 published digest locks allow validation but make results unscorable. Build only the profiles needed for a run.
 
 Cases share seven versioned profiles; agent images add one harness to the same profile layers. Build only the

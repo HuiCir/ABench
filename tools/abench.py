@@ -8,7 +8,6 @@ import json
 import os
 import re
 import secrets
-import shutil
 import subprocess
 import sys
 import time
@@ -239,10 +238,10 @@ def judge_run(argv: list[str]) -> int:
 
 
 def calibrate(argv: list[str]) -> int:
+    """Optional shortcut: the oracle runs the case's reference submission with this checkout's code and the data
+    already frozen in it, and the judge evaluates it. Nothing is copied or prepared; the key is passed by path."""
     ap = argparse.ArgumentParser(prog='abench calibrate')
     ap.add_argument('case')
-    ap.add_argument('--data', default='synthetic')
-    ap.add_argument('--rows', type=int)
     ap.add_argument('--hidden-key-file', default=str(Path.home() / '.abench/hidden.key'))
     ap.add_argument('--run-id')
     ap.add_argument('--gpus')
@@ -250,63 +249,35 @@ def calibrate(argv: list[str]) -> int:
     ap.add_argument('--backend', choices=('docker', 'host'), default='docker')
     ap.add_argument('--allow-nonreference-gpu', action='store_true')
     ap.add_argument('--allow-shared-gpu', action='store_true', help='unscored Budget validation on a sufficiently free low-load GPU')
-    ap.add_argument('--allow-unverified', action='store_true')
     ap.add_argument('--image')
+    if any(a.split('=')[0] in ('--data', '--rows', '--allow-unverified') for a in argv):
+        ap.error('calibrate no longer prepares data; freeze it in this checkout with tools/prepare/run.py first')
     args = ap.parse_args(argv)
     row = next((r for r in load_catalog() if r['id'] == args.case), None)
     if row is None:
         ap.error('unknown case')
     if row['resources']['budget_tier'] == 'pro':
         ap.error('Pro calibration needs the audit workflow on an exclusive 4 x H100 node')
-    run_id = args.run_id or 'ojcal-' + time.strftime('%Y%m%d-%H%M%S-') + secrets.token_hex(3)
+    data = row['oj'].get('data') or {}
+    if not re.fullmatch(r'[0-9a-f]{64}', str((data.get('hidden') or {}).get('sha256_plain', ''))):
+        tool = 'tools/prepare_ic_spd.py' if args.case == 'IC-SPD-001' else f'tools/prepare/run.py --case {args.case}'
+        ap.error(f'{args.case} has no frozen data in this checkout; prepare it first: python3 {tool} --raw-dir RAW '
+                 '--key-file KEY (or ABENCH_ALLOW_SYNTHETIC=1 ... --synthetic N for an unscored plumbing check)')
     key = Path(args.hidden_key_file).expanduser().resolve()
-    key.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if not key.is_file() and call('hidden_store.py', ['keygen', str(key)]):
-        return 1
-    work = Path.home() / '.abench/calibration' / run_id
-    if work.exists():
-        ap.error(f'calibration work tree already exists: {work}')
-    def ignore(path, names):
-        excluded = {'.git', '__pycache__', 'runs', 'jobs', '.pytest_cache', 'node_modules', '.venv'}
-        if Path(path) == ROOT / 'sandbox':
-            excluded |= {'data', 'hidden', 'models', 'judge_models'}
-        return [n for n in names if n in excluded]
-    work.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    shutil.copytree(ROOT, work, ignore=ignore)
-    work.chmod(0o700)
+    if not key.is_file():
+        ap.error(f'hidden key not found: {key}; pass the key the data was frozen with')
+    run_id = args.run_id or 'ojcal-' + time.strftime('%Y%m%d-%H%M%S-') + secrets.token_hex(3)
     env = dict(os.environ)
     for name in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS'):
         env[name] = str(row['resources']['cpus'])
     if args.image:
         env['ABENCH_JUDGE_IMAGE'] = args.image
+    if data.get('synthetic'):
+        # Data frozen with --synthetic is an explicit plumbing check; the judge records it as never scorable.
+        env['ABENCH_ALLOW_SYNTHETIC'] = '1'
     config_path = ROOT / 'sandbox/calibration/cases.yaml'
     import yaml
     config = (yaml.safe_load(config_path.read_text()) or {}).get(args.case) or {}
-    prepare = ['--case', args.case, '--key-file', str(key)]
-    if args.data == 'synthetic':
-        env['ABENCH_ALLOW_SYNTHETIC'] = '1'
-        prepare += ['--synthetic', str(args.rows or config.get('synthetic_rows', 3000))]
-    elif args.data == 'generated':
-        query = subprocess.run([sys.executable, '-c', 'import sys,importlib;sys.path.insert(0,"tools"); '
-                                'm=importlib.import_module("prepare."+sys.argv[1].lower().replace("-","_"));'
-                                'print(getattr(m,"SECRET_SEED_ENV",""))', args.case], cwd=work, capture_output=True, text=True, check=True)
-        seed_env = query.stdout.strip()
-        if not seed_env:
-            ap.error('case has no generated held-out set; supply --data synthetic or a raw directory')
-        env.setdefault(seed_env, str(secrets.randbelow(2**31 - 1) + 1))
-        raw = work / 'empty_raw'
-        raw.mkdir()
-        prepare += ['--raw-dir', str(raw)]
-    else:
-        prepare += ['--raw-dir', str(Path(args.data).expanduser().resolve())]
-    if args.allow_unverified:
-        prepare += ['--allow-unverified']
-    tool = 'prepare_ic_spd.py' if args.case == 'IC-SPD-001' else 'prepare/run.py'
-    if args.case == 'IC-SPD-001':
-        prepare = prepare[2:]
-    rc = call(tool, prepare, root=work, env=env)
-    if rc:
-        return rc
     validation_device = args.device or config.get('device') or row['oj'].get('judge',{}).get('device','cpu')
     if validation_device == 'cpu' and int(row['resources']['gpus']):
         env['ABENCH_CALIBRATION_CPU'] = '1'
@@ -324,8 +295,8 @@ def calibrate(argv: list[str]) -> int:
         command += ['--image', args.image]
     if args.backend == 'host':
         command += ['--smoke']
-    print(json.dumps({'calibration_work': str(work), 'run': str(ROOT / 'runs' / args.case / run_id)}), flush=True)
-    return call('sandbox_runner.py', command, root=work, env=env)
+    print(json.dumps({'run': str(ROOT / 'runs' / args.case / run_id), 'synthetic_data': bool(data.get('synthetic'))}), flush=True)
+    return call('sandbox_runner.py', command, env=env)
 
 
 def jobs_command(argv: list[str]) -> int:
