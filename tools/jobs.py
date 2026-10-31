@@ -264,6 +264,32 @@ def finished_state(run: Path, record: dict | None, evaluation: dict | None) -> t
     return None, kind
 
 
+def _run_records(run: Path) -> tuple[dict | None, dict | None]:
+    """Read durable outcomes in the same order for recovery and normal process completion."""
+    record = json.loads((run / 'agent_run.json').read_text()) if (run / 'agent_run.json').is_file() else None
+    evaluation = json.loads((run / 'evaluation.json').read_text()) if (run / 'evaluation.json').is_file() else None
+    return record, evaluation
+
+
+def _finish_entry(entry: dict, returncode: int, retries: int) -> None:
+    """Classify a finished child and schedule only the retries allowed by its recorded outcome."""
+    run = Path(entry['run'])
+    record, evaluation = _run_records(run)
+    details = Path(entry['log']).read_text(errors='replace') + '\n' + str((evaluation or {}).get('error', ''))
+    state, kind = finished_state(run, record, evaluation)
+    entry['error_type'] = kind
+    if state == 'judge_failed':
+        # Only judging failed, on the infrastructure: never rerun the agent for it.
+        entry['state'] = after_judging(entry, state, retries)
+    elif (entry.get('action') != 'judge' and (infrastructure_failure(returncode, details, record) or kind in RETRYABLE)
+          and entry['retries'] < retries):
+        entry['retries'] += 1
+        entry['state'] = 'pending'
+    else:
+        entry['state'] = state or 'failed'
+    entry.update(returncode=returncode, finished_at=time.time())
+
+
 class ResourcePool:
     """Reserve CPU slots and per-GPU file locks shared by concurrent ABench jobs."""
     def __init__(self, inventory: list[dict], allow_nonreference: bool = False, lock_dir: Path | None = None,
@@ -343,8 +369,7 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
             run = run_path(root, document, entry)
         else:
             run = Path(entry.get('run') or run_path(root, document, entry))
-        record = json.loads((run / 'agent_run.json').read_text()) if (run / 'agent_run.json').is_file() else None
-        evaluation = json.loads((run / 'evaluation.json').read_text()) if (run / 'evaluation.json').is_file() else None
+        record, evaluation = _run_records(run)
         state, kind = finished_state(run, record, evaluation)
         if state:
             entry.update(state=after_judging(entry, state, retries), error_type=kind)
@@ -443,22 +468,7 @@ def execute(document: dict, path: Path, *, concurrency: int = 1, max_gpu_hours: 
                 log.close()
                 pool.release(key)
                 del active[key]
-                run = Path(entry['run'])
-                record = json.loads((run / 'agent_run.json').read_text()) if (run / 'agent_run.json').is_file() else None
-                evaluation = json.loads((run / 'evaluation.json').read_text()) if (run / 'evaluation.json').is_file() else None
-                details = Path(entry['log']).read_text(errors='replace') + '\n' + str((evaluation or {}).get('error', ''))
-                state, kind = finished_state(run, record, evaluation)
-                entry['error_type'] = kind
-                if state == 'judge_failed':
-                    # Only judging failed, on the infrastructure: never rerun the agent for it.
-                    entry['state'] = after_judging(entry, state, retries)
-                elif (entry.get('action') != 'judge' and (infrastructure_failure(rc, details, record) or kind in RETRYABLE)
-                      and entry['retries'] < retries):
-                    entry['retries'] += 1
-                    entry['state'] = 'pending'
-                else:
-                    entry['state'] = state or 'failed'
-                entry.update(returncode=rc, finished_at=time.time())
+                _finish_entry(entry, rc, retries)
                 save(path, document)
             time.sleep(.2)
     except BaseException:
