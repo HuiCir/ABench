@@ -31,13 +31,15 @@ from validate_submission import validate_submission_dir  # noqa: E402
 JUDGE_VERSION = "abench-oj-judge-v2.1"
 
 
-def _dependency_attestation(image: str | None = None, locked: bool = False) -> dict[str, Any]:
-    """A locked image and the host tools tree are both required for scoreability."""
+def _dependency_attestation(image: str | None = None, locked: bool = False, lock: str | None = None) -> dict[str, Any]:
+    """A locked image (published digest, or a host-local image ID lock) and the host tools tree are both required
+    for scoreability."""
     expected = os.environ.get("ABENCH_JUDGE_TOOLS_SHA256", "").lower()
     actual = tree_hash(TOOLS)
     tools_attested = bool(expected) and expected == actual
     return {"source": "container_image" if image else "interpreter_default", "image": image, "paths": [],
             "trusted": bool(image and locked and tools_attested), "image_locked": bool(locked),
+            "image_lock": lock if locked else None,
             "tools_sha256": actual, "tools_sha256_expected": expected or None, "tools_attested": tools_attested}
 
 
@@ -289,13 +291,14 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
     backend = backend or os.environ.get("ABENCH_JUDGE_BACKEND", "host")
     launcher = None
     locked = False
+    lock = None
     if backend == "docker" and run_mode != "smoke":
         from judge_container import DockerStageLauncher
         launcher = DockerStageLauncher.for_case(oj, gpus=gpus, image=image, run_id=run_id)
-        image, locked = launcher.image, launcher.locked
+        image, locked, lock = launcher.image, launcher.locked, getattr(launcher, "lock", None)
     elif backend not in ("host","docker"):
         raise SystemExit(f"unsupported judge backend {backend!r}")
-    dependency = _dependency_attestation(image, locked) if launcher else _dependency_attestation()
+    dependency = _dependency_attestation(image, locked, lock) if launcher else _dependency_attestation()
     rec: dict[str, Any] = {"schema_version": "2.0", "case_id": case, "judge_version": JUDGE_VERSION,
                            "provenance": "judge_real", "run_mode": run_mode,
                            # Format-only rejection, smoke and pending cases execute no submission stage.
@@ -364,7 +367,7 @@ def evaluate(case: str, submission: Path, key_file: Path | None, run_mode: str =
         if not launcher.resources_enforced:
             rec['scorable'] = False
             rec['scoreability_reason'] = '; '.join(filter(None,[rec.get('scoreability_reason'),'judge resource limits are not enforced']))
-        rec["judge_isolation_detail"] = {"backend": "docker", "image": image, "image_locked": locked,
+        rec["judge_isolation_detail"] = {"backend": "docker", "image": image, "image_locked": locked, "image_lock": lock,
                                          "containers": launcher.records, "inputs": launcher.input_record}
         if launcher.platform != "linux/amd64":
             rec["scorable"] = False

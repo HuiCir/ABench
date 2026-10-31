@@ -55,6 +55,30 @@ def agent_recipe_hash(profile, agent, profile_version=None):
 def lock_entries():
     return yaml.safe_load((ROOT/'spec/env/images.lock.yaml').read_text()).get('images') or {}
 
+def local_lock_entries():
+    """Host-local locks written by `images lock --local`: the image ID of a locally built image, accepted for scoring
+    and recorded as unpublished (lock: local). A published digest in images.lock.yaml always takes precedence."""
+    path=ROOT/'spec/env/images.local.lock.yaml'
+    return ((yaml.safe_load(path.read_text()) or {}).get('images') or {}) if path.is_file() else {}
+
+def local_lock(profile, agent=None, platform=None):
+    """The host-local lock entry of an image version (same version naming as resolve_image), or None."""
+    entries=local_lock_entries()
+    if not entries:
+        return None
+    version=None
+    if isinstance(profile,dict):
+        version=profile.get('version');profile=profile.get('profile') or profile.get('name')
+    if '@' in profile:
+        profile,version=profile.split('@',1)
+    if version is None:
+        requested=image_version(profile,agent)
+    else:
+        requested=(str(version) if agent and f'-{agent}' in str(version)
+                   else image_version(profile,agent,version) if profile in profiles() else str(version))
+    platform=platform or Docker().info()['platform']
+    return (entries.get(f'{image_key(profile,agent)}@{requested}') or {}).get(platform)
+
 def known_versions(profile):
     """Versions a case may pin: the current definition plus every published (locked) version."""
     versions={str(profiles()[profile]['version'])}
@@ -107,7 +131,12 @@ def image_attestation(image, profile=None, agent=None, platform=None):
         locked='@sha256:' in expected and (expected in digests or image==expected)
     except ValueError:
         expected=None
-    return {'locked':locked,'matches':locked,'digest':next((d.split('@',1)[1] for d in digests),actual.get('Id')),
+    lock='published' if locked else None
+    local=local_lock(profile,agent,platform) if profile and not locked else None
+    if local and local.get('image_id')==actual.get('Id'):
+        # A host-local lock names this exact image ID: it scores, and the record says the image is unpublished.
+        locked,lock,expected=True,'local',local['image_id']
+    return {'locked':locked,'lock':lock,'matches':locked,'digest':next((d.split('@',1)[1] for d in digests),actual.get('Id')),
             'reference':image,'expected':expected,'platform':platform,'image_id':actual.get('Id')}
 
 def generate(check=False):
@@ -336,11 +365,29 @@ def _build(profile, agent, platform, docker, info, tag):
         temporary.replace(ready)
         return {'image': tag, 'environment': now, 'reused': False, 'build_inputs_sha256': identity}
 
-def manage(action, profile='cpu-sci', agent=None, platform=None, docker=None):
+def manage(action, profile='cpu-sci', agent=None, platform=None, docker=None, local=False):
     docker=docker or Docker();m=manifest();info=docker.info();platform=platform or info['platform'];key=image_key(profile,agent)
     version=image_version(profile,agent);tag=f"{m['namespace']}/{key}:{version}"
     if platform not in m['images'][profile]['platforms']:
         raise ValueError(f'{profile} does not support platform {platform}')
+    if action=='lock' and local:
+        if (lock_entries().get(f'{key}@{version}') or {}).get(platform):
+            raise ValueError(f'{key}@{version} is published; its registry digest is the lock')
+        reference=resolve_image(profile,agent,platform,allow_unlocked=True)
+        image_id=docker.inspect(reference)['Id']
+        path=ROOT/'spec/env/images.local.lock.yaml'
+        document=(yaml.safe_load(path.read_text()) if path.is_file() else None) or {}
+        entries=document.get('images') or {}
+        previous=(entries.get(f'{key}@{version}') or {}).get(platform)
+        import datetime,socket
+        entries.setdefault(f'{key}@{version}',{})[platform]={
+            'image_id':image_id,'reference':reference,'host':socket.gethostname(),
+            'locked_at':datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}
+        path.write_text('# Host-local image locks (`./abench images lock --local`): image IDs of locally built images, accepted\n'
+                        '# for scoring and recorded as unpublished (lock: local). Published digests (images.lock.yaml) take precedence.\n'
+                        +yaml.safe_dump({'schema':'abench.images_local_lock/v1','images':entries},sort_keys=False))
+        return {'locked_local':image_id,'reference':reference,'platform':platform,
+                'replaced':previous.get('image_id') if previous and previous.get('image_id')!=image_id else None}
     if action=='build':
         return _build(profile, agent, platform, docker, info, tag)
     if action=='push':
@@ -359,6 +406,11 @@ def manage(action, profile='cpu-sci', agent=None, platform=None, docker=None):
             raise ValueError(f'{key}@{version} is already locked to another digest; versions are immutable, bump the version')
         lock['images'].setdefault(f'{key}@{version}',{})[platform]={'digest':ref.split('@')[1],'reference':ref}
         path.write_text(yaml.safe_dump(lock,sort_keys=False));return {'locked':ref,'platform':platform}
+    if action=='verify' and not (lock_entries().get(f'{key}@{version}') or {}).get(platform) and local_lock(profile,agent,platform):
+        attestation=image_attestation(resolve_image(profile,agent,platform,allow_unlocked=True),profile,agent,platform)
+        if not attestation['locked']:
+            raise ValueError(f'{key}@{version}: local image ID differs from images.local.lock.yaml; lock it again after a rebuild')
+        return attestation
     image=resolve_image(profile,agent,platform)
     if action=='pull':docker.run(['pull','--platform',platform,image],timeout=7200)
     if action in ['verify','pull']:return image_attestation(image,profile,agent,platform)
@@ -389,11 +441,13 @@ def resolve_requirements(profile):
 def main(argv=None):
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('action',choices=['generate','resolve','pull','build','push','lock','verify'])
     ap.add_argument('--profile',default='cpu-sci');ap.add_argument('--agent');ap.add_argument('--platform');ap.add_argument('--check',action='store_true')
+    ap.add_argument('--local',action='store_true',help='lock: record the local image ID instead of a registry digest (scores, recorded as unpublished)')
     a=ap.parse_args(argv)
+    if a.local and a.action!='lock':ap.error('--local applies to lock only')
     try:
         if a.action=='generate':result=generate(a.check)
         elif a.action=='resolve':result=resolve_requirements(a.profile)
-        else:result=manage(a.action,a.profile,a.agent,a.platform)
+        else:result=manage(a.action,a.profile,a.agent,a.platform,local=a.local)
     except (ValueError,DockerError) as exc:ap.error(str(exc))
     print(json.dumps(result,indent=2));return 0
 if __name__=='__main__':raise SystemExit(main())

@@ -135,7 +135,9 @@ agent stage), `metrics`, `gates`. All temporary directories are deleted.
    Dependency environments are recorded inside profile
    images using `tools/record_environment.py` (`spec/env/lock/<profile>@<version>.json`). Changing a profile's
    packages means a new version in `spec/env/profiles.yaml`; published versions are never rebuilt. Local
-   development images can validate the pipeline but are unscorable.
+   development images can validate the pipeline but are unscorable, unless the operator locks their exact image IDs
+   on the host (`./abench images lock --local`, `spec/env/images.local.lock.yaml`). Such runs score, and their
+   records mark the agent, sidecar and judge images as `local` (unpublished) locks.
    The host's `tools/` tree must match `ABENCH_JUDGE_TOOLS_SHA256`. The container path does not require
    `ABENCH_JUDGE_PYTHONPATH`. Scoring also requires `linux/amd64` and the case's GPU count on idle cards (Pro: an
    exclusive 4-GPU node). A GPU model other than the reference class does not affect scoring; it is recorded

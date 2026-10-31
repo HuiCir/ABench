@@ -153,11 +153,13 @@ def case_lock(case: str, root: Path = ROOT) -> dict:
     as the evaluator reads it (judge, seeds, submission rules, resources, frozen data hashes), the whole harness
     directory and the published judge image of the case's environment. Recorded in run_lock.json when a run starts
     and compared item by item before the run is judged."""
-    from images import image_key, lock_entries
+    from images import image_key, local_lock_entries, lock_entries
     oj = yaml.safe_load((Path(root) / 'cases' / case / 'case' / 'oj.yaml').read_text(encoding='utf-8'))
     effective = json.dumps(oj, sort_keys=True, separators=(',', ':'), default=str)
     environment = oj.get('environment') or {}
-    image = lock_entries().get(f"{image_key(environment.get('profile'))}@{environment.get('version')}")
+    key = f"{image_key(environment.get('profile'))}@{environment.get('version')}"
+    # A host-local image ID lock takes part like a published one, so re-locking a rebuilt image never scores older runs.
+    image = lock_entries().get(key) or local_lock_entries().get(key)
     return {'spec_sha256': spec_hash(case, root), 'judge_sha256': judge_hash(case, root),
             'environment': oj.get('environment'), 'oj_sha256': hashlib.sha256(effective.encode()).hexdigest(),
             'harness_sha256': harness_hash(case, root), 'judge_image_lock': image}

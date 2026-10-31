@@ -18,6 +18,7 @@ LOG_MAX_BYTES = 64 * 1024**2      # a stage log only feeds the record's tails; o
 class DockerStageLauncher:
     def __init__(self, image, resources, *, gpus=None, locked=False, docker=None, run_id=None):
         self.image, self.resources, self.gpus, self.locked = image, resources, gpus, locked
+        self.lock = 'published' if locked else None
         # The agent run's id, so `abench gc --run-id` also finds this run's judge objects.
         self.labels = {'abench.run_id': run_id} if run_id else {}
         self.docker = docker or Docker()
@@ -60,6 +61,12 @@ class DockerStageLauncher:
             resources = {**resources,'gpus':0}
         resources, capped = calibration_cpu_cap(resources)
         launcher = cls(reference, resources, gpus=gpus, locked=locked, run_id=run_id)
+        if not locked:
+            from images import local_lock
+            entry = local_lock(profile, platform=launcher.platform)
+            if entry and entry.get('image_id') == launcher.image_id:
+                # A host-local lock names this exact image ID: it scores, recorded as unpublished.
+                launcher.locked, launcher.lock = True, 'local'
         reasons = (['CPU validation override of a GPU case'] if cpu_override else []) + ([capped] if capped else [])
         if reasons:
             launcher.hardware_matches = False

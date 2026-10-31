@@ -38,6 +38,12 @@ def apply_agent_attestation(evaluation: dict, agent_record: dict) -> dict:
     evaluation['agent_hardware'] = {'gpu_class_matches': sandbox.get('gpu_class_matches'),
                                     'gpus': [{k: g.get(k) for k in ('name', 'class', 'memory_mb')}
                                              for g in sandbox.get('gpu_inventory') or []]}
+    locks = {'agent': attestation.get('lock'), 'judge': (evaluation.get('judge_dependency') or {}).get('image_lock'),
+             'sidecar': ((sandbox.get('sidecar') or {}).get('image_attestation') or {}).get('lock')}
+    evaluation['image_locks'] = locks
+    if 'local' in locks.values():
+        evaluation['image_lock_note'] = ('scored with host-local image ID locks (spec/env/images.local.lock.yaml): '
+                                         'the images are unpublished and cannot be pulled elsewhere')
     if sandbox.get('platform') != 'linux/amd64':
         reasons.append('non-reference platform')
     if network.get('mode') not in ('none', 'egress'):

@@ -20,7 +20,9 @@ Freeze a case's public data and encrypted split in the checkout with `tools/prep
 agent run: `--raw-dir` verifies downloaded sources, generated cases escrow their secret seed, and `--synthetic N`
 (with `ABENCH_ALLOW_SYNTHETIC=1`) verifies plumbing only. Calibration uses that frozen data and this checkout's code
 directly; it copies nothing and receives the key only by path. Images without
-published digest locks allow validation but make results unscorable. Build only the profiles needed for a run.
+published digest locks allow validation but make results unscorable, unless their exact local image IDs are locked
+on the host (`./abench images lock --local`), which scores and is recorded as unpublished. Build only the profiles
+needed for a run.
 
 Cases share seven versioned profiles; agent images add one harness to the same profile layers. Build only the
 combinations a batch needs, rather than all 35 profile × harness combinations. Runtime task files, prompts,

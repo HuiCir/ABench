@@ -27,12 +27,18 @@ ABENCH_ALLOW_SYNTHETIC=1 python3 tools/prepare/run.py --case DS-PIPE-002 --synth
 ```
 
 Image publication and locking require registry access. Until the published digests are available, build a local
-image to validate the pipeline; local images produce **unscorable** records:
+image to validate the pipeline; local images produce **unscorable** records unless you lock them on this host:
 
 ```bash
 ./abench images build --profile cpu-sci
 ./abench images build --profile cpu-sci --agent claude  # one agent image per harness you run
+./abench images lock --local --profile cpu-sci           # likewise --agent claude, and --profile egress for egress runs
 ```
+
+`images lock --local` records the local image ID in `spec/env/images.local.lock.yaml`. Runs on exactly those images
+score; their records list `image_locks` (`local`) and an `image_lock_note` that the images are unpublished and cannot
+be pulled elsewhere. Rebuilding changes the ID, so the run is unscorable until you lock again. A published digest of
+the same version always takes precedence, and a published version cannot be locked locally.
 
 Cases share seven versioned environment profiles. Build only the profile and harness combinations you use;
 there is no need to build all 35 combinations. Agent images inherit the profile's layers, including Torch/CUDA.
