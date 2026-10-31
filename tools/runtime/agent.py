@@ -10,7 +10,7 @@ import time
 import uuid
 
 from containers import Docker, DockerError, DockerPathMissing
-from container_policy import calibration_cpu_cap, create_options, verify_inspect, resources_for
+from container_policy import create_options, verify_inspect, resources_for, host_scaled
 from runtime.cleanup import cleanup_objects, stop_container
 
 CONTAINER_PATHS = {k: Path(v) for k, v in {
@@ -116,9 +116,7 @@ class DockerAgentEnvironment(AgentEnvironment):
         if os.environ.get('ABENCH_CALIBRATION_CPU') == '1':
             resources = {**resources,'gpus':0}
             self.record['validation_cpu_override'] = True
-        resources, capped = calibration_cpu_cap(resources)
-        if capped:
-            self.record['validation_cpu_cap'] = capped
+        resources = host_scaled(resources, info)
         self.record['resources'] = resources
         view, work, control = (self._volume(k) for k in ('view','workspace','control'))
         mounts = [f'type=volume,src={view},dst=/abench/view,readonly',

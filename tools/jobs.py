@@ -186,7 +186,8 @@ def run_path(root: Path, document: dict, entry: dict) -> Path:
     failure and a restart after an interrupted attempt each get a new directory; the old one is kept for audit."""
     suffix = ('-retry' + str(entry['retries']) if entry.get('retries') else '') + \
              ('-restart' + str(entry['restarts']) if entry.get('restarts') else '')
-    return root / 'runs' / entry['case'] / ('job-' + document['id'] + '-' + entry['id'] + suffix)
+    from agents import run_label
+    return root / 'runs' / run_label(entry['agent'], entry.get('model')) / entry['case'] / ('job-' + document['id'] + '-' + entry['id'] + suffix)
 
 
 def _alive(pid: int | None, marker: str) -> bool:

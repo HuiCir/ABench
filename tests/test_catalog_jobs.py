@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 import catalog
 import jobs
 import abench
+from agents import run_label
 from types import SimpleNamespace
 
 
@@ -306,7 +307,7 @@ class JobTests(unittest.TestCase):
             doc = jobs.plan([row], ['mock'], [None], inventory=[])
             doc.update(id='resume', suite='all@2026.10')
             entry = doc['entries'][0]
-            run = root / 'runs' / row['id'] / ('job-resume-' + entry['id'])
+            run = root / 'runs' / 'mock' / row['id'] / ('job-resume-' + entry['id'])
             run.mkdir(parents=True)
             (run / 'evaluation.json').write_text(json.dumps({'verdict': 'evaluated'}))
             with patch('catalog.load_catalog', return_value=[row]), patch('jobs.gpu_inventory', return_value=[]), patch('jobs.subprocess.Popen') as launch:
@@ -324,8 +325,9 @@ class JobTests(unittest.TestCase):
             code, text, evaluate = outcomes.pop(0)
             stdout.write(text.encode())
             stdout.flush()
-            run = Path(command[command.index('--result-root') + 1]) / command[command.index('--case') + 1] / \
-                command[command.index('--run-id') + 1]
+            # The runner's layout: <result root>/<harness>-<model>/<case>/<run id>
+            run = Path(command[command.index('--result-root') + 1]) / run_label(command[command.index('--agent') + 1]) / \
+                command[command.index('--case') + 1] / command[command.index('--run-id') + 1]
             run.mkdir(parents=True, exist_ok=True)
             (run / 'logs').mkdir(exist_ok=True)
             if evaluate:
@@ -399,7 +401,8 @@ class JobTests(unittest.TestCase):
                 row, doc, path = self._job(root, 'provider')
                 calls = []
                 def popen(command, cwd, stdout, stderr):
-                    run = Path(command[command.index('--result-root') + 1]) / row['id'] / command[command.index('--run-id') + 1]
+                    run = Path(command[command.index('--result-root') + 1]) / run_label(command[command.index('--agent') + 1]) / \
+                        row['id'] / command[command.index('--run-id') + 1]
                     run.mkdir(parents=True, exist_ok=True)
                     calls.append(run.name)
                     if len(calls) == 1:

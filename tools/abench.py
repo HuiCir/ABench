@@ -295,7 +295,8 @@ def calibrate(argv: list[str]) -> int:
         command += ['--image', args.image]
     if args.backend == 'host':
         command += ['--smoke']
-    print(json.dumps({'run': str(ROOT / 'runs' / args.case / run_id), 'synthetic_data': bool(data.get('synthetic'))}), flush=True)
+    from agents import run_label
+    print(json.dumps({'run': str(ROOT / 'runs' / run_label('oracle') / args.case / run_id), 'synthetic_data': bool(data.get('synthetic'))}), flush=True)
     return call('sandbox_runner.py', command, env=env)
 
 

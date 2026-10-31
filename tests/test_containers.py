@@ -66,29 +66,25 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(allocation_issues(guide, oj), [])
         self.assertIn('GPUs', allocation_issues(guide.replace('One 24GB reference GPU', '2 24GB reference GPUs'), oj)[0])
 
-    def test_calibration_cpu_cap_lowers_cpus_and_says_so(self):
-        import os
-        from unittest import mock
-        from container_policy import calibration_cpu_cap
-        resources = {'cpus': 8, 'memory': '16g'}
-        with mock.patch.dict(os.environ):
-            os.environ.pop('ABENCH_CALIBRATION_MAX_CPUS', None)
-            self.assertEqual(calibration_cpu_cap(resources), (resources, None))
-            os.environ['ABENCH_CALIBRATION_MAX_CPUS'] = '4'
-            capped, reason = calibration_cpu_cap(resources)
-            self.assertEqual((capped['cpus'], capped['memory'], resources['cpus']), (4, '16g', 8))
-            self.assertIn('4 of the 8 declared', reason)
-            self.assertEqual(calibration_cpu_cap({'cpus': 2}), ({'cpus': 2}, None))
-            for bad in ('0', '-1', '2.5', 'four'):
-                os.environ['ABENCH_CALIBRATION_MAX_CPUS'] = bad
-                with self.assertRaises(ValueError):
-                    calibration_cpu_cap(resources)
-
     def test_secure_flags(self):
         args=create_options({'cpus':8,'memory':'16g','pids':1024,'shm_size':'2g','gpus':0})
         for flag in ['--network','--cap-drop','--security-opt','--user','--init','--pids-limit','--memory','--cpus']:
             self.assertIn(flag,args)
         self.assertIn('none',args);self.assertIn('1000:1000',args)
+    def test_cpu_memory_shm_and_processes_scale_to_the_host_as_on_the_original_runner(self):
+        from container_policy import host_scaled, bytes_value
+        declared=resources_for(self.guide('DS-GBM-001')[1])
+        info={'raw':{'MemTotal':100*1024**3,'NCPU':64}}
+        scaled=host_scaled(declared,info)
+        self.assertEqual((scaled['cpus'],scaled['memory'],scaled['shm_size'],scaled['pids']),(64,90*1024**3,45*1024**3,65536))
+        self.assertEqual(scaled['gpus'],declared['gpus'])
+        self.assertEqual(host_scaled(declared,{}),declared)
+        args=create_options(scaled)
+        self.assertEqual(args[args.index('--memory')+1],str(90*1024**3))
+        inspected={'HostConfig':{'Memory':int(args[args.index('--memory')+1]),'ShmSize':bytes_value(args[args.index('--shm-size')+1]),
+                                 'PidsLimit':int(args[args.index('--pids-limit')+1]),'NanoCpus':int(float(scaled['cpus'])*1e9)}}
+        checks=verify_inspect(inspected,resources=scaled)['checks']
+        self.assertTrue(all(checks[k] for k in ('memory','shm_size','pids','cpus')))
     def test_reject_missing_resources(self):
         with self.assertRaises(ValueError):resources_for({'environment':{'profile':'cpu-sci'}})
     def test_inspect_fail_closed(self):

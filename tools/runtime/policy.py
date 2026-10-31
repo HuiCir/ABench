@@ -11,18 +11,6 @@ def bytes_value(value):
     if not match:
         raise ValueError(f'invalid memory quantity: {value}')
     return int(float(match[1]) * 1024 ** ('kmgt'.index(match[2]) + 1 if match[2] else 0))
-def calibration_cpu_cap(resources):
-    """ABENCH_CALIBRATION_MAX_CPUS lets an unscored calibration run on a host with fewer cores than the case declares
-    (a 4-core CI runner): containers get at most that many CPUs, and the returned reason makes the run unscorable."""
-    import os
-    raw = os.environ.get('ABENCH_CALIBRATION_MAX_CPUS')
-    if not raw:
-        return resources, None
-    if not raw.isdigit() or int(raw) <= 0:
-        raise ValueError('ABENCH_CALIBRATION_MAX_CPUS must be a positive integer')
-    if float(resources['cpus']) <= int(raw):
-        return resources, None
-    return {**resources, 'cpus': int(raw)}, f"calibration CPU cap: {raw} of the {resources['cpus']} declared CPU cores"
 def resources_for(oj):
     env = oj.get('environment') or {}
     profile = env.get('profile') or oj.get('profile')
@@ -47,6 +35,19 @@ def resources_for(oj):
         if actual <= 0 and key != 'gpus' or actual < 0 or actual > cap:
             raise ValueError(f'{key} exceeds container policy: {value}')
     return result
+
+def host_scaled(resources, docker_info=None):
+    """All CPUs and nearly all memory of the Docker host (container policy host_scale), with /dev/shm and process
+    limits to match, as on the original host runner, which set none. GPUs stay as declared. Without the host's
+    totals the declared values stay."""
+    scale = policy().get('host_scale')
+    raw = (docker_info or {}).get('raw') or {}
+    total, cpus = int(raw.get('MemTotal') or 0), int(raw.get('NCPU') or 0)
+    if not scale or total <= 0 or cpus <= 0:
+        return resources
+    memory = int(total * float(scale['memory_fraction']))
+    return {**resources, 'cpus': cpus, 'memory': memory, 'shm_size': int(memory * float(scale['shm_fraction'])),
+            'pids': int(scale['pids'])}
 
 def gpu_mode(info=None):
     """Prefer Docker's native CDI inventory; explicit operator selection wins."""

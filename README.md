@@ -56,9 +56,7 @@ authentication from its host-side client; build arguments alone do not configure
 adapter runs the reference submission in Docker and the judge evaluates it in fresh stage containers. It neither
 copies the repository nor prepares data, and it passes the hidden key only by path (`--hidden-key-file`, default
 `~/.abench/hidden.key`). Keys are generated on each host with mode 0600 and never copied with the code. Results
-appear under `runs/<case>/<run-id>/`. Data frozen with `--synthetic` is only a plumbing check. On a host with fewer
-cores than the case declares, such as a 4-core CI runner, `ABENCH_CALIBRATION_MAX_CPUS=N` gives the containers at
-most N CPUs; the record states the cap and the run is never scored.
+appear under `runs/oracle/<case>/<run-id>/`. Data frozen with `--synthetic` is only a plumbing check.
 
 For a real calibration, download the pinned sources and freeze them first:
 
@@ -114,7 +112,7 @@ python3 tools/prepare/run.py --case DS-GBM-001 --activate
 export ABENCH_JUDGE_TOOLS_SHA256="$(python3 -c 'import sys; sys.path.insert(0,"tools"); import oj_eval; print(oj_eval.tree_hash(oj_eval.TOOLS))')"
 ./abench run --case DS-GBM-001 --agent mock
 ./abench run --case DS-GBM-001 --agent dsh
-./abench summarize runs/DS-GBM-001/RUN_ID
+./abench summarize runs/dsh-deepseek-flash-anthropic/DS-GBM-001/RUN_ID
 ```
 
 - **Images.** Agent images name the harness; build one per profile and harness you run. Behind a proxy whose
@@ -244,7 +242,7 @@ utilization at most 10%. Cards of another model also require `--allow-nonreferen
 GPU requirement, and Pro runs remain exclusive. Calibration accepts the same explicit sharing flag.
 
 `./abench case check ID` validates generated files, environment and resources, then calibrates the oracle on the
-case's frozen data; add `--no-calibrate` for static checks. `./abench judge --run runs/ID/RUN` completes deferred judging once (or judges again
+case's frozen data; add `--no-calibrate` for static checks. `./abench judge --run runs/LABEL/ID/RUN` completes deferred judging once (or judges again
 after an infrastructure failure), only against the case lock in the run's `run_lock.json` (spec, judge code, the
 effective `oj.yaml`, the whole harness directory with its kit copies, and the judge image lock), and
 `./abench gc --run-id RUN` removes every Docker object of that run (agent, sidecar and judge). Plain `./abench gc`
@@ -256,10 +254,14 @@ legacy deferred placeholders are preserved as `evaluation.deferred.json`, and in
 ## Isolation and records
 
 Agent containers run as uid 1000 with dropped capabilities, no new privileges, explicit resource limits and
-`--network none`. Read-only inputs and a Unix proxy socket arrive through named volumes and tar transfers. Docker
+`--network none`. As on the original host runner, which set no CPU, memory, `/dev/shm` or process limit, containers
+get all CPUs and nearly all memory of the Docker host (`host_scale` in `spec/container_policy.yaml`: 90% of its
+memory); GPUs are assigned as each case declares. Read-only inputs and a Unix proxy socket arrive through named volumes and tar transfers. Docker
 inspect and runtime probes check the effective configuration. Every stage × seed uses a new judge container.
 The verified container RAM, CPU quota, shared memory, PID limits, startup memory headroom and the run's session
 deadline/compute allowance are saved as `resource_limits.json` with the run; the agent prompt is unchanged.
+Run records are filed by harness and model configuration: `runs/<harness>-<model>/<case>/<run-id>/`
+(`runs/oracle/...` for calibration, `runs/mock/...` for the plumbing agent).
 R/T/G/P stdio handshakes delay held-out inputs until the timed phase ends. Safe archive extraction rejects links,
 devices, traversal and oversized outputs. Signals and deadlines clean up run-labeled objects.
 Mount verification checks the named volume identity as well as its destination and access mode. Task and judge

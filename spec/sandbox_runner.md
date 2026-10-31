@@ -221,7 +221,7 @@ infrastructure failure (Docker, transfer, connection or timeout errors, in the p
 `tools/agents/errors.py`) may be judged again; it is archived as `evaluation.judge-error-N.json`.
 
 ```
-runs/<case>/<run-id>/
+runs/<harness>-<model>/<case>/<run-id>/     # runs/oracle/... for calibration, runs/mock/... for the plumbing agent
   agent_run.json
   run_lock.json          # case lock checked before judging, and what ran the agent
   harness_version.json   # pinned CLI probe, including failed setup

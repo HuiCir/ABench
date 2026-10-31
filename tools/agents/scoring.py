@@ -28,8 +28,6 @@ def apply_agent_attestation(evaluation: dict, agent_record: dict) -> dict:
         reasons.append('agent Docker cleanup is incomplete')
     if sandbox.get('shared_gpu_validation'):
         reasons.append('shared GPU validation; exclusive GPU allocation is not guaranteed')
-    if sandbox.get('validation_cpu_cap'):
-        reasons.append(sandbox['validation_cpu_cap'])
     if sandbox.get('validation_cpu_override'):
         reasons.append('CPU validation override of a GPU case')
     elif sandbox.get('hardware_matches') is not True and not sandbox.get('shared_gpu_validation'):

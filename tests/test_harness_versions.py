@@ -150,12 +150,74 @@ class RunnerVersionGateTest(unittest.TestCase):
                         meter.assert_not_called()
                         evaluate.assert_not_called()
                         self.assertEqual(preflight.call_count, int(reached))
-                    record = json.loads((root / args.case / args.run_id / 'harness_version.json').read_text())
+                    result = root / 'claude-fake' / args.case / args.run_id    # runs/<harness>-<model>/<case>/<run>
+                    record = json.loads((result / 'harness_version.json').read_text())
                     self.assertEqual(record['verified'], reached)
-                    self.assertEqual(json.loads((root / args.case / args.run_id / 'cleanup.json').read_text()),
+                    self.assertEqual(json.loads((result / 'cleanup.json').read_text()),
                                      environment.record['cleanup'])
                     self.assertEqual(environment.execute.call_count, 1)
                     environment.close.assert_called_once()
+
+    def test_agent_receives_an_integer_deadline_and_the_run_is_filed_under_harness_and_model(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            args = SimpleNamespace(case='TC-FT-001', timeout_seconds=5, suite='all@2026.10', device='cpu',
+                run_id='deadline', backend='docker', smoke=False, harness='claude', network='none',
+                model=None, base_url=None, allow_private_model_endpoint=False, claude_model=None,
+                dry_run=False, gpus=None, hidden_key_file=None, defer_evaluation=True, result_root=str(root),
+                papers_index=None, models_dir=None, image='claude-image', pass_env=[],
+                claude_effort=None, claude_max_budget_usd=None, attempt=1, claude_bin='claude')
+            environment = Mock()
+            environment.start.return_value = {'backend': 'docker', 'verified': True}
+            environment.record = {'cleanup': {'removed': [], 'failed': [], 'remaining': []}}
+            launched = {}
+            def construct(args, paths, *rest, **kwargs):
+                environment.paths = paths
+                return environment
+            def execute(probe, env, timeout, out, err):
+                if probe.argv == ['claude', '--version']:
+                    out.write_bytes(OUTPUTS['claude'])
+                    err.write_bytes(b'')
+                    return 'succeeded', 0
+                launched.update(env)
+                raise RuntimeError('agent launched')
+            environment.execute.side_effect = execute
+            endpoint = {'name': 'fake', 'key_env': 'TEST_KEY', 'model': 'fake', 'parameters': {},
+                        'base_url': 'https://model.invalid', 'api': 'anthropic'}
+            def view(case, oj, target, **kwargs):
+                target.mkdir(parents=True)
+                return {}
+            import sandbox_runner
+            with contextlib.ExitStack() as stack:
+                for target, replacement in (
+                    ('agents.runner.resolve', Mock(return_value=endpoint)),
+                    ('agents.runner.DockerAgentEnvironment', Mock(side_effect=construct)),
+                    ('images.image_attestation', Mock(return_value={'locked': True})),
+                    ('catalog.suite_cases', Mock(return_value=([], 'all@2026.10'))),
+                    ('catalog.load_catalog', Mock(return_value=[{'id': args.case}])),
+                    ('catalog.snapshot', Mock(return_value={'leaderboard': 'none'})),
+                    ('sandbox_runner.build_agent_view', Mock(side_effect=view)),
+                    ('sandbox_runner.paper_index_info', Mock(return_value=None)),
+                    ('sandbox_runner.agent_prompt', Mock(return_value='test prompt'))):
+                    stack.enter_context(patch(target, replacement))
+                stack.enter_context(patch.dict(os.environ, {'TEST_KEY': 'secret'}))
+                stack.enter_context(patch.object(get_agent('claude'), 'preflight', Mock(return_value=None)))
+                stack.enter_context(patch.object(sandbox_runner, 'GpuMeter'))
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                with self.assertRaisesRegex(RuntimeError, 'agent launched'):
+                    run(args)
+            # Integer Unix seconds, as on main and as the Sandbox Guide's own command parses it
+            self.assertRegex(launched['ABENCH_DEADLINE'], r'^[0-9]+$')
+            # As on main, the runner sets no thread counts: the agent sees the libraries' own defaults
+            self.assertFalse({'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS'} & set(launched))
+            self.assertTrue((root / 'claude-fake' / args.case / args.run_id / 'harness_version.json').is_file())
+
+    def test_run_label(self):
+        from agents import run_label
+        self.assertEqual(run_label('oracle'), 'oracle')
+        self.assertEqual(run_label('mock'), 'mock')
+        self.assertEqual(run_label('dsh'), 'dsh-' + get_agent('dsh').default_model)
+        self.assertEqual(run_label('claude', 'deepseek-flash-anthropic'), 'claude-deepseek-flash-anthropic')
 
 
 if __name__ == '__main__':
